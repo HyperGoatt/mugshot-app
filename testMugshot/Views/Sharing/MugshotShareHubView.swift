@@ -3,6 +3,7 @@ import UIKit
 
 struct MugshotShareHubView: View {
     let summary: LogASipV3PassportSummary
+    var receipt: MugshotSaveReceipt? = nil
     let isOpeningMugshot: Bool
     let statusMessage: String?
     let onViewMugshot: () -> Void
@@ -151,26 +152,34 @@ struct MugshotShareHubView: View {
 
     private var postPublishReceipt: some View {
         VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Mugshot saved.")
-                        .mugshotDisplay(size: 34)
-                        .foregroundStyle(Color.espressoBrown)
-                    Text(
-                        startAnotherTitle == "Brew Again"
-                            ? "Your attempt is saved in your Home journal."
-                            : "Your sip is saved in your journal."
-                    )
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.secondaryText)
+            if let receipt {
+                MugshotSaveReceiptView(
+                    receipt: receipt,
+                    detail: summary.isRemote ? "Kept in your journal" : "Saved on this device"
+                )
+            } else {
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Mugshot saved.")
+                            .mugshotDisplay(size: 34)
+                            .foregroundStyle(Color.espressoBrown)
+                        Text(
+                            startAnotherTitle == "Brew Again"
+                                ? "Your attempt is saved in your Home journal."
+                                : "Your sip is saved in your journal."
+                        )
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.secondaryText)
+                    }
+                    Spacer(minLength: 10)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.foamWhite)
+                        .frame(width: 38, height: 38)
+                        .background(Color.mugshotSage, in: Circle())
+                        .accessibilityLabel("Saved")
                 }
-                Spacer(minLength: 10)
-                Image(systemName: "checkmark")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Color.foamWhite)
-                    .frame(width: 38, height: 38)
-                    .background(Color.mugshotSage, in: Circle())
-                    .accessibilityLabel("Saved")
+
             }
 
             MugshotAdaptivePostMedia(

@@ -15,10 +15,10 @@ struct AutomaticSipRecoveryBanner: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(Color.espressoBrown)
                         Text(message)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.caption.weight(.medium))
                             .foregroundStyle(Color.espressoBrown)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -27,14 +27,14 @@ struct AutomaticSipRecoveryBanner: View {
 
                     if state.canRetry {
                         Button(state.retryTitle, action: retry)
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(Color.roastBrown)
                             .accessibilityHint(retryHint)
                     }
 
                     if state.canReview {
                         Button("Review", action: review)
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(Color.roastBrown)
                             .accessibilityHint("Shows the exact protected MugShot and what it needs")
                     }
@@ -45,7 +45,7 @@ struct AutomaticSipRecoveryBanner: View {
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 11, weight: .bold))
-                                .frame(width: 28, height: 28)
+                                .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(Color.espressoBrown.opacity(0.72))
@@ -125,7 +125,7 @@ struct AutomaticSipRecoveryBanner: View {
         case .waitingForNetwork(let count):
             countMessage(count, suffix: "will retry when you’re online.")
         case .recovering(let count):
-            countMessage(count, suffix: "is using its original post ID and saved details.")
+            countMessage(count, suffix: "is finishing with your saved details.")
         case .failed(let count, _, let message):
             count == 1
                 ? message

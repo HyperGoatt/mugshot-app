@@ -1539,6 +1539,7 @@ struct CafeDetailView: View {
                 if dynamicTypeSize.isAccessibilitySize {
                     HStack(spacing: 12) {
                         Image(systemName: systemImage)
+                            .mugshotSelectionPulse(isSelected)
                             .font(.system(size: 20, weight: .semibold))
                             .frame(width: 28)
                         Text(title)
@@ -1549,6 +1550,7 @@ struct CafeDetailView: View {
                 } else {
                     VStack(spacing: 7) {
                         Image(systemName: systemImage)
+                            .mugshotSelectionPulse(isSelected)
                             .font(.system(size: 20, weight: .semibold))
                         Text(title)
                             .font(.caption.weight(.semibold))
@@ -1566,7 +1568,7 @@ struct CafeDetailView: View {
                         .stroke(isSelected ? Color.mugshotSage : Color.clear, lineWidth: 1.5)
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MugshotQuietButtonStyle())
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -1767,6 +1769,7 @@ struct CafeDetailView: View {
         isSavingPrivateNote = true
         defer { isSavingPrivateNote = false }
         let note = privateNoteDraft.remoteTrimmedNonEmpty
+        let relationshipReceipt = currentCafe.wantToTry ? "Kept in Want to Try" : "Added to Want to Try"
         let source = discoverySource ?? currentCafe.discoverySource
         if let source {
             _ = dataManager.saveDiscoveryCandidate(
@@ -1788,7 +1791,9 @@ struct CafeDetailView: View {
         }
 
         guard let userID = authModel.authenticatedUser?.id else {
-            privateNoteStatus = "Saved privately on this device and added to Want to Try."
+            privateNoteStatus = "Saved privately on this device · \(relationshipReceipt)"
+            MugshotHaptic.success.play()
+            UIAccessibility.post(notification: .announcement, argument: privateNoteStatus)
             return
         }
         do {
@@ -1816,7 +1821,9 @@ struct CafeDetailView: View {
                     kind: .cafeSaved
                 )
             }
-            privateNoteStatus = "Saved privately and added to Want to Try."
+            privateNoteStatus = "Saved privately · \(relationshipReceipt)"
+            MugshotHaptic.success.play()
+            UIAccessibility.post(notification: .announcement, argument: privateNoteStatus)
         } catch {
             privateNoteStatus = MugshotUserFacingError.message(for: error, context: .social)
         }
@@ -1933,6 +1940,7 @@ struct CafeDetailView: View {
     }
 
     private func updateCafeState(isFavorite: Bool, wantToTry: Bool) {
+        MugshotHaptic.selection.play()
         let previousCafe = currentCafe
         dataManager.setCafeState(
             cafeId: previousCafe.id,

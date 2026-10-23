@@ -40,6 +40,7 @@ struct LogVisitView: View {
     @State private var showPublicationNotice = false
     @State private var noticeProfileEnabled = true
     @State private var showSavedConfirmation = false
+    @State private var publicationReceipt: MugshotSaveReceipt?
     @State private var completionSummary: SipCompletionSummary?
     @State private var v3CompletionSummary: LogASipV3PassportSummary?
     @State private var completedRemoteVisit: RemoteVisitSummary?
@@ -539,6 +540,7 @@ struct LogVisitView: View {
             isOpeningPublishedMugshot: isLoadingPublishedVisit,
             completionStatusMessage: completionStatusMessage,
             completion: showSavedConfirmation ? v3CompletionSummary : nil,
+            saveReceipt: publicationReceipt,
             wantToTryAchievementCafeName: wantToTryAchievementCafe?.consumerDisplayName,
             showsFirstSipGuidance: isFirstSipGuidanceEnabled,
             canUseLastSipSetup: !RecentCriterionSetupStore.shared
@@ -3937,6 +3939,11 @@ struct LogVisitView: View {
         conflictingPendingSubmission = nil
         uploadRecoveryMessage = nil
         completionStatusMessage = nil
+        publicationReceipt = MugshotSaveReceipt(
+            id: visitID, ownerID: continuationOwnerUserID,
+            drinkName: completedDraft.drinkName, isExpressive: true,
+            audience: remoteVisit == nil ? nil : completedDraft.visibility
+        )
         showSavedConfirmation = true
         v3Step = .publish
         isSaving = false
@@ -4042,6 +4049,7 @@ struct LogVisitView: View {
         isCafeSearchActive = false
         confirmedTextOnlyEveryone = false
         showSavedConfirmation = false
+        publicationReceipt = nil
         v3Step = .setup
         analyticsStartedAt = .now
         analyticsIsDraftResume = false
@@ -4090,6 +4098,7 @@ struct LogVisitView: View {
         completedLocalVisit = nil
         completionStatusMessage = nil
         showSavedConfirmation = false
+        publicationReceipt = nil
         composerModel.draft = nextDraft
         photoImages.removeAll()
         v3Step = .setup

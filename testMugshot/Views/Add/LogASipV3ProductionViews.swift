@@ -20,6 +20,7 @@ struct LogASipV3ProductionView: View {
     let isOpeningPublishedMugshot: Bool
     let completionStatusMessage: String?
     let completion: LogASipV3PassportSummary?
+    let saveReceipt: MugshotSaveReceipt?
     let wantToTryAchievementCafeName: String?
     let showsFirstSipGuidance: Bool
     let canUseLastSipSetup: Bool
@@ -50,6 +51,8 @@ struct LogASipV3ProductionView: View {
     @State private var sipCoachIndex = 0
     @State private var contextCoachIndex = 0
     @State private var trackedHomeCompletionVisitID: UUID?
+    @State private var navigationIsBack = false
+    @State private var homeSaveReceipt: MugshotSaveReceipt?
     @State private var homeSaveError: String?
     @State private var isSavingHomeAttempt = false
     @State private var showsHomeHistory = false
@@ -69,6 +72,7 @@ struct LogASipV3ProductionView: View {
         isOpeningPublishedMugshot: Bool = false,
         completionStatusMessage: String? = nil,
         completion: LogASipV3PassportSummary? = nil,
+        saveReceipt: MugshotSaveReceipt? = nil,
         wantToTryAchievementCafeName: String? = nil,
         showsFirstSipGuidance: Bool = false,
         canUseLastSipSetup: Bool = false,
@@ -104,6 +108,7 @@ struct LogASipV3ProductionView: View {
         self.isOpeningPublishedMugshot = isOpeningPublishedMugshot
         self.completionStatusMessage = completionStatusMessage
         self.completion = completion
+        self.saveReceipt = saveReceipt
         self.wantToTryAchievementCafeName = wantToTryAchievementCafeName
         self.showsFirstSipGuidance = showsFirstSipGuidance
         self.canUseLastSipSetup = canUseLastSipSetup
@@ -160,6 +165,7 @@ struct LogASipV3ProductionView: View {
                 if let completion {
                     MugshotShareHubView(
                         summary: completion,
+                        receipt: saveReceipt,
                         isOpeningMugshot: isOpeningPublishedMugshot,
                         statusMessage: completionStatusMessage,
                         onViewMugshot: onViewPublishedMugshot,
@@ -503,6 +509,7 @@ struct LogASipV3ProductionView: View {
             } else if let attemptID = draft.launchContext.homeAttemptID {
                 HomeAttemptCanonicalDetailView(
                     attemptID: attemptID,
+                    receipt: homeSaveReceipt,
                     onShare: beginHomeShare,
                     onMakeAgain: startHomeRepeat,
                     onDone: onPrivateHomeSaved,
@@ -614,7 +621,7 @@ struct LogASipV3ProductionView: View {
         case .capture: return "2 of 4"
         case .sip: return "3 of 4"
         case .recipe, .saved: return "4 of 4"
-        case .publish: return "Share"
+        case .publish: return draft.visibility == .private ? "Review" : "Share"
         }
     }
 
@@ -622,6 +629,7 @@ struct LogASipV3ProductionView: View {
         switch homeProgressLabel {
         case "Make": return "Making"
         case "Share": return "Optional sharing"
+        case "Review": return "Review your private sip"
         default: return "Step \(homeProgressLabel)"
         }
     }
@@ -648,8 +656,8 @@ struct LogASipV3ProductionView: View {
     private var stepTransition: AnyTransition {
         guard !reduceMotion else { return .opacity }
         return .asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .leading).combined(with: .opacity)
+            insertion: .offset(x: navigationIsBack ? -14 : 14).combined(with: .opacity),
+            removal: .offset(x: navigationIsBack ? 14 : -14).combined(with: .opacity)
         )
     }
 
@@ -668,8 +676,10 @@ struct LogASipV3ProductionView: View {
         return photoImages[index]
     }
 
-    private func move(to destination: SipV3ComposerStep) {
-        withAnimation(reduceMotion ? nil : DesignSystem.Motion.slow) {
+    private func move(to destination: SipV3ComposerStep, back: Bool = false) {
+        navigationIsBack = back
+        dismissKeyboard()
+        withAnimation(reduceMotion ? nil : MugshotMotion.step) {
             step = destination
         }
         MugshotHaptic.softImpact.play()
@@ -682,13 +692,15 @@ struct LogASipV3ProductionView: View {
         }
         switch step {
         case .setup: break
-        case .sip: move(to: .setup)
-        case .context: move(to: .sip)
-        case .publish: move(to: .context)
+        case .sip: move(to: .setup, back: true)
+        case .context: move(to: .sip, back: true)
+        case .publish: move(to: .context, back: true)
         }
     }
 
-    private func moveHome(to destination: HomeWorkbenchPhase) {
+    private func moveHome(to destination: HomeWorkbenchPhase, back: Bool = false) {
+        navigationIsBack = back
+        dismissKeyboard()
         let outerStep: SipV3ComposerStep
         switch destination {
         case .workbench, .quickCapture, .brew, .actuals, .capture: outerStep = .setup
@@ -696,7 +708,7 @@ struct LogASipV3ProductionView: View {
         case .recipe, .saved: outerStep = .context
         case .publish: outerStep = .publish
         }
-        withAnimation(reduceMotion ? nil : DesignSystem.Motion.slow) {
+        withAnimation(reduceMotion ? nil : MugshotMotion.step) {
             draft.homeWorkbenchPhase = destination
             step = outerStep
         }
@@ -706,14 +718,14 @@ struct LogASipV3ProductionView: View {
     private func moveBackHome() {
         switch draft.homeWorkbenchPhase {
         case .workbench: break
-        case .quickCapture: moveHome(to: .workbench)
-        case .brew: moveHome(to: .workbench)
-        case .actuals: moveHome(to: .brew)
+        case .quickCapture: moveHome(to: .workbench, back: true)
+        case .brew: moveHome(to: .workbench, back: true)
+        case .actuals: moveHome(to: .brew, back: true)
         case .capture:
-            moveHome(to: draft.launchContext.homePreparationSessionID == nil ? .workbench : .brew)
-        case .sip: moveHome(to: draft.homeSipPath == .quick ? .quickCapture : .capture)
-        case .recipe, .saved: moveHome(to: .sip)
-        case .publish: moveHome(to: .saved)
+            moveHome(to: draft.launchContext.homePreparationSessionID == nil ? .workbench : .brew, back: true)
+        case .sip: moveHome(to: draft.homeSipPath == .quick ? .quickCapture : .capture, back: true)
+        case .recipe, .saved: moveHome(to: .sip, back: true)
+        case .publish: moveHome(to: .saved, back: true)
         }
     }
 
@@ -851,6 +863,10 @@ struct LogASipV3ProductionView: View {
                     ? currentDraft.homeKeptIngredientIDs : []
                 attempt.photoNames = photoNames
                 try homeStore.saveAttempt(attempt)
+                homeSaveReceipt = MugshotSaveReceipt(
+                    id: attempt.id, ownerID: currentDraft.ownerUserID,
+                    drinkName: attempt.name, isExpressive: currentDraft.homeSipPath == .guided
+                )
                 if !attempt.pendingKeptIngredientIDs.isEmpty {
                     do { try homeStore.applyKeptIngredientChanges(attemptID: attempt.id) }
                     catch { homeSaveError = "Sip saved. Your recipe change still needs attention: \(error.localizedDescription)" }
@@ -2615,6 +2631,7 @@ private struct LogASipV3SipSurface: View {
     let onAddCriterion: () -> Void
     let onUseLastSetup: () -> Void
     let onContinue: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var homeStore = HomeRecipeWorkspaceStore.shared
 
     private var keepableIngredients: [(ingredient: HomeRecipeIngredient, actual: HomeIngredientActual)] {
@@ -2747,6 +2764,7 @@ private struct LogASipV3SipSurface: View {
                     }
                 }
                 .padding(.horizontal, DesignSystem.Space.md)
+                .animation(reduceMotion ? nil : MugshotMotion.selection, value: draft.homeMakeAgain)
             } else {
                 LogASipV3MugsyCoach(
                     prompts: LogASipV3CoachPrompt.sip,
@@ -3045,8 +3063,10 @@ private struct LogASipV3PublishSurface: View {
             action: onPublish
         ) {
             MugshotScreenHeader(
-                isHome ? "Review Mugshot" : "Publish Mugshot",
-                subtitle: "Review the memory before it reaches your people."
+                isHome && draft.visibility == .private ? "Review your sip" : "Publish Mugshot",
+                subtitle: isHome && draft.visibility == .private
+                    ? "Save this memory to your private journal."
+                    : "Review the memory before it reaches your people."
             )
 
             VStack(alignment: .leading, spacing: 8) {
@@ -3470,7 +3490,11 @@ private struct LogASipV3PublishSurface: View {
     }
 
     private var publishSubtitle: String {
-        if isSaving { return "Your draft stays protected until publishing finishes." }
+        if isSaving {
+            return isHome && draft.visibility == .private
+                ? "Saving privately…"
+                : "Your draft stays protected."
+        }
         if isRecoveryLocked { return "Retry uses the protected copy so nothing changes mid-upload." }
         switch draft.recipePublicationRequirement {
         case .ready:
@@ -3484,7 +3508,18 @@ private struct LogASipV3PublishSurface: View {
         case .needsPublicReuseAcknowledgment:
             return "Acknowledge public recipe reuse before publishing."
         }
-        guard isReadyToPublish else { return "Finish the required details to publish." }
+        if draft.drinkName.remoteTrimmedNonEmpty == nil { return "Name your sip to continue." }
+        if !(isHome && draft.visibility == .private) {
+            if let captionError = SipCaptionPolicy.validationError(for: draft.socialCaption) {
+                return draft.socialCaption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Add a caption to continue." : captionError.localizedDescription
+            }
+            if draft.overallScore <= 0 { return "Add your sip score to continue." }
+            if !hasRequiredContextScore { return "Add your cafe or setting score to continue." }
+            if photoImages.isEmpty && draft.photoFallback == nil { return "Add a photo or choose No photo this time." }
+            if !recipeAttachmentReady { return "Confirm the recipe details to continue." }
+        }
+        guard isReadyToPublish else { return "Review the remaining details to continue." }
         switch draft.visibility {
         case .private: return "Only you will see this."
         case .friends: return "Ready for Friends Feed and your profile."
@@ -3539,51 +3574,57 @@ private struct LogASipV3HomePublishSummary: View {
         HomeBrewMethod(storedValue: draft.brewMethod)
     }
 
-    private var summary: String {
-        [
-            draft.brewDetails.coffeeBag?.displayName,
-            draft.brewDetails.extractionSummary,
-            draft.brewDetails.equipmentDisplayName ?? draft.equipment.remoteTrimmedNonEmpty
-        ]
-        .compactMap { $0 }
-        .joined(separator: " · ")
+    private var recordedSummary: String? {
+        MugshotHomePreparationPresentation.recordedSummary(
+            draft.homeAttemptActuals, method: method, ingredients: draft.homeSetupContent?.ingredients ?? []
+        )
     }
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            HomeMethodIconView(method: method, size: 20)
-                .frame(width: 38, height: 38)
-                .background(Color.mugshotMint.opacity(0.24), in: Circle())
+    private var summary: String {
+        if let recordedSummary { return recordedSummary }
+        return [draft.brewDetails.coffeeBag?.displayName,
+                draft.brewDetails.extractionSummary,
+                draft.brewDetails.equipmentDisplayName ?? draft.equipment.remoteTrimmedNonEmpty]
+            .compactMap { $0 }.joined(separator: " · ")
+    }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(draft.context == .recipe ? "Saved recipe" : "Home brew")
-                        .font(.system(size: 13, weight: .bold))
-                    Spacer()
-                    Text(method.title)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.mugshotSage)
-                }
-                Text(summary.remoteTrimmedNonEmpty ?? "Only the details you chose to keep")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                if draft.context == .recipe {
-                    Label("Recipe starts Private", systemImage: "lock.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Color.tertiaryText)
+    @ViewBuilder var body: some View {
+        if !summary.isEmpty {
+            HStack(alignment: .top, spacing: 12) {
+                HomeMethodIconView(method: method, size: 20)
+                    .frame(width: 38, height: 38)
+                    .background(Color.mugshotMint.opacity(0.24), in: Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(recordedSummary == nil ? "Planned setup" : "Recorded preparation")
+                            .font(.subheadline.weight(.bold))
+                        Spacer()
+                        Text(method.title)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.mugshotSage)
+                    }
+                    Text(summary.remoteTrimmedNonEmpty ?? "Only the details you chose to keep")
+                        .font(.caption)
+                        .foregroundStyle(Color.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if draft.context == .recipe {
+                        Label("Recipe starts Private", systemImage: "lock.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Color.tertiaryText)
+                    }
                 }
             }
+            .padding(14)
+            .background(Color.foamWhite)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
+                    .stroke(Color.mugshotLine, lineWidth: 1)
+            )
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("logASipV3.home.publishSummary")
         }
-        .padding(14)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                .stroke(Color.mugshotLine, lineWidth: 1)
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("logASipV3.home.publishSummary")
     }
 }
 
@@ -4041,6 +4082,8 @@ struct LogASipV3BottomAction: View {
     var recoverySecondaryAction: (() -> Void)? = nil
     let action: () -> Void
 
+    @State private var restingActionHeight: CGFloat = 56
+
     var body: some View {
         VStack(spacing: 0) {
             Rectangle()
@@ -4078,30 +4121,38 @@ struct LogASipV3BottomAction: View {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.body.weight(.semibold))
                         Text(subtitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.foamWhite.opacity(0.78))
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(isEnabled || showsProgress ? .foamWhite : .espressoBrown)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Spacer(minLength: 8)
 
-                    if showsProgress {
-                        ProgressView().tint(.foamWhite)
-                    } else {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 14, weight: .bold))
+                    Group {
+                        if showsProgress {
+                            ProgressView().tint(.foamWhite)
+                        } else {
+                            Image(systemName: systemImage).font(.system(size: 14, weight: .bold))
+                        }
                     }
+                    .frame(width: 20, height: 20)
                 }
-                .foregroundColor(.foamWhite)
+                .foregroundColor(isEnabled || showsProgress ? .foamWhite : .espressoBrown)
                 .padding(.horizontal, 20)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 56)
-                .background(isEnabled ? Color.mugshotSage : Color.mugshotSage.opacity(0.42))
+                .padding(.vertical, 10)
+                .frame(minHeight: showsProgress ? restingActionHeight : 56)
+                .background(isEnabled || showsProgress ? Color.mugshotSageText : Color.sandBeige)
                 .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MugshotQuietButtonStyle(disabledOpacity: 1))
             .disabled(!isEnabled)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                guard !showsProgress, abs(height - restingActionHeight) > 0.5 else { return }
+                restingActionHeight = max(56, height)
+            }
             .accessibilityIdentifier("logASipV3.primaryAction")
             .padding(.horizontal, DesignSystem.Space.md)
             .padding(.top, 10)
@@ -4185,7 +4236,7 @@ private struct LogASipV3PhotoStrip: View {
                     )
                     .frame(width: 98, height: 100)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Oops, missed the photo")
+                        Text("No photo this time")
                             .mugshotDisplay(size: 20)
                         Text("Mugsy saved your memory a spot.")
                             .font(.system(size: 12))
@@ -4422,6 +4473,7 @@ private struct LogASipV3MugsyCoach: View {
     @Binding var index: Int
     let onExploreFlavors: (() -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isExpanded = false
 
     private var prompt: LogASipV3CoachPrompt {
@@ -4435,7 +4487,7 @@ private struct LogASipV3MugsyCoach: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .bottom, spacing: 0) {
                 Button {
-                    withAnimation(DesignSystem.Motion.base) {
+                    withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
                         isExpanded.toggle()
                     }
                     MugshotHaptic.softImpact.play()
@@ -4446,13 +4498,13 @@ private struct LogASipV3MugsyCoach: View {
                             prop: .journalNotebook,
                             pose: .leaningRight
                         ),
-                        action: isExpanded ? .focusing : .resting,
-                        tapBehavior: .wave
+                        action: isExpanded ? .success : .resting,
+                        tapBehavior: .disabled
                     )
                     .frame(width: 105, height: 112)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MugshotQuietButtonStyle())
                 .accessibilityLabel(isExpanded ? "Close Mugsy prompt" : "Need a nudge from Mugsy")
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -4473,7 +4525,7 @@ private struct LogASipV3MugsyCoach: View {
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    withAnimation(DesignSystem.Motion.base) { isExpanded = true }
+                    withAnimation(reduceMotion ? nil : MugshotMotion.selection) { isExpanded = true }
                 }
             }
 
@@ -4485,7 +4537,7 @@ private struct LogASipV3MugsyCoach: View {
                         Image(systemName: "chevron.left")
                             .frame(width: 44, height: 44)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MugshotQuietButtonStyle())
                     .disabled(index == 0)
                     .accessibilityLabel("Previous prompt")
 
@@ -4499,7 +4551,7 @@ private struct LogASipV3MugsyCoach: View {
                         Image(systemName: "chevron.right")
                             .frame(width: 44, height: 44)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MugshotQuietButtonStyle())
                     .disabled(index >= prompts.count - 1)
                     .accessibilityLabel("Next prompt")
 
@@ -4512,7 +4564,7 @@ private struct LogASipV3MugsyCoach: View {
                                 .frame(minHeight: 44)
                         }
                         .foregroundStyle(Color.mugshotSage)
-                        .buttonStyle(.plain)
+                        .buttonStyle(MugshotQuietButtonStyle())
                     }
                 }
                 .transition(.opacity)
@@ -4544,8 +4596,9 @@ private struct LogASipV3ScoreBlock: View {
                         .foregroundColor(.secondaryText)
                 }
                 Spacer()
-                Text(score, format: .number.precision(.fractionLength(1)))
-                    .mugshotDisplay(size: 34)
+                Text(MugshotPolishState.ratingText(score))
+                    .contentTransition(.opacity)
+                    .mugshotDisplay(size: score > 0 ? 34 : 21)
                     .foregroundColor(.espressoBrown)
                     .monospacedDigit()
             }
@@ -4637,6 +4690,7 @@ private struct LogASipV3CriteriaEditor: View {
     let onUseLastSetup: () -> Void
     let onAddOwn: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var renameCriterionID: UUID?
     @State private var renameText = ""
 
@@ -4718,6 +4772,7 @@ private struct LogASipV3CriteriaEditor: View {
                                 reindexCriteria()
                             }
                         )
+                        .transition(.opacity.combined(with: .offset(y: reduceMotion ? 0 : 6)))
 
                         if criterion.id != criteria.last?.id {
                             Divider().padding(.leading, 48)
@@ -4786,12 +4841,11 @@ private struct LogASipV3CriteriaEditor: View {
         guard !criteria.contains(where: {
             $0.name.caseInsensitiveCompare(suggestion.title) == .orderedSame
         }) else { return }
-        criteria.append(SipRatingCriterionSnapshot(
-            name: suggestion.title,
-            weight: 1,
-            sortOrder: criteria.count,
-            isPinned: false
-        ))
+        withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
+            criteria.append(SipRatingCriterionSnapshot(
+                name: suggestion.title, weight: 1, sortOrder: criteria.count, isPinned: false
+            ))
+        }
         MugshotHaptic.softImpact.play()
     }
 
@@ -4984,6 +5038,7 @@ private struct LogASipV3HomeReflection: View {
 
 private struct LogASipV3MakeAgainControl: View {
     @Binding var selection: HomeMakeAgain?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 4) {
@@ -4998,7 +5053,9 @@ private struct LogASipV3MakeAgainControl: View {
     private func option(_ option: HomeMakeAgain, title: String) -> some View {
         let selected = isSelected(option)
         return Button {
-            selection = option
+            guard selection != option else { return }
+            withAnimation(reduceMotion ? nil : MugshotMotion.selection) { selection = option }
+            MugshotHaptic.selection.play()
         } label: {
             Text(title)
                 .font(.system(size: 12, weight: selected ? .bold : .medium))
@@ -5007,7 +5064,7 @@ private struct LogASipV3MakeAgainControl: View {
                 .background(selected ? Color.foamWhite : Color.clear, in: Capsule())
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MugshotQuietButtonStyle())
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("logASipV3.homeMakeAgain.\(option.rawValue)")
     }
@@ -5055,7 +5112,7 @@ private struct LogASipV3PublishMediaCard: View {
                         )
                         .frame(width: 112, height: 124)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Oops, missed the photo")
+                            Text("No photo this time")
                                 .mugshotDisplay(size: 21)
                             Text("Mugsy saved your memory a spot.")
                                 .font(.system(size: 12))

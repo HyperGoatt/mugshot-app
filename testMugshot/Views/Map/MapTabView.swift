@@ -4175,7 +4175,7 @@ struct SearchResultsList: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             } else {
-                Label("Tap Near me above to show nearby cafes.", systemImage: "location")
+                Label("Tap Find me above to show nearby cafes.", systemImage: "location")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondaryText)
                     .padding(.vertical, 10)

@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-10-23
 ---
 
 # Mugshot documentation
@@ -10,6 +10,13 @@ This index defines which documents describe Mugshot as it exists now. Source
 code, forward Supabase migrations, and signed-build evidence remain the final
 implementation evidence; living documents explain that evidence and must change
 with it.
+
+## Current design planning
+
+The [October 23 polish audit and prioritized plan](audits/polish-2026-10-23/README.md)
+reviews the existing Home V4, Cafe, Feed, Map, Saved, Journal, and supporting
+surfaces, with a captured baseline walkthrough. It is audit and proposal
+evidence only; no polish implementation or release acceptance is claimed.
 
 ## Living sources
 

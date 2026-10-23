@@ -56,7 +56,11 @@ struct DesignSystem {
 }
 
 struct MugshotDisplayText: ViewModifier {
-    let size: CGFloat
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 30
+
+    init(size: CGFloat) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: .largeTitle)
+    }
 
     func body(content: Content) -> some View {
         content
@@ -199,21 +203,20 @@ extension View {
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
+            .font(.body.weight(.semibold))
             .padding(.horizontal, DesignSystem.largePadding)
             .padding(.vertical, 13)
-            .background(configuration.isPressed ? Color.mugshotSage.opacity(0.92) : Color.mugshotSage)
+            .background(Color.mugshotSageText)
             .foregroundColor(Color.foamWhite)
             .clipShape(Capsule())
-            .scaleEffect(configuration.isPressed ? DesignSystem.Motion.pressScale : 1.0)
-            .animation(DesignSystem.Motion.fast, value: configuration.isPressed)
+            .modifier(MugshotPressFeedback(isPressed: configuration.isPressed))
     }
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
             .padding(.horizontal, DesignSystem.largePadding)
             .padding(.vertical, 12)
             .background(configuration.isPressed ? Color.sandBeige : Color.foamWhite)
@@ -223,8 +226,7 @@ struct SecondaryButtonStyle: ButtonStyle {
                 Capsule()
                     .stroke(Color.mugshotLine, lineWidth: 1)
             )
-            .scaleEffect(configuration.isPressed ? DesignSystem.Motion.pressScale : 1.0)
-            .animation(DesignSystem.Motion.fast, value: configuration.isPressed)
+            .modifier(MugshotPressFeedback(isPressed: configuration.isPressed))
     }
 }
 
@@ -240,7 +242,7 @@ struct MugshotIconButton: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(isActive ? .foamWhite : .espressoBrown)
                 .frame(width: size, height: size)
-                .background(isActive ? Color.mugshotSage : Color.foamWhite)
+                .background(isActive ? Color.mugshotSageText : Color.foamWhite)
                 .clipShape(Circle())
                 .overlay(
                     Circle()
@@ -253,7 +255,9 @@ struct MugshotIconButton: View {
                     y: DesignSystem.subtleShadow.y
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MugshotQuietButtonStyle())
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
         .accessibilityLabel(systemName)
     }
 }
@@ -266,6 +270,7 @@ struct MugshotScreenHeader<Trailing: View>: View {
     let subtitleLayoutHeight: CGFloat?
     let subtitleLineSpacing: CGFloat
     @ViewBuilder var trailing: Trailing
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         _ title: String,
@@ -286,7 +291,10 @@ struct MugshotScreenHeader<Trailing: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+        layout {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .mugshotDisplay(size: 30)
@@ -294,7 +302,7 @@ struct MugshotScreenHeader<Trailing: View>: View {
 
                 if let subtitle {
                     Group {
-                        if let subtitleLayoutHeight {
+                        if let subtitleLayoutHeight, !dynamicTypeSize.isAccessibilitySize {
                             Text(subtitle)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .frame(height: subtitleLayoutHeight, alignment: .top)
@@ -302,16 +310,17 @@ struct MugshotScreenHeader<Trailing: View>: View {
                             Text(subtitle)
                         }
                     }
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.tertiaryText)
-                    .lineLimit(subtitleLineLimit)
-                    .lineSpacing(subtitleLineSpacing)
+                    .font(.footnote.weight(.medium))
+                    .foregroundColor(.secondaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : subtitleLineLimit)
+                    .lineSpacing(dynamicTypeSize.isAccessibilitySize ? 0 : subtitleLineSpacing)
                     .minimumScaleFactor(subtitleMinimumScaleFactor)
                     .allowsTightening(subtitleMinimumScaleFactor < 1)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 8)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
             trailing
         }
         .padding(.horizontal, DesignSystem.Space.md)
@@ -327,14 +336,19 @@ struct MugshotSegmentedControl<Option: Hashable>: View {
     var icon: ((Option) -> String?)? = nil
     var accessibilityIdentifier: ((Option) -> String?)? = nil
     var selectedColor: Color = .foamWhite
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
+    @Namespace private var selectionNamespace
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(options, id: \.self) { option in
                 Button {
-                    withAnimation(DesignSystem.Motion.base) {
+                    guard selection != option else { return }
+                    withAnimation((motionOverride ?? reduceMotion) ? nil : MugshotMotion.selection) {
                         selection = option
                     }
+                    MugshotHaptic.selection.play()
                 } label: {
                     HStack(spacing: 6) {
                         if let iconName = icon?(option) {
@@ -350,11 +364,19 @@ struct MugshotSegmentedControl<Option: Hashable>: View {
                     .foregroundColor(selection == option ? .espressoBrown : .roastBrown.opacity(0.72))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 44)
-                    .background(selection == option ? selectedColor : Color.clear)
+                    .background {
+                        if selection == option {
+                            Capsule().fill(selectedColor)
+                                .matchedGeometryEffect(id: "selection", in: selectionNamespace)
+                        }
+                    }
                     .clipShape(Capsule())
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .anchorPreference(key: MugshotSelectedSegmentAnchorKey.self, value: .bounds) {
+                    selection == option ? $0 : nil
+                }
                 .accessibilityAddTraits(selection == option ? .isSelected : [])
                 .accessibilityIdentifier(accessibilityIdentifier?(option) ?? "")
             }
@@ -380,15 +402,14 @@ struct MugshotStatPill: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
             Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(accent ? .foamWhite.opacity(0.86) : .tertiaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(accent ? .foamWhite : .secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundColor(accent ? .foamWhite : .espressoBrown)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(accent ? Color.mugshotSage : Color.foamWhite)
+        .background(accent ? Color.mugshotSageText : Color.foamWhite)
         .clipShape(Capsule())
         .overlay(
             Capsule()
@@ -763,5 +784,12 @@ extension TextField {
             .foregroundColor(.inputText)
             .tint(.mugshotSage)
             .accentColor(.mugshotSage)
+    }
+}
+
+struct MugshotSelectedSegmentAnchorKey: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        if let next = nextValue() { value = next }
     }
 }

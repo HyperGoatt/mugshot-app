@@ -1,10 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-30
+last_verified: 2026-10-23
 ---
 
 # Native Home and Recipes implementation
+
+## 2026-10-23 signature polish candidate
+
+Private review says **Review your sip** and retains optional ratings/photos.
+Zero or missing scores display **Not rated**. Review preparation uses recorded
+actuals only; a target-only summary is labeled **Planned setup**. Forward/back
+content travels 14 points while navigation controls stay stable. With a tweak
+expands in place without focusing a field.
+
+A successful durable local attempt save passes a transaction-scoped receipt to
+canonical detail, carrying drink identity and distinguishing local sync or recipe
+change pending. Quick saves receive a check; guided saves receive a finite
+canonical Mugsy notebook cradle/nod. Receipt feedback is consumed once per
+transaction/account, and never waits before allowing navigation. Social Posted
+receipts require authoritative remote completion. Privacy, publication recovery
+identity, recipe ownership and optional reflection rules remain unchanged.
+Acceptance is tracked in the [sprint ledger](audits/signature-polish-sprint-2026-10-23/ACCEPTANCE.md).
 
 ## 2026-09-30 V4 connected-iPhone launch
 

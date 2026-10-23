@@ -21,6 +21,10 @@ struct SavedTabView: View {
     @State private var lastRefresh: Date?
     @State private var coverURLs: [UUID: String] = [:]
     @State private var pendingRows: [UUID: Cafe] = [:]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @FocusState private var isSearchFocused: Bool
+    @State private var rowErrors: [UUID: String] = [:]
     @State private var feedback: SavedLibraryFeedback?
     @State private var feedbackTask: Task<Void, Never>?
 #if DEBUG
@@ -116,6 +120,8 @@ struct SavedTabView: View {
                 await refreshLibrary()
             }
         }
+        .onChange(of: selectedCategory) { _, _ in isSearchFocused = false }
+        .onChange(of: selectedSection) { _, _ in isSearchFocused = false }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .detail(let cafe):
@@ -202,7 +208,7 @@ struct SavedTabView: View {
                 Section {
                     cafeLibraryControls
 
-                    if let displayedLoadError {
+                    if let displayedLoadError, !dataManager.personalLibraryCafes.isEmpty {
                         InlineSavedLibraryStatus(
                             systemImage: "wifi.exclamationmark",
                             message: cachedStatusMessage(error: displayedLoadError),
@@ -212,7 +218,7 @@ struct SavedTabView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
-                    } else if displayedIsLoading, !projectedCafes.isEmpty {
+                    } else if displayedIsLoading, !dataManager.personalLibraryCafes.isEmpty {
                         InlineSavedLibraryStatus(
                             systemImage: "arrow.triangle.2.circlepath",
                             message: "Refreshing your cafe library…"
@@ -231,14 +237,43 @@ struct SavedTabView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 12)
                         }
+                    } else if projectedCafes.isEmpty, dataManager.personalLibraryCafes.isEmpty, displayedLoadError != nil {
+                        MugshotRecoveryCard(
+                            title: "Couldn’t load your cafes",
+                            message: "Your library is unavailable right now. Try again when connected.",
+                            actionTitle: "Try again", action: retryRefresh
+                        )
+                        .padding(16)
+                    } else if projectedCafes.isEmpty, displayedLoadError != nil {
+                        MugshotRecoveryCard(
+                            title: "No matching cafes on this device",
+                            message: "Your library couldn’t refresh. More saved cafes may be available when connected.",
+                            actionTitle: "Try again", action: retryRefresh
+                        )
+                        .padding(16)
                     } else if projectedCafes.isEmpty {
                         emptyState
                             .padding(.horizontal, 16)
                     } else {
                         ForEach(projectedCafes) { cafe in
-                            cafeLibraryRow(cafe)
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 12)
+                            VStack(alignment: .leading, spacing: 6) {
+                                cafeLibraryRow(cafe)
+                                if let error = rowErrors[cafe.id] {
+                                    HStack(alignment: .top) {
+                                        Label(error, systemImage: "exclamationmark.circle")
+                                            .font(.caption)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Spacer(minLength: 4)
+                                        Button("Dismiss") { rowErrors.removeValue(forKey: cafe.id) }
+                                            .font(.caption.weight(.semibold))
+                                            .frame(minHeight: 44)
+                                    }
+                                    .foregroundStyle(Color.secondaryText)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
+                            .transition(.opacity.combined(with: .offset(y: reduceMotion ? 0 : -6)))
                         }
                     }
                 } header: {
@@ -332,6 +367,7 @@ struct SavedTabView: View {
                 .font(dynamicTypeSize.isAccessibilitySize ? .system(size: 22) : .body)
                 .foregroundColor(.inputText)
                 .submitLabel(.search)
+                .focused($isSearchFocused)
                 .accessibilityIdentifier("saved.search")
             if !searchText.isEmpty {
                 Button {
@@ -351,17 +387,28 @@ struct SavedTabView: View {
         .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.control).stroke(Color.mugshotLine))
     }
 
+    private var libraryCountLabel: String {
+        switch MugshotLibraryPresentation.resolve(
+            isLoading: displayedIsLoading, hasContent: !projectedCafes.isEmpty,
+            hasError: displayedLoadError != nil
+        ) {
+        case .loading: return "Loading cafes…"
+        case .failure: return dataManager.personalLibraryCafes.isEmpty ? "Cafes unavailable" : "No cached matches"
+        default: return "\(projectedCafes.count) \(projectedCafes.count == 1 ? "cafe" : "cafes")"
+        }
+    }
+
     private var libraryControls: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: 8) {
                     sortMenu(accessibilityLayout: true)
 
-                    Text("\(projectedCafes.count) \(projectedCafes.count == 1 ? "cafe" : "cafes")")
+                    Text(libraryCountLabel)
                         .font(.system(size: 20))
                         .foregroundColor(.secondaryText)
                         .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                        .accessibilityLabel("\(projectedCafes.count) cafes shown")
+                        .accessibilityLabel(libraryCountLabel)
 
                     densityMenu(accessibilityLayout: true)
                 }
@@ -371,10 +418,10 @@ struct SavedTabView: View {
 
                     Spacer(minLength: 4)
 
-                    Text("\(projectedCafes.count) \(projectedCafes.count == 1 ? "cafe" : "cafes")")
+                    Text(libraryCountLabel)
                         .font(.subheadline)
                         .foregroundColor(.secondaryText)
-                        .accessibilityLabel("\(projectedCafes.count) cafes shown")
+                        .accessibilityLabel(libraryCountLabel)
 
                     Spacer(minLength: 4)
 
@@ -467,7 +514,7 @@ struct SavedTabView: View {
             } else {
                 VStack(spacing: 10) {
                     Button {
-                        withAnimation(DesignSystem.Motion.base) {
+                        withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
                             tabCoordinator.selectedTab = .map
                         }
                     } label: {
@@ -478,7 +525,7 @@ struct SavedTabView: View {
                     .accessibilityHint("Switches to Map to discover cafes")
 
                     Button {
-                        withAnimation(DesignSystem.Motion.base) {
+                        withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
                             tabCoordinator.selectedTab = .add
                         }
                     } label: {
@@ -591,6 +638,9 @@ struct SavedTabView: View {
         wantToTry: Bool,
         changedState: SavedCafeChangedState
     ) {
+        isSearchFocused = false
+        rowErrors.removeValue(forKey: cafe.id)
+        MugshotHaptic.selection.play()
         let isRemovingFromActiveCategory =
             (selectedCategory == .favorites && changedState == .favorite && !isFavorite)
             || (selectedCategory == .wantToTry && changedState == .wantToTry && !wantToTry)
@@ -614,6 +664,7 @@ struct SavedTabView: View {
             ))
         }
 
+        let actionFeedbackID = feedback?.id
         mutationCoordinator.setCafeState(
             cafe: cafe,
             isFavorite: isFavorite,
@@ -624,17 +675,30 @@ struct SavedTabView: View {
         ) { error in
             guard let error else { return }
             pendingRows.removeValue(forKey: cafe.id)
-            showFeedback(SavedLibraryFeedback(message: error, cafe: nil, restoresFavorite: nil, restoresWantToTry: nil))
+            rowErrors[cafe.id] = error
+            if feedback?.id == actionFeedbackID {
+                feedbackTask?.cancel()
+                withAnimation(reduceMotion ? nil : MugshotMotion.selection) { feedback = nil }
+            }
+            MugshotHaptic.warning.play()
+            UIAccessibility.post(notification: .announcement, argument: error)
         }
     }
 
     private func showFeedback(_ value: SavedLibraryFeedback) {
         feedbackTask?.cancel()
-        withAnimation(DesignSystem.Motion.base) { feedback = value }
+        withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
+            if let previousID = feedback?.cafe?.id, previousID != value.cafe?.id {
+                pendingRows.removeValue(forKey: previousID)
+            }
+            feedback = value
+        }
+        // Errors stay visible; assistive users keep the existing Undo available.
+        guard value.cafe != nil, !voiceOverEnabled else { return }
         feedbackTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled else { return }
-            withAnimation(DesignSystem.Motion.base) {
+            withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
                 feedback = nil
                 if let cafeID = value.cafe?.id { pendingRows.removeValue(forKey: cafeID) }
             }
@@ -647,7 +711,10 @@ struct SavedTabView: View {
               let favorite = feedback.restoresFavorite,
               let wantToTry = feedback.restoresWantToTry else { return }
         feedbackTask?.cancel()
-        pendingRows.removeValue(forKey: cafe.id)
+        isSearchFocused = false
+        rowErrors.removeValue(forKey: cafe.id)
+        MugshotHaptic.selection.play()
+        withAnimation(reduceMotion ? nil : MugshotMotion.selection) { _ = pendingRows.removeValue(forKey: cafe.id) }
         mutationCoordinator.setCafeState(
             cafe: currentCafe(cafe),
             isFavorite: favorite,
@@ -656,7 +723,7 @@ struct SavedTabView: View {
             userID: authModel.authenticatedUser?.id,
             analyticsSurface: .saved
         ) { _ in }
-        withAnimation(DesignSystem.Motion.base) { self.feedback = nil }
+        withAnimation(reduceMotion ? nil : MugshotMotion.selection) { self.feedback = nil }
     }
 
     private func presentLists(for cafe: Cafe) {

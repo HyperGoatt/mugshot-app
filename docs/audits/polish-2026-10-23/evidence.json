@@ -1,0 +1,330 @@
+[
+  {
+    "file": "screenshots/00-auth.png",
+    "screen": "Authentication",
+    "health": "Mixed",
+    "note": "Welcoming identity; form starts low in the viewport. Busy/error feedback should stay near the active field. R2, R16.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/01-saved.jpg",
+    "screen": "Saved library",
+    "health": "Mixed",
+    "note": "Useful cards and clear relationships. Dense control stack and uneven action feedback. R3, R7, R11.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/02-cafe-detail.jpg",
+    "screen": "Cafe detail",
+    "health": "Mixed",
+    "note": "Good native sheet. Small utility/note labels and inconsistent save acknowledgment. R2, R7, R8.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/03-feed.jpg",
+    "screen": "Feed",
+    "health": "Strong",
+    "note": "Photography is a strong anchor. Header crowding and haptic ownership need refinement. R4, R11.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/04-sip-detail.jpg",
+    "screen": "Sip detail",
+    "health": "Strong",
+    "note": "Keep the editorial media and collapsible breakdown. Consolidate action feedback and edit receipts. R4, R13.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/05-journal.jpg",
+    "screen": "Journal",
+    "health": "Strong",
+    "note": "Recent memories read clearly. Connect a newly saved sip back to this existing destination. R6, R11.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/06-profile.jpg",
+    "screen": "Profile",
+    "health": "Mixed",
+    "note": "Taste identity fits Mugshot. Sip-average stat label truncates at default size. R2, R11.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/07-settings.jpg",
+    "screen": "Settings",
+    "health": "Strong",
+    "note": "Calm grouping is appropriate. Keep status, typography, and native form behavior consistent. R2, R14, R16.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/08-map.jpg",
+    "screen": "Map",
+    "health": "Strong",
+    "note": "Native map and rating pins fit well. Selection can connect more clearly to the cafe sheet. R8.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/09-composer-setup.jpg",
+    "screen": "Log a Sip setup",
+    "health": "Mixed",
+    "note": "Clear optionality and draft reassurance. Make common controls feel immediate and photo handling coherent. R3, R10.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/10-home-setup.jpg",
+    "screen": "Home: choose a starting point",
+    "health": "Strong",
+    "note": "Method and drink identities are useful. Keep identity stable as setup changes. R5, R10.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/11-home-configure.jpg",
+    "screen": "Home: configure Latte",
+    "health": "Strong",
+    "note": "Clear components and explicit target policy. Preserve this distinction on later screens. R1, R5.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/12-home-make.jpg",
+    "screen": "Home: Make",
+    "health": "Strong",
+    "note": "Useful targets and monospaced timer. Start/stop/finished deserve small, restrained acknowledgment. R10.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/13-home-actuals.jpg",
+    "screen": "Home: Actuals left unknown",
+    "health": "Strong",
+    "note": "Explicit Unknown and As planned distinction is excellent. All actuals were left blank in this walkthrough. R1, R10.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/14-home-capture.jpg",
+    "screen": "Home: Capture after blank Actuals",
+    "health": "Needs attention",
+    "note": "Unlabeled 18 g in / 36 g out / 28 sec summary follows unknown actuals. Label these as planned. R1.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/15-home-reflection.jpg",
+    "screen": "Home: sip reflection",
+    "health": "Mixed",
+    "note": "Optional rating currently displays 0.0. Add a crisp half-star response and Not rated state. R1, R4, R9.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/16-home-reflection-lower.jpg",
+    "screen": "Home: make-again intent",
+    "health": "Strong",
+    "note": "Thoughtful separate decision. Preserve optionality and writing space. R5, R9.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/17-home-tweak.jpg",
+    "screen": "Home: With a tweak selected",
+    "health": "Mixed",
+    "note": "Next-time field appears in place. Give it a short contextual reveal without forcing keyboard focus. R5, R9.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/18-home-review.jpg",
+    "screen": "Home: private Review",
+    "health": "Needs attention",
+    "note": "Share/reaches your people language conflicts with a private save; optional photo omission says Oops. R1, R6.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/19-home-saved.jpg",
+    "screen": "Home: saved canonical detail",
+    "health": "Mixed",
+    "note": "Local save succeeds and Unrated is correct. Saved here / Sync pending is understated beneath the hero. R6.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/20-cafe-setup.jpg",
+    "screen": "Cafe: setup with test photo",
+    "health": "Mixed",
+    "note": "Solid green image is deliberate fixture content. Preserve useful draft/cover controls and refine local feedback. R3, R10.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/21-cafe-search.jpg",
+    "screen": "Cafe search",
+    "health": "Mixed",
+    "note": "Existing places are clear. Instruction says Near me while the action says Find me. R12.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/22-cafe-sip-rating.jpg",
+    "screen": "Cafe: sip reflection",
+    "health": "Mixed",
+    "note": "Score is primary but optional criteria/coaching are visually heavy. Half-star feedback is missing in this active control. R4, R9, R11.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/23-cafe-reflection.jpg",
+    "screen": "Cafe: place reflection",
+    "health": "Mixed",
+    "note": "Separate cafe judgment is clear. Keep new criterion feedback local and lighten repeated supporting hierarchy. R4, R9, R11.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/24-cafe-review.jpg",
+    "screen": "Cafe: review before publication",
+    "health": "Mixed",
+    "note": "Caption/audience lie below the first viewport. Disabled footer should name the missing requirement. No post submitted. R1, R6, R12.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/25-saved-empty.jpg",
+    "screen": "Saved: known empty",
+    "health": "Strong",
+    "note": "Friendly Mugsy and clear next actions. Simplify unhelpful empty sorting/density emphasis. R12.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/26-saved-loading.jpg",
+    "screen": "Saved: loading without cache",
+    "health": "Mixed",
+    "note": "Calm skeletons are good; 0 cafes should not describe unknown data. R12.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/27-saved-offline.jpg",
+    "screen": "Saved: offline with cache",
+    "health": "Strong",
+    "note": "Keep usable cached cards and compact retry status. No repeated warning haptics. R12.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/28-saved-error.jpg",
+    "screen": "Saved: failure without cache",
+    "health": "Needs attention",
+    "note": "Could not load and No favorites yet contradict each other. Render an error state, not a known-empty claim. R12.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/29-saved-large-text.jpg",
+    "screen": "Saved: accessibility text size",
+    "health": "Mixed",
+    "note": "Adaptive filter menus are strong. Continue checking typography, scrolling, footer reachability, and actual assistive focus. R2, R14.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding.jpg",
+    "screen": "Onboarding: 1 / Capture",
+    "health": "Strong",
+    "note": "Distinctive coffee imagery and Mugsy. Raster text/control artwork cannot independently reflow. R15.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding-2.jpg",
+    "screen": "Onboarding: 2 / Map",
+    "health": "Strong",
+    "note": "Map story is clear. Preserve native accessible visible controls when refining presentation. R15.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding-3.jpg",
+    "screen": "Onboarding: 3 / Feed",
+    "health": "Strong",
+    "note": "Warm social story. Keep pace fast and Skip available. R15.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding-4.jpg",
+    "screen": "Onboarding: 4 / People and privacy",
+    "health": "Strong",
+    "note": "Privacy is explained positively. Maintain precise audience language and scalable text. R15.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding-5.jpg",
+    "screen": "Onboarding: 5 / Saved",
+    "health": "Strong",
+    "note": "Useful existing destinations. Keep visuals aligned with current app labels. R15.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding-6.jpg",
+    "screen": "Onboarding: 6 / Journal",
+    "health": "Mixed",
+    "note": "Authored Journal image depicts an older filter/tab arrangement. Update depicted UI during artwork refinement. R15.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding-8.jpg",
+    "screen": "Onboarding: 8 / Maps import",
+    "health": "Strong",
+    "note": "Clear existing import story. Page 7 was not retained in this audit; no claim of complete panel capture. R15.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/30-onboarding-9.jpg",
+    "screen": "Onboarding: 9 / Account or explore",
+    "health": "Strong",
+    "note": "Account and guest exits are visible. No account action was submitted. R15, R16.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/31-recovery.jpg",
+    "screen": "Recovery banner preview",
+    "health": "Mixed",
+    "note": "Isolated preview, not the full app. Posted versus unfinished local cleanup is truthful but copy/actions are dense. R12, R14.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/32-people.jpg",
+    "screen": "People preview",
+    "health": "Mixed",
+    "note": "Existing DEBUG fixture. Explanations/reasons truncate; accepting should acknowledge the committed row state. R2, R13.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  },
+  {
+    "file": "screenshots/33-edit.jpg",
+    "screen": "Edit Sip preview",
+    "health": "Mixed",
+    "note": "Existing DEBUG fixture. Preserve editing, improve no-photo language, and show a destination save receipt. R1, R13.",
+    "observed_at": "2026-10-23",
+    "source": "Current Debug Simulator capture; preview where labeled"
+  }
+]

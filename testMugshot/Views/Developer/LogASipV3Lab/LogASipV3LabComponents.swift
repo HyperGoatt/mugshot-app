@@ -172,7 +172,7 @@ struct V3LabPhotoPicker: View {
                 .frame(width: 104, height: 104)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Oops, missed the photo")
+                    Text("No photo this time")
                         .mugshotDisplay(size: 21)
                         .foregroundColor(.espressoBrown)
                     Text("Mugsy saved your memory a spot.")
