@@ -2,6 +2,46 @@ import Combine
 import Foundation
 import Network
 import Supabase
+import UIKit
+
+/// A short publication may finish while iOS transitions out of the foreground.
+/// Expiration and account/task cancellation still stop the operation; the
+/// durable outbox retains any acknowledged progress for the next foreground.
+@MainActor
+enum SipPublicationBackgroundExecution {
+    static func run<T>(
+        _ operation: @escaping @MainActor () async throws -> T
+    ) async throws -> T {
+        let task = Task { try await operation() }
+        let lease = SipPublicationBackgroundLease(onExpiration: { task.cancel() })
+        defer { lease.end() }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+}
+
+@MainActor
+private final class SipPublicationBackgroundLease {
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+    init(onExpiration: @escaping @MainActor () -> Void) {
+        identifier = UIApplication.shared.beginBackgroundTask(withName: "Publish Mugshot") { [weak self] in
+            Task { @MainActor in
+                onExpiration()
+                self?.end()
+            }
+        }
+    }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
+    }
+}
 
 enum AutomaticSipRecoveryState: Equatable {
     case idle
@@ -193,13 +233,9 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         let becameActive = isActive && !isAppActive
         isAppActive = isActive
         if !isActive {
-            if recoveryTask != nil {
-                BatteryDiagnostics.recoveryCancellationRequested(kind: "visit_inactive")
-            }
             if homeRecoveryTask != nil {
                 BatteryDiagnostics.recoveryCancellationRequested(kind: "home_inactive")
             }
-            recoveryTask?.cancel()
             homeRecoveryTask?.cancel()
         }
         if becameActive { suppressAutomaticRetry = false }
@@ -278,7 +314,10 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
         state = .recovering(records.count)
         BatteryDiagnostics.visitRecoveryStarted(pendingCount: records.count)
         recoveryTask = Task { [weak self] in
-            await self?.drain(accountID: accountID, runID: runID)
+            guard let self else { return }
+            try? await SipPublicationBackgroundExecution.run {
+                await self.drain(accountID: accountID, runID: runID)
+            }
         }
     }
 
@@ -322,6 +361,9 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
+                    // URLSession may report cancellation as a transport error.
+                    // Expiration/account cancellation must remain resumable.
+                    try Task.checkCancellation()
                     let latest = try? dependencies.loadRecords(accountID).first {
                         $0.id == record.id
                     }
@@ -521,6 +563,7 @@ enum PendingVisitPublicationReconciliation {
             guard !reconciled.isRemoteFinalized else { return reconciled }
             reconciled.phase = .prepared
             reconciled.uploadedPhotoURLs = nil
+            reconciled.completedPhotoObjectPaths = nil
             reconciled.finalizationRequestedAt = nil
             clearPostPublicationReceipts(&reconciled)
         }
@@ -676,6 +719,7 @@ private struct PendingVisitPublicationWorker {
 
             if submission.phase < .photosUploaded {
                 let images = try pendingStore.loadImages(for: submission)
+                let uploadPlan = submission
                 let uploaded = try await VisitPhotoUploadService(client: client)
                     .uploadPhotos(
                         userId: submission.userId,
@@ -683,7 +727,16 @@ private struct PendingVisitPublicationWorker {
                         images: images,
                         posterPhotoIndex: submission.posterPhotoIndex,
                         plannedObjectPaths: submission.objectPaths,
-                        replacingExisting: true
+                        replacingExisting: true,
+                        completedObjectPaths: submission.completedPhotoObjectPaths ?? [],
+                        onPhotoUploaded: { path in
+                            try pendingStore.recordUploadedPhoto(
+                                path,
+                                visitId: uploadPlan.id,
+                                userId: uploadPlan.userId,
+                                expectedObjectPaths: uploadPlan.objectPaths
+                            )
+                        }
                     )
                 submission.uploadedPhotoURLs = uploaded.publicURLs
                 submission.phase = .photosUploaded

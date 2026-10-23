@@ -375,7 +375,7 @@ struct AutomaticSipRecoveryCoordinatorTests {
     }
 
     @MainActor
-    @Test func backgroundingCancelsRecoveryAndForegroundResumesOnce() async throws {
+    @Test func briefInactivityLetsInFlightRecoveryFinishWithoutRestarting() async throws {
         let fixture = try makeStore()
         defer { fixture.cleanup() }
         let accountID = UUID()
@@ -386,14 +386,15 @@ struct AutomaticSipRecoveryCoordinatorTests {
         )
         var reconcileAttempts = 0
         var cancellationObserved = false
+        var mayFinish = false
         var recoveredIDs: [UUID] = []
         let dependencies = AutomaticSipRecoveryDependencies(
             loadRecords: { try fixture.store.loadAll(userId: $0) },
             reconcile: { pending in
                 reconcileAttempts += 1
-                if reconcileAttempts == 1 {
+                while !mayFinish {
                     do {
-                        try await Task.sleep(for: .seconds(10))
+                        try await Task.sleep(for: .milliseconds(10))
                     } catch is CancellationError {
                         cancellationObserved = true
                         throw CancellationError()
@@ -425,21 +426,19 @@ struct AutomaticSipRecoveryCoordinatorTests {
         #expect(started)
 
         coordinator.setAppActive(false)
-        let cancelled = await waitUntil {
-            cancellationObserved && coordinator.state == .pending(1)
-        }
-
-        #expect(cancelled)
+        #expect(!cancellationObserved)
         #expect(recoveredIDs.isEmpty)
         #expect(try fixture.store.loadAll(userId: accountID).map(\.id) == [record.id])
-
-        coordinator.setAppActive(true)
+        mayFinish = true
         let completed = await waitUntil { coordinator.state == .idle }
 
         #expect(completed)
-        #expect(reconcileAttempts == 2)
+        #expect(reconcileAttempts == 1)
+        #expect(!cancellationObserved)
         #expect(recoveredIDs == [record.id])
         #expect(try fixture.store.loadAll(userId: accountID).isEmpty)
+        coordinator.setAppActive(true)
+        #expect(reconcileAttempts == 1)
     }
 
     @MainActor

@@ -3110,7 +3110,11 @@ struct LogVisitView: View {
 
         isSaving = true
         if let authenticatedUser = authModel.authenticatedUser {
-            Task { await saveRemote(authenticatedUser: authenticatedUser) }
+            Task {
+                try? await SipPublicationBackgroundExecution.run {
+                    await saveRemote(authenticatedUser: authenticatedUser)
+                }
+            }
         } else {
             saveLocal()
         }
@@ -3429,6 +3433,7 @@ struct LogVisitView: View {
                     // payload; the ambiguity marker remains fail-closed.
                     submission.phase = .prepared
                     submission.uploadedPhotoURLs = nil
+                    submission.completedPhotoObjectPaths = nil
                     try pendingStore.save(submission)
                     self.pendingSubmission = submission
                 }
@@ -3586,13 +3591,23 @@ struct LogVisitView: View {
                 }
 #endif
                 let images = try pendingStore.loadImages(for: submission)
+                let uploadPlan = submission
                 let result = try await VisitPhotoUploadService(client: client).uploadPhotos(
                     userId: submission.userId,
                     visitId: submission.id,
                     images: images,
                     posterPhotoIndex: submission.posterPhotoIndex,
                     plannedObjectPaths: submission.objectPaths,
-                    replacingExisting: true
+                    replacingExisting: true,
+                    completedObjectPaths: submission.completedPhotoObjectPaths ?? [],
+                    onPhotoUploaded: { path in
+                        try pendingStore.recordUploadedPhoto(
+                            path,
+                            visitId: uploadPlan.id,
+                            userId: uploadPlan.userId,
+                            expectedObjectPaths: uploadPlan.objectPaths
+                        )
+                    }
                 )
                 submission.uploadedPhotoURLs = result.publicURLs
                 submission.phase = .photosUploaded

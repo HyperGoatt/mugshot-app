@@ -1,8 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-30
+last_verified: 2026-10-23
 ---
+
+## 2026-10-23 — Interrupted photo publication repair
+
+- Correlated the owner's failed cafe post across PostHog, production request
+  logs, its private visit row, Storage objects, and the connected development
+  app's protected outbox. A cafe-session request timed out; recovery uploaded
+  only two of three photos before inactivity. Publication was not complete.
+- Added durable per-photo acknowledgements for both composer and automatic
+  recovery. Retry keeps successful objects, resumes unfinished paths, preserves
+  poster/order, and rejects receipts from a different account or media plan.
+- Added bounded HTTP requests and a finite iOS background execution lease for
+  publication. Brief inactivity no longer cancels an in-flight recovery;
+  expiration and account cancellation still protect the remaining outbox.
+- Verification and delivery status are tracked in the
+  [incident audit](audits/UPLOAD_PUBLICATION_INCIDENT_2026-10-23.md).
 
 ## 2026-09-30 — Home Sip V4 connected-iPhone QA candidate
 
