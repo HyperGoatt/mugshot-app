@@ -12,15 +12,18 @@ struct MugsyAnimatedView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var responseAmount: CGFloat = 0
     @State private var tapRequest = 0
+    @State private var handledTapRequest = 0
+    @State private var handledResponseKey: String?
     @State private var tapCycleIndex = 0
     @State private var activeReaction: MugsyTapReaction?
     @State private var reactionAmount: CGFloat = 0
     @State private var reactionDirection: CGFloat = 0
 
     private var effectiveReduceMotion: Bool { reduceMotionOverride ?? reduceMotion }
-    private var canAnimate: Bool { !isPaused && !effectiveReduceMotion && scenePhase == .active }
+    private var canAnimate: Bool { !isPaused && !effectiveReduceMotion && scenePhase == .active && tabIsActive }
 
     private var renderedConfiguration: MugsyModelConfiguration {
         var result = action.applying(to: configuration)
@@ -72,21 +75,27 @@ struct MugsyAnimatedView: View {
                 y: baseOffsetY - responseAmount * responseLift - reactionAmount * reactionLift
             )
             .animation(
-                MugshotMotion.animation(MugshotMotion.response, reduceMotion: effectiveReduceMotion),
+                actionAnimation,
                 value: action
             )
-            .task(id: action.responseKey) {
+            .task(id: "\(action.responseKey):\(canAnimate)") {
                 await performResponseIfNeeded()
             }
-            .task(id: tapRequest) {
+            .task(id: "\(tapRequest):\(canAnimate)") {
                 await performTapReactionIfNeeded()
             }
+    }
+
+    private var actionAnimation: Animation? {
+        guard !effectiveReduceMotion else { return nil }
+        if case .pulling = action { return nil }
+        return MugshotMotion.animation(MugshotMotion.response, reduceMotion: effectiveReduceMotion)
     }
 
     private var baseScale: CGFloat {
         switch action {
         case .entering: return 0.98
-        case .pulling(let progress): return 0.91 + MugshotMotion.normalized(progress) * 0.09
+        case .pulling: return 1
         case .composing(let progress): return 0.98 + MugshotMotion.normalized(progress) * 0.02
         case .recovering: return 0.98
         case .resting, .refreshing, .focusing, .capturing, .saving, .success, .celebrating:
@@ -96,8 +105,7 @@ struct MugsyAnimatedView: View {
 
     private var baseRotation: Double {
         switch action {
-        case .pulling(let progress):
-            return Double(MugshotMotion.normalized(progress) - 0.5) * 2.4
+        case .pulling: return 0
         case .focusing, .saving: return -0.8
         case .recovering: return -1.2
         case .resting, .entering, .refreshing, .composing, .capturing, .success, .celebrating:
@@ -108,7 +116,7 @@ struct MugsyAnimatedView: View {
     private var baseOffsetY: CGFloat {
         switch action {
         case .entering: return 4
-        case .pulling(let progress): return 5 - MugshotMotion.normalized(progress) * 5
+        case .pulling: return 0
         case .resting, .refreshing, .composing, .focusing, .capturing, .saving, .success, .recovering, .celebrating:
             return 0
         }
@@ -182,7 +190,7 @@ struct MugsyAnimatedView: View {
     }
 
     private func requestTapReaction() {
-        guard tapBehavior != .disabled, !isPaused else { return }
+        guard tapBehavior != .disabled, !isPaused, tabIsActive, scenePhase == .active else { return }
         tapRequest += 1
         MugshotHaptic.softImpact.play()
     }
@@ -190,6 +198,8 @@ struct MugsyAnimatedView: View {
     @MainActor
     private func performResponseIfNeeded() async {
         responseAmount = 0
+        guard handledResponseKey != action.responseKey else { return }
+        handledResponseKey = action.responseKey
         guard shouldRespond, canAnimate else { return }
 
         withAnimation(MugshotMotion.character) {
@@ -206,7 +216,10 @@ struct MugsyAnimatedView: View {
 
     @MainActor
     private func performTapReactionIfNeeded() async {
-        guard tapRequest > 0, tapBehavior != .disabled, !isPaused else { return }
+        guard tapRequest > handledTapRequest else { return }
+        let request = tapRequest
+        handledTapRequest = request
+        guard tapBehavior != .disabled, !isPaused, tabIsActive, scenePhase == .active else { return }
 
         let reaction: MugsyTapReaction
         switch tapBehavior {
@@ -223,9 +236,11 @@ struct MugsyAnimatedView: View {
         reactionAmount = effectiveReduceMotion ? 0.12 : 0
         reactionDirection = 0
         defer {
-            activeReaction = nil
-            reactionAmount = 0
-            reactionDirection = 0
+            if handledTapRequest == request {
+                activeReaction = nil
+                reactionAmount = 0
+                reactionDirection = 0
+            }
         }
 
         guard canAnimate else {
@@ -276,10 +291,11 @@ struct MugsyCelebrationLoopView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var startedAt = Date()
 
     private var effectiveReduceMotion: Bool { reduceMotionOverride ?? reduceMotion }
-    private var pausesTimeline: Bool { isPaused || effectiveReduceMotion || scenePhase != .active }
+    private var pausesTimeline: Bool { isPaused || effectiveReduceMotion || scenePhase != .active || !tabIsActive }
 
     private func danceConfiguration(
         bendProgress: CGFloat,

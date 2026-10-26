@@ -1,8 +1,54 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-26
 ---
+
+## 2026-10-26 — Signature polish hardware acceptance resumed
+
+- Installed the existing signed Debug 0.5.3 (8) polish candidate in place as
+  `co.mugshot.app.dev` on Joe's iPhone 16 Pro with iOS 27.0.1, preserving data.
+  Foreground launch and its running process were confirmed.
+- Observed the Home quick-log unrated/3.5 state and explicit Mugsy helper
+  interaction on the live device. No save or post action was submitted for the
+  check; the existing protected publication was left under its normal recovery.
+- VoiceOver setup interrupted the spoken check, and the phone later switched
+  away from Mugshot. Restored VoiceOver and keyboard capture to off. Physical
+  tactile/spoken acceptance and the scoped PR merge remain open; installation
+  and partial observations do not establish full hardware acceptance.
+
+## 2026-10-23 — Signature polish implementation candidate
+
+- Implemented the approved seven-priority polish pass on Home V4: truthful
+  review/rating/setup states, responsive shared controls, focused rating and cafe
+  cues, short directional continuity, and one-shot durable-save receipts.
+- Reworked Feed coffee-fill refresh around an explicit lifecycle and shared
+  canonical rim geometry, with cancellation and stale-result protection.
+- Refined accessible text roles, scalable headers, wrapping statistics and
+  explanations, larger custom targets, Saved recovery states and note receipts.
+- Added focused presentation tests and retained the baseline audit. Verification,
+  runtime, hardware and delivery gates are recorded separately in the
+  [sprint ledger](audits/signature-polish-sprint-2026-10-23/ACCEPTANCE.md).
+- Local verification passed 59 focused tests and seven native UI journeys across
+  coherent batches, including rollback/Undo and custom refresh cancellation.
+  Added explicit offscreen/scene/Reduce Motion cancellation and event consumption
+  so returning to cached tabs cannot replay feedback. Hardware acceptance and
+  scoped merge remain open while Joe's iPhone is unavailable.
+  [Draft PR #104](https://github.com/HyperGoatt/mugshot-app/pull/104) targets Home V4.
+- No backend contract, production configuration, dependency, marketing-version,
+  or TestFlight changes.
+
+## 2026-10-23 — Dedicated polish audit and proposal
+
+- Audited the current Home V4 and Cafe composer paths, Feed, Map, Saved,
+  Journal, Profile, Settings, and supporting source surfaces. Captured baseline
+  screenshots with local Simulator fixtures, including empty, loading,
+  offline, failure, large-text, and preview states.
+- Added a [screen-by-screen audit and prioritized polish plan](audits/polish-2026-10-23/README.md)
+  with explicit interactions, motion/haptic timing, accessibility and
+  performance constraints, effort estimates, and a cohesive first pass.
+- This is planning evidence only. No product code, backend contract,
+  production data, distribution configuration, or TestFlight state changed.
 
 ## 2026-10-23 — Interrupted photo publication repair
 

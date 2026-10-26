@@ -1,8 +1,37 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-30
+last_verified: 2026-10-26
 ---
+
+## Signature Polish Sprint candidate — 2026-10-23
+
+The Home V4 polish candidate implements shared press feedback, half-star rating
+settles with changed-value-only haptics, directional composer transitions,
+in-place reflection disclosure, and transaction-scoped save receipts. Unrated,
+planned-versus-recorded preparation, private Review, optional-photo, required-field,
+and Saved loading/error states now use explicit language. Cafe relationship
+actions retain optimistic updates, rollback and Undo with local feedback.
+Feed pull-to-refresh uses an explicit pull/armed/request/finish lifecycle,
+canonical rim geometry, and directly manipulated coffee fill. Scroll-phase
+release commits the existing threshold; a finite gap closes after the indicator
+fades. Named refresh actions use a quiet progress label without moving reading content. At accessibility text sizes,
+headers stack without a flexible gap and media captions wrap beneath the photo. Success motion
+follows a successful request; cancellation, scope/account changes and backgrounding
+invalidate presentation work. Reduce Motion uses direct state changes or fades.
+
+The candidate passed 59 focused tests and seven distinct native UI journeys
+across coherent local batches, plus repository static and Debug compile checks.
+On October 26, the same signed Debug 0.5.3 (8) candidate was installed in place
+and launched on Joe's iPhone 16 Pro running iOS 27.0.1. The live Home quick-log
+reflection changed from Not rated to 3.5, and an explicit Mugsy helper tap
+responded. These partial hardware observations do not close the motion/tactile
+or spoken VoiceOver gate; owner feedback and uninterrupted acceptance remain
+open. VoiceOver and keyboard capture were restored to off after inspection. The
+[sprint acceptance ledger](audits/signature-polish-sprint-2026-10-23/ACCEPTANCE.md)
+records compile, focused tests, Simulator, signed-device, clips and PR evidence
+separately. No backend contract, production configuration, App Store version,
+or TestFlight state changed. The scoped destination is Home V4, not main.
 
 ## Home Sip V4 — signed device launch, hands-on acceptance open
 

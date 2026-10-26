@@ -225,13 +225,14 @@ struct SavedCafeComfortableCard: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 18, weight: .semibold))
+                .mugshotSelectionPulse(isSelected)
                 .foregroundColor(isSelected ? .mugshotSageText : .espressoBrown)
                 .frame(width: 48, height: 48)
                 .background(isSelected ? Color.mugshotMint.opacity(0.34) : Color.foamWhite)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(isSelected ? Color.mugshotSageText : Color.mugshotLine, lineWidth: isSelected ? 1.5 : 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MugshotQuietButtonStyle())
         .disabled(isSyncing)
         .accessibilityLabel(label)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
@@ -245,7 +246,10 @@ struct SavedCafeComfortableCard: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Label(label, systemImage: systemImage)
+            HStack(spacing: 8) {
+                Image(systemName: systemImage).mugshotSelectionPulse(isSelected)
+                Text(label)
+            }
                 .font(.body.weight(.semibold))
                 .foregroundColor(isSelected ? .mugshotSageText : .espressoBrown)
                 .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 72 : 48, alignment: .leading)
@@ -254,8 +258,9 @@ struct SavedCafeComfortableCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(isSelected ? Color.mugshotSageText : Color.mugshotLine))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MugshotQuietButtonStyle())
         .disabled(isSyncing)
+        .accessibilityLabel(label)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 }

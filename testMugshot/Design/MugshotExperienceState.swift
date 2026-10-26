@@ -351,7 +351,7 @@ struct MugshotCompletionCard: View {
                             .scaledToFit()
                     } else if let mugsyConfiguration {
                         if celebrates {
-                            MugsyCelebrationLoopView(configuration: mugsyConfiguration)
+                            MugsyAnimatedView(configuration: mugsyConfiguration, action: .success)
                         } else {
                             MugsyAnimatedView(configuration: mugsyConfiguration, action: mugsyAction)
                         }
@@ -421,6 +421,7 @@ struct MugshotCompletionCard: View {
         .opacity(celebrates ? revealProgress : 1)
         .task {
             guard celebrates, revealProgress == 0 else { return }
+            MugshotHaptic.success.play()
             if effectiveReduceMotion {
                 revealProgress = 1
                 confettiProgress = 1
@@ -435,7 +436,6 @@ struct MugshotCompletionCard: View {
             withAnimation(.easeOut(duration: 0.92)) {
                 confettiProgress = 1
             }
-            MugshotHaptic.success.play()
         }
         .accessibilityElement(children: .combine)
     }

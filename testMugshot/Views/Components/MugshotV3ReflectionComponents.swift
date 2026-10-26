@@ -20,6 +20,15 @@ struct MugshotV3HalfStarRating: View {
     var isInteractive = true
     var minimumScore = 0.0
     var accessibilityIdentifier: String? = nil
+    @AppStorage("MugshotSettings.haptics.v1") private var ratingHaptics = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isMugshotTabActive) private var tabIsActive
+    @State private var handledTapRevision = 0
+    @State private var selectedStar: Int?
+    @State private var tapRevision = 0
+    @State private var starLift = false
 
     var body: some View {
         HStack(spacing: spacing) {
@@ -29,20 +38,43 @@ struct MugshotV3HalfStarRating: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label ?? "Rating")
-        .accessibilityValue(String(format: "%.1f out of 5", rating))
+        .accessibilityValue(rating > 0 ? String(format: "%.1f out of 5", rating) : "Not rated")
         .accessibilityHint(isInteractive ? "Swipe up or down to change by half a star" : "")
         .accessibilityAdjustableAction { direction in
             guard isInteractive else { return }
             switch direction {
             case .increment:
-                rating = max(minimumScore, min(5, (floor(rating * 2) + 1) / 2))
+                commit(max(minimumScore, min(5, (floor(rating * 2) + 1) / 2)))
             case .decrement:
-                rating = max(minimumScore, (ceil(rating * 2) - 1) / 2)
+                commit(max(minimumScore, (ceil(rating * 2) - 1) / 2))
             @unknown default:
                 break
             }
         }
         .modifier(OptionalAccessibilityIdentifier(identifier: accessibilityIdentifier))
+        .task(id: "\(tapRevision):\(tabIsActive):\(scenePhase):\(motionOverride ?? reduceMotion)") {
+            guard tapRevision > handledTapRevision else { return }
+            handledTapRevision = tapRevision
+            guard !(motionOverride ?? reduceMotion), scenePhase == .active, tabIsActive else { return }
+            withAnimation(.easeOut(duration: MugshotMotion.Timing.starRise)) { starLift = true }
+            do { try await Task.sleep(for: .milliseconds(50)) } catch { starLift = false; return }
+            guard scenePhase == .active, tabIsActive else { starLift = false; return }
+            withAnimation(.easeOut(duration: MugshotMotion.Timing.starSettle)) { starLift = false }
+        }
+        .onChange(of: tabIsActive) { _, active in if !active { starLift = false } }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { starLift = false } }
+        .onDisappear { starLift = false }
+    }
+
+    private func commit(_ value: Double) {
+        let next = min(5, max(minimumScore, value))
+        guard MugshotPolishState.changedRating(from: rating, to: next) else { return }
+        selectedStar = max(0, min(4, Int(ceil(next)) - 1))
+        withAnimation(.easeOut(duration: (motionOverride ?? reduceMotion) ? 0 : MugshotMotion.Timing.valueChange)) {
+            rating = next
+        }
+        tapRevision += 1
+        MugshotHaptic.selection.play(isEnabled: ratingHaptics)
     }
 
     private func fillFraction(for index: Int) -> CGFloat {
@@ -54,18 +86,19 @@ struct MugshotV3HalfStarRating: View {
             Image(systemName: "star")
                 .resizable()
                 .scaledToFit()
-                .foregroundColor(Color.mugshotSage.opacity(0.46))
+                .foregroundColor(Color.mugshotSageText.opacity(0.8))
 
             Image(systemName: "star.fill")
                 .resizable()
                 .scaledToFit()
-                .foregroundColor(.mugshotSage)
+                .foregroundColor(.mugshotSageText)
                 .mask(alignment: .leading) {
                     Rectangle()
                         .frame(width: starSize * fillFraction(for: index))
                 }
         }
         .frame(width: starSize, height: starSize)
+        .scaleEffect(selectedStar == index && starLift ? 1.04 : 1)
         .frame(width: hitTargetWidth, height: 44)
         .contentShape(Rectangle())
         .gesture(
@@ -73,13 +106,13 @@ struct MugshotV3HalfStarRating: View {
                 .onEnded { value in
                     guard isInteractive else { return }
                     let tappedScore = Double(index) + (value.location.x < hitTargetWidth / 2 ? 0.5 : 1)
-                    rating = max(minimumScore, tappedScore)
+                    commit(tappedScore)
                 }
         )
     }
 
     private var hitTargetWidth: CGFloat {
-        max(40, starSize + 10)
+        max(44, starSize + 10)
     }
 }
 
@@ -94,6 +127,7 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
     var onRename: (() -> Void)? = nil
     var onRemove: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsImportancePicker = false
     @State private var showsRemoveConfirmation = false
 
@@ -126,27 +160,28 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                     .disabled(onRename == nil)
                     .accessibilityLabel(onRename == nil ? title : "Rename \(title)")
                     Text(rating > 0 ? "How well this worked for you" : "Tap a star when it matters")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.tertiaryText)
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(.secondaryText)
+                    importanceButton
                 }
 
                 Spacer(minLength: 4)
 
                 VStack(spacing: 3) {
                     Button {
-                        withAnimation(DesignSystem.Motion.fast) {
+                        withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
                             isPinned.toggle()
                         }
+                        MugshotHaptic.selection.play()
                     } label: {
                         Image(systemName: isPinned ? "pin.fill" : "pin")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(isPinned ? .foamWhite : .secondaryText)
                             .frame(width: 27, height: 27)
-                            .background(isPinned ? Color.mugshotSage : Color.sandBeige.opacity(0.66))
+                            .background(isPinned ? Color.mugshotSageText : Color.sandBeige.opacity(0.66))
                             .clipShape(Circle())
-                            .padding(8.5)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
-                            .padding(-8.5)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(isPinned ? "Unpin \(title)" : "Pin \(title) for future sips")
@@ -163,9 +198,8 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                             .frame(width: 27, height: 27)
                             .background(Color.sandBeige.opacity(0.42))
                             .clipShape(Circle())
-                            .padding(8.5)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
-                            .padding(-8.5)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Remove \(title)")
@@ -173,25 +207,12 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                MugshotV3HalfStarRating(
-                    rating: $rating,
-                    label: "\(title) rating",
-                    starSize: 26,
-                    spacing: 3,
-                    minimumScore: 0.5,
-                    accessibilityIdentifier: controlIdentifier("rating")
-                )
-
-                Text(String(format: "%.1f", rating))
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(.tertiaryText)
-                    .monospacedDigit()
-
-                Spacer(minLength: 4)
-
-                importanceButton
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { starControl; ratingValue }
+                    .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 4) { ratingValue; starControl }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
         .background(Color.foamWhite)
@@ -203,6 +224,21 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
         }
     }
 
+    private var starControl: some View {
+        MugshotV3HalfStarRating(
+            rating: $rating, label: "\(title) rating", starSize: 26, spacing: 3,
+            minimumScore: 0.5, accessibilityIdentifier: controlIdentifier("rating")
+        )
+    }
+
+    private var ratingValue: some View {
+        Text(MugshotPolishState.ratingText(rating))
+            .contentTransition(.opacity)
+            .font(.caption.weight(.bold))
+            .foregroundColor(.secondaryText)
+            .monospacedDigit()
+    }
+
     private var importanceButton: some View {
         Button {
             showsImportancePicker = true
@@ -212,10 +248,10 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .bold))
             }
-            .font(.system(size: 11, weight: .semibold))
+            .font(.caption.weight(.semibold))
             .foregroundColor(.espressoBrown)
             .padding(.horizontal, 10)
-            .frame(height: 34)
+            .frame(minHeight: 44)
             .background(Color.mugshotMint.opacity(0.24))
             .clipShape(Capsule())
             .overlay(Capsule().stroke(Color.mugshotMint.opacity(0.72), lineWidth: 1))
@@ -234,10 +270,11 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
 
                 ForEach(Array(Importance.allCases)) { option in
                     Button {
-                        withAnimation(DesignSystem.Motion.fast) {
+                        withAnimation(reduceMotion ? nil : MugshotMotion.selection) {
                             importance = option
                             showsImportancePicker = false
                         }
+                        MugshotHaptic.selection.play()
                     } label: {
                         HStack {
                             Text(option.title)
@@ -249,8 +286,9 @@ struct MugshotV3CriterionRow<Importance: MugshotV3ImportanceOption>: View {
                         }
                         .foregroundColor(importance == option ? .foamWhite : .espressoBrown)
                         .padding(.horizontal, 12)
-                        .frame(width: 176, height: 40)
-                        .background(importance == option ? Color.mugshotSage : Color.foamWhite)
+                        .frame(width: 176)
+                        .frame(minHeight: 44)
+                        .background(importance == option ? Color.mugshotSageText : Color.foamWhite)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -281,7 +319,7 @@ struct MugshotV3SuggestionChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                 Text(title)
                     .font(.system(size: 12, weight: .semibold))
                 Image(systemName: isAdded ? "checkmark" : "plus")
@@ -290,7 +328,7 @@ struct MugshotV3SuggestionChip: View {
             .foregroundColor(isAdded ? .foamWhite : .espressoBrown)
             .padding(.horizontal, 12)
             .frame(height: 36)
-            .background(isAdded ? Color.mugshotSage : Color.foamWhite)
+            .background(isAdded ? Color.mugshotSageText : Color.foamWhite)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
@@ -347,7 +385,7 @@ struct MugshotV3ScoreGuidanceCard: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.foamWhite)
                     .padding(.horizontal, 12)
-                    .frame(height: 34)
+                    .frame(minHeight: 44)
                     .background(Color.mugshotSage)
                     .clipShape(Capsule())
                     .buttonStyle(.plain)

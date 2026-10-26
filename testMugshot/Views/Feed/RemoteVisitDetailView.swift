@@ -1516,6 +1516,7 @@ struct RemoteVisitDetailView: View {
             return
         }
 
+        MugshotHaptic.selection.play()
         let existing = cafeState(detail)
         let nextFavorite = isFavorite ?? existing.isFavorite
         let nextWantToTry = wantToTry ?? existing.wantToTry
@@ -1601,7 +1602,7 @@ struct RemoteVisitDetailView: View {
             let service = SocialDiscoveryService(client: try SupabaseClientProvider.shared.client())
             _ = try await service.toggleReaction(reaction, visitID: visitId)
             reactions = try await service.reactions(for: visitId)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            MugshotHaptic.selection.play()
             socialError = nil
         } catch {
             socialError = MugshotUserFacingError.message(for: error, context: .social)
@@ -1644,7 +1645,7 @@ struct RemoteVisitDetailView: View {
             reactionState: optimisticReactionState
         )
         applySocialState(optimisticState)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        MugshotHaptic.selection.play()
         isSavingSocialAction = true
         socialError = nil
 
@@ -1675,7 +1676,6 @@ struct RemoteVisitDetailView: View {
                     surface: .remoteSipDetail
                 )
             )
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSavingSocialAction = false
         } catch {
             guard self.currentUserId == currentUserId,

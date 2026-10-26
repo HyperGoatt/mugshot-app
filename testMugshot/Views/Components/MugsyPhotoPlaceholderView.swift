@@ -131,7 +131,7 @@ struct MugsyPhotoPlaceholderView: View {
         case .happyHeartKeeper:
             return "A favorite, photo pending"
         case .proudCameraCompanion:
-            return "Oops, missed the photo"
+            return "No photo this time"
         case .joyfulJournalKeeper:
             return "This memory has no photo"
         case .welcomingFriendsPhone:

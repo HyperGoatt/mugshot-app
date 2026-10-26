@@ -1403,9 +1403,6 @@ struct SipDetailScreen: View {
             focusComposer(proxy: proxy)
             return
         }
-        if action == .like || action == .saveCafe {
-            MugshotHaptic.softImpact.play()
-        }
         onAction(action)
     }
 

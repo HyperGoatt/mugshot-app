@@ -683,7 +683,11 @@ private struct MugsyRimInteriorShape: Shape {
 }
 
 private struct MugsyLiquidSurfaceShape: Shape {
-    let fillProgress: CGFloat
+    var fillProgress: CGFloat
+    var animatableData: CGFloat {
+        get { fillProgress }
+        set { fillProgress = newValue }
+    }
 
     func path(in rect: CGRect) -> Path {
         let progress = MugshotMotion.normalized(fillProgress)
