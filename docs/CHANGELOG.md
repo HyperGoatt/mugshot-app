@@ -1,8 +1,21 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-26
 ---
+
+## 2026-10-26 — Signature polish hardware acceptance resumed
+
+- Installed the existing signed Debug 0.5.3 (8) polish candidate in place as
+  `co.mugshot.app.dev` on Joe's iPhone 16 Pro with iOS 27.0.1, preserving data.
+  Foreground launch and its running process were confirmed.
+- Observed the Home quick-log unrated/3.5 state and explicit Mugsy helper
+  interaction on the live device. No save or post action was submitted for the
+  check; the existing protected publication was left under its normal recovery.
+- VoiceOver setup interrupted the spoken check, and the phone later switched
+  away from Mugshot. Restored VoiceOver and keyboard capture to off. Physical
+  tactile/spoken acceptance and the scoped PR merge remain open; installation
+  and partial observations do not establish full hardware acceptance.
 
 ## 2026-10-23 — Signature polish implementation candidate
 

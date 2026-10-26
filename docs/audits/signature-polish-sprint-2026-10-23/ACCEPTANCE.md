@@ -9,6 +9,9 @@ observed_at: 2026-10-23
 Current implementation/release authority: [Current product status](../../CURRENT_PRODUCT_STATUS.md).
 Baseline: [October 23 audit](../polish-2026-10-23/README.md).
 
+The October 23 checkpoint below is preserved. For the latest hardware state,
+see [October 26 resumption](#2026-10-26-hardware-resumption).
+
 ## Authorized scope and safety
 
 Seven approved priorities plus Feed coffee-fill refresh, expressive key moments,
@@ -213,3 +216,45 @@ candidate can be installed in place, then exercise motion, responsiveness,
 haptics and spoken VoiceOver together. This needs a brief physical judgment;
 automation cannot feel vibration. Record findings, repair any affected batch,
 finish review, and merge the scoped PR only after acceptance passes.
+
+## 2026-10-26 hardware resumption
+
+Documentation impact: signing/distribution and verification status only; no
+product implementation or backend contract change in this resumption.
+
+At the owner's explicit “unlocked. Resume!” instruction, connection discovery
+first reported unavailable, but a direct device query established a paired,
+connected iPhone 16 Pro on iOS 27.0.1. The previously verified signed Debug
+0.5.3 (8) app passed strict signature verification again and installed in place
+as `co.mugshot.app.dev`. Launch succeeded and process 4666 was observed running.
+The installed executable was built on October 23 at 16:59:46 host-local time;
+SHA-256 `0822f1a26cd5f1632db05055b01c6cb076e1fa51da5cfe7052580f68c647313a`.
+No new archive, TestFlight build, source behavior or marketing version was made.
+
+Device Hub provided a live physical screen and input. The Home V4 route and
+quick-log capture opened, with an optional photo and a precise missing-name
+hint. A fresh unsaved quick-log draft reached reflection; Not rated became 3.5
+immediately. A repeated tap retained 3.5, and an explicit Mugsy tap advanced the
+existing helper prompt. No Save, Post, relationship mutation, or retry command
+was submitted. Existing drafts and the protected publication were not reset or
+manually changed. The app's pre-existing automatic recovery remained active.
+
+Physical Feed input was exercised, but no complete motion acceptance is claimed
+from settled screenshots. Native screen recording returned CoreDevice 1001
+(unsupported Screen Recording capability); native screenshots succeeded and are
+local-only under `.codex/polish-hardware-2026-10-26/`. These contain live account
+content and are excluded from source control. The earlier Simulator before/after
+package remains the representative shareable motion evidence.
+
+VoiceOver was initially disabled. Enabling it exposed first-use setup dialogs;
+its complete spoken rating/focus check was not accepted. The phone subsequently
+switched to another app, so remote input stopped. VoiceOver was explicitly
+restored to disabled and verified by a fresh device query; Device Hub keyboard
+capture was also returned to off. No tactile or spoken judgment is inferred.
+Owner feedback was requested for the actual vibration, motion and rating speech.
+
+Current remaining gates: an uninterrupted physical interaction/idle/offscreen
+pass, owner tactile judgment, spoken accessibility acceptance, final PR review,
+and scoped merge into Home V4. PR #104 remains draft/unmerged; its base has not
+advanced from `521f532`. This checkpoint is partial hardware evidence and does
+not close the sprint or the broader Home V4 release gate.
