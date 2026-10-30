@@ -1,8 +1,43 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-25
+last_verified: 2026-10-30
 ---
+
+## Cafe verification incident handoff — 2026-10-30
+
+Cafe verification diagnostics log only `cafe_verification_failed`, a bounded
+phase/reason, and optional provider operation/numeric HTTP status. Keep JWT,
+live-account and rate-limit enforcement active. Preserve the prior deployed
+bundle for rollback; never bypass catalog verification to unblock a post.
+Normalize Apple postal line breaks without accepting other control characters.
+Temporary incident probes must require the existing administrator credential,
+perform provider reads only, expose no credential/provider-content values, and
+be removed after the controlled check. The final deployed entrypoint must match
+the committed source and contain no diagnostic route.
+Local tests and the production original-draft recovery boundary are recorded in
+[the service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
+
+Shared profile compatibility amendment (2026-09-28): migration
+`20260928153756_tolerate_unlocated_profile_cafes.sql` filters cafes without
+coordinates from the optional v4 `top_cafes` summary so already installed iOS
+clients can decode a profile. It leaves the profile, published Mugshots, cafe
+collection, authorization gates, and stored cafe data intact. The iOS model
+also accepts optional coordinates. Production evidence showed the affected
+profile and sip endpoints returning HTTP 200 with an approved account and
+post; the top cafe had null coordinates. The focused hermetic contract and
+native decoder test pass, and an isolated generic Debug app/test compile
+succeeded. The broader static run hit the existing weekly-reminder assertion
+and a shared Xcode cache failure; the isolated compile resolved only the cache
+failure. The data-less QA branch passed 66/66 hosted SQL contracts at 183
+migrations with zero active schedules and was deleted after acceptance. A
+completed 2026-09-28 11:32 UTC physical backup and exact one-migration dry run
+preceded deployment. Production is at 183 migrations; an authenticated viewer
+read returns KatMet's profile and one public Mugshot while omitting the
+unlocated optional top-cafe summary. Auth, profile, cafe, visit, and Storage
+counts and ID fingerprints matched the predeploy baseline. No TestFlight build
+was uploaded or physically accepted.
 
 Backend trust amendment (2026-09-25): forward migration
 `20260925200700_fix_account_deletion_ack_retention.sql` uses a single timestamp

@@ -4,6 +4,28 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## Cafe verification address repair and diagnostics — 2026-10-30
+
+Apple Maps may return multiple postal lines inside one `formattedAddressLines`
+entry. Verification normalizes CR/LF boundaries to comma separators, rejects
+other ASCII control characters before trimming, and retains per-entry/combined
+length, provider-ID and coordinate checks. This repairs a confirmed pre-creation
+503; a valid provider response previously failed Mugshot's address parser.
+
+The `verify-cafe` endpoint still admits only server-fetched provider fields for an
+authenticated live account. Its generic 503 response now has privacy-safe server
+diagnostics identifying authentication/reservation/provider/persistence stage,
+an allowlisted reason, and (for provider HTTP failures) the fixed provider
+operation plus numeric status. No auth header, key, provider response, place ID,
+actor ID or sip content is logged. Diagnostic sink failure cannot change the
+safe response. Nine focused local Deno tests pass. Production function version
+17 is deployed with an exact source match and a successful provider-only check;
+physical original-draft recovery remains blocked by the unavailable iPhone.
+Full production status is recorded
+in the [incident evidence](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
+
+
 ## Sip publication isolation and retry contract — 2026-10-30
 
 The composer owns mutable input until it creates an account/visit-scoped frozen

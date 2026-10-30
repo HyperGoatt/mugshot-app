@@ -4,6 +4,61 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## 2026-10-30 — Cafe verification 503 diagnosis and recovery
+
+- Fixed rejection of valid Apple Maps postal addresses containing line breaks
+  inside a `formattedAddressLines` entry. Normalize CR/LF boundaries to comma
+  separators while retaining raw length, unsafe-character, place-ID and
+  coordinate validation. The live provider-only check reproduced this exact
+  response shape without creating a cafe or sip or touching photos.
+- Added privacy-safe failure-stage diagnostics to `verify-cafe`. Provider HTTP
+  failures retain only the operation and numeric status; no credentials, actor
+  identifiers, place IDs, provider bodies or raw exceptions enter logs/responses.
+- The existing authentication, live-account check, rate limit and verified-only
+  catalog write remain unchanged. No schema, Storage or app build change.
+- Nine focused Deno tests pass, including RED/GREEN reproduction of the address
+  rejection and unsafe-character boundaries. Production version 17 passes the
+  live provider-only check; original-draft recovery is blocked by the unavailable
+  iPhone connection. Deployment and acceptance are tracked in
+  the [service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
+
+## 2026-09-29 — One-time National Coffee Day alpha push
+
+- Sent the approved Mugsy greeting once to each of six active production iOS
+  devices with push enabled; APNs accepted all six requests. The alert expires
+  at midnight Eastern and carries no composer route. The owner's later
+  lock-screen screenshot confirms display on one production iPhone; display on
+  the other five devices and tap behavior were not observed.
+- Used a guarded, temporary Edge sender with exact copy, date and recipient
+  checks. Its source is archived under `supabase/one-off/`; the live function
+  and two temporary secrets were deleted after the send. No app build, migration,
+  Activity event, or durable campaign channel was introduced.
+
+## 2026-09-28 — Shared profile with an unlocated cafe
+
+- Diagnosed a profile load failure after KatMet published a Mugshot. The v4
+  profile and sip RPCs returned HTTP 200, and the account and post passed
+  screening. Her top cafe had null coordinates, which the shipped iOS model
+  could not decode, causing the whole profile screen to show an error.
+- Added a forward v4 projection compatibility migration that omits only
+  coordinate-free entries from the optional `top_cafes` summary for existing
+  clients. The cafe, post, stats, and dedicated profile cafe list remain
+  available. Updated the iOS model to accept missing coordinates and added
+  focused backend and decoding regressions.
+- The focused hermetic database regression, native profile decoder test on the
+  iOS 27 Simulator, isolated generic Debug compile, SQL parse, and
+  documentation check pass. Two older profile-share copy assertions and the
+  existing weekly-reminder contract fail in broader suites. The data-less QA
+  branch passed 66/66 hosted SQL contracts with no active schedules and was
+  deleted. After a completed physical backup and an exact one-migration dry
+  run, the migration was deployed to production (183 migrations). KatMet's
+  authenticated profile now returns one public Mugshot and one cafe in stats,
+  with the unlocated optional top-cafe summary omitted. Auth, profile, cafe,
+  visit, and Storage counts and ID fingerprints matched the predeploy baseline.
+  No TestFlight build was uploaded or physically accepted.
+
+
 ## 2026-10-30 — Sip publication reliability and ECC verification workflow
 
 - Fixed a reproduced iOS 27 Continue hang by deferring scene-scoped keyboard
