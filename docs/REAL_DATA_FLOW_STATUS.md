@@ -39,6 +39,16 @@ workspace must match the current account scope before it contributes. No
 private note is included in share artwork; explicit sharing includes visible
 totals and drink names, explained beside the share action.
 
+Social confirmation treats a successful comment write independently of a failed
+refresh. It clears only the matching account/text/reply/mention snapshot; a newer
+comment draft stays intact. Optimistic cafe state rolls back only for the current
+operation/account. Visual press feedback owns no haptic, and confirmed send or
+share callbacks own their single acknowledgment. Feed mutation clients bind
+the originating account, and account changes reset an operation generation so
+returning to the same user cannot revive old work. Detail mutations check account,
+cancellation and visibility after suspension. Sharing invalidates its presentation
+on account change and consumes completion only for its matching ID/owner.
+
 ## Cafe verification address repair and diagnostics — 2026-10-30
 
 Apple Maps may return multiple postal lines inside one `formattedAddressLines`

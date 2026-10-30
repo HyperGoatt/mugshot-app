@@ -13,8 +13,12 @@ owns durable completed-operation consumption. `MugshotSaveReceiptView` samples
 the approved `MugsyModelView` rig directly and owns cancellable playback.
 `MugshotCompletionPreviewHost` is a DEBUG-only local inspection route.
 `JournalReflectionEngine` and `JournalReflectionDetailView` share the existing
-week/month/year destination and actual journal projections. Focused tests live
-in `CompletionChoreographyTests`; preview and delivery evidence is indexed in
+week/month/year destination and actual journal/private-Home projections.
+`MugshotSocialFeedback` owns optimistic rollback and committed-write/read
+boundaries; `SocialFeedbackTests` covers both. Focused completion tests live
+in `CompletionChoreographyTests`. `scripts/capture-completion-preview.sh` and
+`docs/previews/completion-2026-10-30` retain the native capture and free local
+HyperFrames review workflow; preview and delivery evidence is indexed in
 [audit ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
 
 # Repository map

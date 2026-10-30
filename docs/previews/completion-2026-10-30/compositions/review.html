@@ -1,0 +1,32 @@
+<template>
+<style>
+@font-face{font-family:Inter;src:url('assets/fonts/Inter-400.woff2')}
+@font-face{font-family:Garamond;src:url('assets/fonts/EBGaramond-700.woff2');font-weight:700}
+*{box-sizing:border-box;margin:0}#root{width:100%;height:100%;overflow:hidden;background:#FAF6F0;color:#1F1712;font-family:Inter,sans-serif}
+#root{width:100%;height:100%;display:flex;align-items:center;gap:100px;padding:76px 120px}
+.capture{width:410px;height:890px;object-fit:contain;flex-shrink:0;border-radius:32px;background:#FAF6F0}
+.notes{height:100%;display:flex;flex-direction:column;justify-content:center;gap:30px;max-width:1060px}.eyebrow{font-size:28px;letter-spacing:3px;color:#4D6F5D}
+h1{font-family:Garamond,serif;font-weight:700;font-size:88px;line-height:1.03;max-width:900px}p{font-size:28px;line-height:1.45;max-width:890px}
+.beats{display:flex;gap:18px;flex-wrap:wrap}.beat{width:280px;padding:20px;border-top:3px solid #A8CDB8;font-size:28px;line-height:1.4}.beat strong{display:block;font-size:30px;font-weight:400;margin-bottom:8px;color:#4D6F5D}.footnote{font-size:28px;line-height:1.5;color:#4D6F5D}
+</style>
+<div data-hf-id="hf-forf" id="root" data-composition-id="review" data-start="0" data-duration="6" data-width="1920" data-height="1080">
+    <video data-hf-id="hf-8giy" id="native" class="clip capture" data-start="0" data-duration="6" data-track-index="0" src="assets/completion.mp4" muted playsinline></video>
+    <div data-hf-id="hf-a3lj" class="notes">
+      <div data-hf-id="hf-87en" class="eyebrow">MUGSHOT · NATIVE IOS CAPTURE</div>
+      <h1 data-hf-id="hf-gemv">A moment,<br data-hf-id="hf-x5px" />remembered.</h1>
+      <p data-hf-id="hf-1b2s">Coffee, Mugsy, a clean settle. Navigation stays available.</p>
+      <div data-hf-id="hf-j5db" class="beats">
+        <div data-hf-id="hf-5dwo" class="beat"><strong data-hf-id="hf-zzkr">180 ms</strong>Pour begins.<br data-hf-id="hf-rsrt" />Soft tactile beat.</div>
+        <div data-hf-id="hf-8xdr" class="beat"><strong data-hf-id="hf-ir4o">680 ms</strong>Articulated delight.<br data-hf-id="hf-szow" />Success cue.</div>
+        <div data-hf-id="hf-i7u5" class="beat"><strong data-hf-id="hf-uydt">1.32 s</strong>Quiet again.<br data-hf-id="hf-sldv" />No loop.</div>
+      </div>
+      <p data-hf-id="hf-1e5e" class="footnote">Local fixture · production SwiftUI components<br data-hf-id="hf-qluq" />Silent capture. Physical haptic acceptance remains separate.</p>
+    </div>
+  </div>
+<script>
+const tl = gsap.timeline({paused:true});
+tl.to({}, {duration:6});
+window.__timelines = window.__timelines || {};
+window.__timelines.review = tl;
+</script>
+</template>

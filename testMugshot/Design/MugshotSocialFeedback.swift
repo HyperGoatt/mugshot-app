@@ -27,9 +27,12 @@ enum MugshotConfirmedAction {
     @MainActor
     static func perform<Value>(
         commit: () async throws -> Void,
-        refresh: () async throws -> Value
+        refresh: () async throws -> Value,
+        draftIsCurrent: () -> Bool = { true },
+        clearSubmittedDraft: () -> Void = {}
     ) async throws -> Value? {
         try await commit()
+        if draftIsCurrent() { clearSubmittedDraft() }
         return try? await refresh()
     }
 }

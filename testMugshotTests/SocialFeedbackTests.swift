@@ -32,6 +32,31 @@ struct SocialFeedbackTests {
         }
     }
 
+    @Test func anInactiveOwnerCannotStartARequestOrTouchState() async {
+        var requests = 0, changes = 0
+        _ = try? await MugshotOptimisticAction.perform(isCurrent: { false }, request: {
+            requests += 1
+            return true
+        }, commit: { _ in changes += 1 }, rollback: { changes += 1 })
+        #expect(requests == 0)
+        #expect(changes == 0)
+    }
+
+    @Test func returningToTheSameAccountCannotReviveAnOlderOperation() async {
+        let originalOwner = UUID(), otherOwner = UUID(), originalGeneration = UUID()
+        var activeOwner = originalOwner, generation = originalGeneration
+        var changes = 0
+        _ = try? await MugshotOptimisticAction.perform(isCurrent: {
+            activeOwner == originalOwner && generation == originalGeneration
+        }, request: {
+            activeOwner = otherOwner
+            generation = UUID()
+            activeOwner = originalOwner
+            return true
+        }, commit: { _ in changes += 1 }, rollback: { changes += 1 })
+        #expect(changes == 0)
+    }
+
     @Test func confirmedCommentSurvivesRefreshFailureWithoutAnotherSubmission() async throws {
         var submissions = 0
         let refreshed: Bool? = try await MugshotConfirmedAction.perform(commit: {
@@ -60,13 +85,15 @@ struct SocialFeedbackTests {
 
     @Test func failedCommentNeverRefreshesOrReportsACommit() async {
         var reads = 0
+        var clears = 0
         do {
             let _: Bool? = try await MugshotConfirmedAction.perform(commit: { throw Failure.offline }, refresh: {
                 reads += 1
                 return true
-            })
+            }, draftIsCurrent: { true }, clearSubmittedDraft: { clears += 1 })
             Issue.record("Failed commit must propagate")
         } catch {}
         #expect(reads == 0)
+        #expect(clears == 0)
     }
 }

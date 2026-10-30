@@ -13,15 +13,30 @@ confirmed parser defect rejected valid CR/LF postal separators; this supersedes
 older provider-configuration uncertainty below. Existing original UX failures
 remain reliability defects despite eventual recovery.
 
-After synchronization, 53/53 focused/Simulator publishing tests and all 12
-backend/static checks pass. New completion-policy/rig/date tests plus existing
-motion tests pass 33/33. The native shared receipt now has a finite 1.32-second
-coffee/articulation sequence, durable account/operation consumption, shared
-haptic preference enforcement and concise accessibility alternatives. The
-existing reflection view now includes a Sunday-window Week in review. Current
-UI capture, physical tactile acceptance and final repository delivery are
-tracked separately in the [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
-No native distribution or TestFlight change is claimed.
+After synchronization, publishing passed 53/53 before celebration integration
+and 12/12 backend/static checks. Final focused batches establish 96 distinct
+unit tests and four native UI journeys, with zero failures/skips. They cover
+publication/upload retry, ownership, durable event consumption, social rollback,
+comment draft preservation, Sunday/DST boundaries and private Home inclusion.
+The initial largest-text sheet preview was corrected after a failing layout
+assertion; the actual accessibility5 screenshot and passing journey are retained.
+
+The shared receipt uses a finite 1.32-second native coffee/articulation sequence,
+durable account/operation consumption, shared haptic preferences and concise
+quick/accessible alternatives. Week in review extends the existing month/year
+reflection with actual canonical and completed private Home activity; drafts,
+published duplicates and unrecorded ratings do not inflate it. Social requests
+use originating-account credentials; changed account generations and stale share
+presentation callbacks cannot update a newer interaction.
+
+[Captured previews and editable local sources](previews/completion-2026-10-30/README.md)
+include the native rig, capture script and a strict-checked free local HyperFrames
+review. No preview media or new dependency enters the app bundle. Native changes
+are implemented, locally verified and Simulator verified. Joe's paired iPhone is
+unavailable; physical interaction, tactile/spoken VoiceOver and exact original
+protected-draft acceptance remain open. No native production install or TestFlight
+change is claimed. The [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
+records evidence and the existing stacked-PR merge holds.
 
 ## National Coffee Day alpha notification — 2026-09-29
 

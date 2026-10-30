@@ -16,14 +16,19 @@ last_verified: 2026-10-30
   shared feedback, including social error/confirmation cues.
 - Restore optimistic cafe-save state on failure and preserve a committed comment
   when only its follow-up read fails. Scope delayed social results to the account,
-  retain input after failed submission, and remove rollback-triggered icon bounce.
+  retain failed or newly edited comment drafts, and remove rollback-triggered
+  icon bounce. A late successful send clears only its matching submitted draft.
 - Include completed private Home saves in reflections, using actual save dates,
   excluding drafts and published counterparts, and keeping unknown ratings out
   of averages. Share copy explains visible totals/names and preserves private notes.
 - Extend the current Journal reflection destination with Week in review, using
   the existing Sunday 6 PM endpoint, UTC 168-hour window and exclusive end boundaries; retain month,
   year, actual data and warm quiet-week copy. No new gamification or backend
-  contract. Final runtime/preview/delivery evidence is tracked in the
+  contract. Account generations fence feed state; system-share completion is
+  consumed by presentation and owner. Final scoped verification passes 96 unit
+  tests plus four native journeys; previews/editable sources and $0 additional
+  tooling records are retained. Physical acceptance and the inherited PR holds
+  remain open. Runtime/delivery evidence is tracked in the
   [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
 
 ## 2026-10-30 — Cafe verification 503 diagnosis and recovery

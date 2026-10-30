@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-29
+last_verified: 2026-10-30
 ---
 
 Owner follow-up on 2026-09-14 confirmed reminder settings persist after Save.
@@ -40,6 +40,18 @@ kept in ignored local `.codex/national-coffee-day-2026-receipt.json`. There is n
 standing broadcast endpoint. The existing permission screen describes Activity
 pushes, so future engagement campaigns need a distinct opt-in and durable
 campaign delivery controls before a broader rollout.
+
+## Reflection presentation candidate — 2026-10-30
+
+Journal now offers Week in review in the existing reflection destination, with
+month/year retained. Its endpoint is the latest Sunday at 6 PM in the current
+device timezone, with an exclusive end and preceding 168 hours matching the
+existing UTC reminder query across DST. Canonical journal activity and completed
+private Home saves contribute to the on-device summary. Quiet weeks can be
+opened directly even when no reminder is eligible. Existing reminder eligibility,
+account-bound Journal routing, opt-in settings, payload privacy, schedule and
+production delivery configuration are unchanged. No new push flow is introduced.
+See the [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
 
 ## Reflection reminder extension — 2026-09-14
 

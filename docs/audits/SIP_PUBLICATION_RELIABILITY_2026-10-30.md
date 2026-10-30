@@ -1,5 +1,11 @@
 # Sip publication reliability evidence — 2026-10-30
 
+> Subsequent checkpoint: the [completion and publishing ledger](PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
+> supersedes the provider-version/cause uncertainty and candidate verification
+> state below. The multiline-address defect is confirmed and service version 17
+> is live. This earlier investigation and original-attempt limitations remain
+> historical evidence.
+
 Historical investigation and implementation evidence for branch
 `codex/sip-publication-reliability`. Current contracts live in
 [REAL_DATA_FLOW_STATUS.md](../REAL_DATA_FLOW_STATUS.md) and the current

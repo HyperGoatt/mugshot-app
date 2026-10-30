@@ -6,6 +6,8 @@ import SwiftUI
 struct MugshotCompletionPreviewHost: View {
     private let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000051")!
     private let alternateOwner = UUID(uuidString: "00000000-0000-4000-8000-000000000052")!
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
     @State private var operation = UUID()
     @State private var renderIdentity = UUID()
     @State private var quick = false
@@ -68,6 +70,8 @@ struct MugshotCompletionPreviewHost: View {
                     entries: entries, milestones: [], savedHomeAttempts: privateHome,
                     referenceDate: Self.referenceDate
                 )
+                .environment(\.dynamicTypeSize, typeSize)
+                .environment(\.mugshotReduceMotionOverride, motionOverride)
             }
         }
     }

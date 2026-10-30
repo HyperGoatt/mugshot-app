@@ -126,3 +126,152 @@ suites plus the completed private Home boundaries. Result:
 `test_sim_2026-10-30T23-14-19-355Z_pid353_f547ad88.xcresult`.
 Two prior actual-component UI batches also passed 2/2 each. Final runtime
 acceptance of this source, captured previews and delivery follow below.
+
+
+### Preview-driven accessibility correction
+
+The first two completion UI journeys passed, but inspection revealed the DEBUG
+largest-text override was not carried into the presented reflection sheet. Those
+screenshots prove default-size reflection layout, not accessibility-size layout.
+The receipt itself received the override. RED checkpoint `d270741` adds a real
+headline-height assertion so a normal-size sheet cannot silently pass. The
+preview-only environment forwarding and its final GREEN are recorded below.
+
+### Scoped coverage and review
+
+The 93-test run reports 45/46 executable lines in the new completion plan/pose
+(97.8%), 13/15 in the social commit/rollback helper (86.7%), and all executable
+lines in durable feedback initialization, consume, owner-prefix and account
+purge functions. These are focused helper measurements, not app-wide coverage.
+Actual UIKit sensation and visual SwiftUI paths require the separate runtime
+and physical evidence; old presentation and entire reflection files are not
+represented as fully covered.
+
+SwiftUI/security review checks synchronous submission locks, originating-account
+clients, ownership after awaits, frozen draft/media identity, cancellation before
+side effects, no success from a failed projection read, lifecycle-driven task
+cancellation, and single feedback ownership. The completion view uses finite
+native interpolation, no timer/particle loop, no image decoding, no network
+request and no navigation delay. Dynamic Type has a discrete receipt and a
+scrollable reflection; decorative Mugsy is excluded from VoiceOver and result
+copy is announced once. Spoken VoiceOver remains a physical acceptance boundary.
+
+### Editable previews and cost
+
+[Native captures and local review project](../previews/completion-2026-10-30/README.md)
+retain SwiftUI rig source, shell capture automation, HyperFrames HTML/timeline,
+exact package lock, local fonts and license records. No new asset enters the app
+bundle. Native captures are synthetic fixtures, never production user content.
+
+Installed HyperFrames 0.8.185 runs free local check/preview/render with update,
+skill-installation and telemetry disabled. Strict lint, runtime, layout and
+contrast checks pass with zero errors/warnings. A 1920 x 1080 / 30 fps / six-second
+silent MP4 was rendered locally and inspected. One-second source keyframes avoid
+seek warnings. Local browser opening is disabled by Work settings; CLI rendering
+and captured frame inspection are complete. FFmpeg is locally installed; GSAP
+3.14.2 and SIL OFL fonts retain their licenses. No generation credits, cloud
+render, paid export, subscription, royalty, watermark or vendor splash was used.
+
+CoreDevice still reports Joe's paired iPhone unavailable. No hardware install,
+physical feel acceptance, production app install, archive, upload or TestFlight
+assignment is claimed. The separately deployed verify-cafe service is the only
+production-configured repair incorporated here; native changes are local source
+and Simulator verified. An existing real completed post does not establish the
+exact original frozen draft's acceptance or the original failed UX.
+
+
+### Final publishing acceptance
+
+Normal Cafe composer completion and injected failure -> background/return ->
+retry both pass on the 93-test compiled candidate: **2/2**, zero failures/skips,
+203.3 seconds. Result:
+`test_sim_2026-10-30T23-24-04-003Z_pid353_a175ee00.xcresult`.
+The retained [retry screenshot](../previews/completion-2026-10-30/assets/publishing-retry.png)
+shows Saved privately / Saved on this device, accurately describing the local
+fixture outcome. These journeys exercise the actual composer and Share Hub;
+synthetic transport tests separately establish upload/finalize failure behavior.
+They do not claim a new remote production post.
+
+Accessibility RED executed one test and fails at an 81.7-point headline versus
+the >120-point assertion, proving the sheet did not carry accessibility5.
+Result: `test_sim_2026-10-30T23-27-33-101Z_pid353_32c5d573.xcresult`.
+The DEBUG preview sheet now forwards actual inherited Dynamic Type and reduced
+motion overrides explicitly. Production native receipt/reflection source is
+unchanged by this inspection fix. Its final UI acceptance remains required.
+
+
+### Newer comment draft boundary
+
+Final async-state review found text/reply/mention edits remain available during a
+send, while the earlier success closure cleared all draft fields. RED `0d707ef`
+reaches missing draft-reconciliation guarantees; the five-test suite is discovered
+and compilation fails on the intended new callback arguments. This is an API
+specification RED, not a claimed runtime reproduction. The write/refresh helper
+now clears a submitted draft only when its owner and text/reply/mention snapshot
+still match. A committed old comment remains posted while newly typed text stays
+available. Failed writes never invoke clear or refresh. Final GREEN follows.
+
+
+### Final GREEN and acceptance matrix
+
+The corrected sheet and submitted-comment snapshot pass together: **96/96**
+(zero failures/skips), consisting of 94 unit tests and two actual-component UI
+journeys. Result:
+`test_sim_2026-10-30T23-31-18-206Z_pid353_d10a9bb1.xcresult`.
+The accessibility5 headline now exceeds the assertion and its captured output
+has readable wrapped type, scrollable content and an immediately hittable Done.
+This supersedes the earlier default-size screenshot's accessibility claim.
+The completion plan/pose has 46/46 covered lines in this UI+unit batch; social
+helper has 16/18 (88.9%). Scope remains focused, never app-wide coverage.
+
+A further caller review applies the already tested owner guards to Feed saves
+and reactions, binds their credentials, and adds a generation fence for an
+account changing away and back. The existing remote-detail reaction also locks
+before awaiting, keeps confirmed-write/failed-refresh outcomes separate, and
+suppresses offscreen feedback. System sharing checks presentation ID/owner and
+invalidates the presentation on account change, preventing duplicate/stale cues.
+
+The final focused caller-boundary batch passes **31/31**, zero failures/skips,
+including two additional tests for inactive-owner request suppression and
+account-away/back rejection. It reuses the same optimistic/confirmed helpers,
+with the changed app sources compiled. Result:
+`test_sim_2026-10-30T23-36-04-547Z_pid353_33e72170.xcresult`.
+Together with the preserved publishing journey batch, the final evidence covers
+**96 distinct unit tests plus four UI journeys**. Repeated tests are not counted
+as new evidence. The final small tab-visibility/loading-cleanup refinement is
+reviewed statically and compiled separately; unchanged helper/journey evidence
+is reused under the risk-based policy.
+
+| Boundary | Established state |
+| --- | --- |
+| Native publishing, receipts, rig, weekly data, social feedback | Implemented; local and Simulator evidence above |
+| Backend/static contracts | 12/12 pass, reused after unchanged backend source |
+| Native UI | Normal composer, failure/background/retry, completion/navigation/week-month, corrected reduced/accessible quiet week |
+| Authoring/render | Locked HyperFrames 0.8.185 installed locally; strict check zero warnings; MP4/frames inspected |
+| Production service | Existing verify-cafe v17 is active and read-only corroborated; no new production mutation in this task |
+| Exact original protected draft | Preserved; current physical/outbox acceptance blocked by unavailable phone |
+| Physical iPhone | CoreDevice unavailable; no install/interaction/tactile/spoken VoiceOver acceptance |
+| TestFlight | Not requested, archived, uploaded or assigned; marketing/build version untouched |
+| GitHub delivery | PR #105 stays on the held feature stack; #104/#102 have explicit unresolved acceptance/merge holds |
+
+No GitHub CI checks or review submissions were present at review. The publishing
+service uncertainty in #105's prior description is resolved, but that does not
+lift the feature parents' physical/review/backend acceptance holds. Promoting
+this stack into main would include unrelated unaccepted prerelease work, so it
+is not a permitted merge. Final push/PR confirmation is recorded separately.
+
+
+### Final package validation
+
+The final non-instrumented Debug app compiles successfully after the small
+visibility/loading cleanup (88.3 seconds). Build log:
+`build_sim_2026-10-30T23-37-30-921Z_pid353_22c2ec2a.log`.
+Strict deep codesign verification passes. Info.plist confirms `co.mugshot.app`,
+0.5.3 (8), the exact synthetic `.invalid` backend and disabled analytics. This
+final app is installed/launched in Simulator via Build iOS Apps; the existing
+native component/journey captures remain valid because their component source
+is unchanged. No hardware is targeted. Fast static checks pass **7/7**, the
+capture script passes bash syntax validation, and documentation/diff checks pass.
+Locked local HyperFrames dependencies are installed (76 packages); its final
+strict check again reports zero errors/warnings. Generated history, node_modules
+and thumbnails are ignored and excluded from repository delivery.

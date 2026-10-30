@@ -18,8 +18,12 @@ process restoration; expressive completion is finite, and quick/Reduce Motion
 feedback is concise. Week in review uses actual canonical journal entries plus completed private
 Home saves in the latest Sunday 6 PM / UTC 168-hour interval; drafts and duplicate
 published attempts are excluded. Unknown ratings remain unknown. Month/year
-remain in the same view. Runtime,
-previews and physical acceptance are recorded in the
+remain in the same view. Final scoped batches pass 96 distinct unit tests and
+four native journeys, zero failures/skips. Corrected accessibility5/Reduce Motion
+captures and editable previews are retained. Native behavior is locally and
+Simulator verified; unavailable iPhone interaction/tactile/spoken accessibility,
+exact original protected-draft acceptance and the existing parent PR holds remain
+open. No TestFlight work occurred. See the
 [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
 
 ## Shared profile compatibility — backend production-configured
