@@ -1,8 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-30
 ---
+
+## Cafe verification failure diagnostics — 2026-10-30
+
+The `verify-cafe` endpoint still admits only server-fetched provider fields for an
+authenticated live account. Its generic 503 response now has privacy-safe server
+diagnostics identifying authentication/reservation/provider/persistence stage,
+an allowlisted reason, and (for provider HTTP failures) the fixed provider
+operation plus numeric status. No auth header, key, provider response, place ID,
+actor ID or sip content is logged. Diagnostic sink failure cannot change the
+safe response. Six focused local Deno tests pass; production status is recorded
+in the [incident evidence](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
 
 ## Interrupted photo publication — 2026-10-23
 

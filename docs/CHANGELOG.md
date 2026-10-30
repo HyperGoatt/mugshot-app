@@ -1,8 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-30
 ---
+
+## 2026-10-30 — Cafe verification 503 diagnosis and recovery
+
+- Added privacy-safe failure-stage diagnostics to `verify-cafe`. Provider HTTP
+  failures retain only the operation and numeric status; no credentials, actor
+  identifiers, place IDs, provider bodies or raw exceptions enter logs/responses.
+- The existing authentication, live-account check, rate limit and verified-only
+  catalog write remain unchanged. No schema, Storage or app build change.
+- Six focused Deno tests pass, including RED/GREEN evidence for formerly opaque
+  failures. Production diagnosis and original-draft acceptance are tracked in
+  the [service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
 
 ## 2026-10-23 — Interrupted photo publication repair
 

@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-28
+last_verified: 2026-10-30
 ---
+
+## Cafe verification incident handoff — 2026-10-30
+
+Cafe verification diagnostics log only `cafe_verification_failed`, a bounded
+phase/reason, and optional provider operation/numeric HTTP status. Keep JWT,
+live-account and rate-limit enforcement active. Preserve the prior deployed
+bundle for rollback; never bypass catalog verification to unblock a post.
+Local tests and the production original-draft recovery boundary are recorded in
+[the service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
 
 Shared profile compatibility amendment (2026-09-28): migration
 `20260928153756_tolerate_unlocated_profile_cafes.sql` filters cafes without
