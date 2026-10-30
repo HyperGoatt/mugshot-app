@@ -275,3 +275,32 @@ capture script passes bash syntax validation, and documentation/diff checks pass
 Locked local HyperFrames dependencies are installed (76 packages); its final
 strict check again reports zero errors/warnings. Generated history, node_modules
 and thumbnails are ignored and excluded from repository delivery.
+
+
+## Repository delivery
+
+- Branch `codex/sip-publication-reliability` is pushed and tracking origin.
+- Main's deployed service repair is incorporated by `5587c35`; native completion
+  first GREEN is `f61a75a`; scoped social rollback is `2322ae8`; UTC week repair
+  is `c4c44c0`; private Home/timing GREEN is `5030bd5`; final social fencing,
+  corrected preview environment, evidence and editable package are `e3362e7`.
+  RED checkpoint commits are retained in the branch history and sections above.
+- Push verification: remote branch and PR head both report
+  `e3362e73875396c38338e1beb3ef250d1525212b` at the implementation checkpoint.
+- [PR #105](https://github.com/HyperGoatt/mugshot-app/pull/105) is updated to
+  **Finish account-safe publishing and native Mugsy completion feedback**.
+  GitHub reports OPEN, draft, CLEAN, with no check runs, comments or submitted
+  reviews. Its base remains `codex/signature-polish-sprint`.
+- Merge is held. Fresh reads confirm [#104](https://github.com/HyperGoatt/mugshot-app/pull/104)
+  and [#102](https://github.com/HyperGoatt/mugshot-app/pull/102) remain draft/open
+  with explicit unresolved acceptance and merge holds. They are preserved;
+  this task does not promote the unrelated prerelease stack into main.
+- Current main is already incorporated. No default-branch push or merge,
+  production data mutation, device install or TestFlight delivery is claimed.
+- The final non-instrumented fixture app is installed/launched and its settled
+  native receipt was visually inspected after package validation. This remains
+  Simulator evidence, separate from physical feel and spoken accessibility.
+
+This delivery receipt is a documentation-only follow-up to the verified
+implementation commit; it requires documentation/format checks, not another app
+build. Final local and remote branch synchronization is checked after its push.
