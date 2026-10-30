@@ -1,8 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-30
 ---
+
+## 2026-10-30 — Cafe verification 503 diagnosis and recovery
+
+- Fixed rejection of valid Apple Maps postal addresses containing line breaks
+  inside a `formattedAddressLines` entry. Normalize CR/LF boundaries to comma
+  separators while retaining raw length, unsafe-character, place-ID and
+  coordinate validation. The live provider-only check reproduced this exact
+  response shape without creating a cafe or sip or touching photos.
+- Added privacy-safe failure-stage diagnostics to `verify-cafe`. Provider HTTP
+  failures retain only the operation and numeric status; no credentials, actor
+  identifiers, place IDs, provider bodies or raw exceptions enter logs/responses.
+- The existing authentication, live-account check, rate limit and verified-only
+  catalog write remain unchanged. No schema, Storage or app build change.
+- Nine focused Deno tests pass, including RED/GREEN reproduction of the address
+  rejection and unsafe-character boundaries. Production version 17 passes the
+  live provider-only check; original-draft recovery is blocked by the unavailable
+  iPhone connection. Deployment and acceptance are tracked in
+  the [service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
 
 ## 2026-10-23 — Interrupted photo publication repair
 
