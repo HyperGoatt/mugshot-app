@@ -1,8 +1,42 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-30
 ---
+
+## Sip publication isolation and retry contract — 2026-10-30
+
+The composer owns mutable input until it creates an account/visit-scoped frozen
+outbox entry. Button state, displayed validation and submission share one policy.
+A frozen retry uses the stored payload; local preview availability does not grant
+or deny permission to finish already uploaded or finalized work. Missing bytes
+are required only for photos without an exact durable upload acknowledgement.
+Invalid/foreign/duplicate media plans fail before Storage mutation.
+
+A per-visit gate serializes composer, edit and automatic-recovery work in-process.
+Recovery rechecks the owner-bound server state before retrying; the stable visit
+ID and finalization receipts remain the cross-process duplicate safeguards.
+Publishing clients obtain tokens only for the original account. A changed/missing
+account fails closed, including the pinned SDK's swallowed token-provider-error
+case. Cancellation and composer generations prevent stale UI completion. Local
+canonical sip saving is limited to DEBUG UI fixtures; guest Home private-journal
+behavior remains owned by its existing workspace flow.
+
+Edit uploads use a separate owner/visit-scoped media receipt store keyed by
+stable added-photo IDs. A later upload or edit-RPC failure keeps acknowledged
+objects; retry skips them. This receipt store does not create a new visit or join
+the new-sip recovery queue. Confirmed canonical edits enqueue abandoned objects
+for existing cleanup and clear receipts. Account deletion purges only that
+account's receipts. Dismissing an unsuccessful edit can leave unreferenced
+objects protected until a later confirmed edit or account deletion; preserving
+an ambiguous committed photo takes precedence over immediate cleanup.
+
+Read-only October 28 evidence confirms cafe verification HTTP 503 before creation
+for a protected five-photo draft. Retained completed rows do not prove that the
+original experience succeeded. The
+[reliability report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md) records the
+production configuration boundary; no schema/RLS/Storage deployment was made.
+
 
 ## Interrupted photo publication — 2026-10-23
 
@@ -12,7 +46,9 @@ each success before advancing, retain successfully uploaded objects after a
 later failure, and upload only unfinished paths. Stale worker saves merge
 receipts only for the exact media plan. Photo replacement or authoritative
 remote absence resets receipts; legacy outboxes decode without the new field
-and safely retry stable paths. One-shot edit uploads retain rollback cleanup.
+and safely retry stable paths. As of October 30, edit uploads also retain scoped
+acknowledgements and stable photo IDs for retries; unreferenced edit objects are
+queued for cleanup only after a confirmed canonical edit.
 
 Supabase HTTP transport now uses a 30-second idle request timeout and a
 90-second resource limit, without waiting indefinitely for connectivity.
@@ -305,7 +341,7 @@ must not overrule an authoritative remote result.
 | Authentication | Supabase Auth | Callback queue and last-known presentation | Fail closed for account-bound operations |
 | Profile and social identity | `public.users`, sealed `profile_favorite_spots` / `profile_tagged_post_hides` / `profile_visibility_preferences`, and v4 profile projection/list RPCs | Account-scoped rendering cache plus DEBUG-only design fixture | Default to Friends plus Everyone only when the owner preference permits it; preference-off is Everyone-only and Private always fails closed |
 | Visits, drinks, ratings and captions | Supabase visit schema/RPCs | Guest records, drafts and pending publication | Preserve draft/outbox until remote completion is proven |
-| Visit and profile media | Supabase Storage plus metadata rows | Preview/cache and upload recovery | Resolve HTTP and durable `mugshot-storage://` values through the viewer-authorized remote pipeline, including Profile-share artwork; checkpoint protected photo uploads and retain one-shot edit rollback cleanup |
+| Visit and profile media | Supabase Storage plus metadata rows | Preview/cache and upload recovery | Resolve HTTP and durable `mugshot-storage://` values through the viewer-authorized remote pipeline, including Profile-share artwork; checkpoint protected photo and edit uploads; retain ambiguous edit media until canonical reconciliation |
 | Home recipes and coffee library | Home Workbench tables/RPC projections | Draft/template cache | Remote owner projection wins after save |
 | Feed, Journal and profiles | Viewer-specific Supabase projections | Rendering cache | Keep the last valid view and show an actionable error |
 | Cafe identity and detail visit cards | `public.cafes` provider rows plus viewer-scoped Supabase visit queries and RLS | Conservative read-time stitch projection and local visit fallback only when no visible remote visit is returned | Query all equivalent cafe IDs, then render only self, friend, and Everyone visits the backend permits; never mutate cafe rows or synthesize remote visibility from local history |

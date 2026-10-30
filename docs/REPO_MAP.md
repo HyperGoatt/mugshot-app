@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-10-30
 ---
 
 # Repository map
@@ -18,6 +18,17 @@ Focused coverage lives in `testMugshotTests/HomeRecipeWorkspaceTests.swift`,
 `testMugshotTests/HomeRecipeHostedIntegrationTests.swift`,
 `testMugshotUITests/HomeRecipesJourneyUITests.swift`, and the `qa/pglite/home-*`
 harnesses. [Ownership, acceptance, and rollout state](HOME_RECIPES_IMPLEMENTATION.md).
+
+## Sip publication reliability
+
+`SipPublicationValidation` is the shared button/tap/feedback contract.
+`SipPublicationGate` serializes account/visit work across composer, edit and
+recovery. `SupabaseClientProvider.publicationClient` binds request credentials to
+the originating account. `PendingVisitSubmissionStore` owns frozen new-sip photo
+acknowledgements; `VisitEditMediaProgressStore` separately owns stable edit-photo
+receipts and is purged by account deletion. Neither store infers server success
+from a local request completing. See
+[REAL_DATA_FLOW_STATUS.md](REAL_DATA_FLOW_STATUS.md) for reconciliation and cleanup.
 
 ## Repository and targets
 

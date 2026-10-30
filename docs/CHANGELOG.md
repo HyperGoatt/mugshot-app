@@ -1,8 +1,35 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-26
+last_verified: 2026-10-30
 ---
+
+## 2026-10-30 — Sip publication reliability and ECC verification workflow
+
+- Fixed a reproduced iOS 27 Continue hang by deferring scene-scoped keyboard
+  dismissal until after the gesture/step update.
+- Unified publish enablement, visible validation and submission checks. Frozen
+  retries finish the original payload without requiring local photo previews or
+  a new sharing-policy preflight; invalid scores/notes/captions remain explained.
+- Added per-visit publication serialization, account-bound request credentials,
+  cancellation/generation checks and synchronous edit-save locking. Production
+  publishing no longer falls back to a cached local profile after Auth is lost.
+- Preserve acknowledged photo objects when their local files are missing. Edit
+  retries now keep scoped receipts and stable photo IDs instead of deleting
+  successfully uploaded photos after a later failure. Reject
+  empty, duplicate, foreign-account and malformed upload plans; cancellation
+  cannot report an empty successful upload or downgrade a completed visit.
+- Retired numbered verification tiers in AGENTS.md and the current policy in
+  favor of ECC RED/GREEN, focused regression/security review, and risk-based
+  runtime evidence. Production-data, physical-device and TestFlight gates remain.
+- Read-only evidence confirms a five-photo protected draft blocked by cafe
+  verification HTTP 503 before visit creation. This is distinct from an upload
+  failure or eventual recovery. Provider configuration remains unverified.
+- Local verification passed 51 focused tests, two Simulator publishing journeys,
+  all 12 backend/static checks, documentation checks and signature validation.
+  Exact verification and delivery results are tracked in the
+  [reliability evidence report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md).
+
 
 ## 2026-10-26 — Signature polish hardware acceptance resumed
 

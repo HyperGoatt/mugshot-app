@@ -14,6 +14,7 @@ struct LogASipV3ProductionView: View {
     @Binding var step: SipV3ComposerStep
 
     let isSaving: Bool
+    let publicationValidationMessage: String?
     let resumeDraftCount: Int
     let isRecoveryLocked: Bool
     let statusMessage: String?
@@ -66,6 +67,7 @@ struct LogASipV3ProductionView: View {
         photoImages: Binding<[UIImage]>,
         step: Binding<SipV3ComposerStep>,
         isSaving: Bool,
+        publicationValidationMessage: String? = nil,
         resumeDraftCount: Int = 0,
         isRecoveryLocked: Bool = false,
         statusMessage: String? = nil,
@@ -102,6 +104,7 @@ struct LogASipV3ProductionView: View {
         _photoImages = photoImages
         _step = step
         self.isSaving = isSaving
+        self.publicationValidationMessage = publicationValidationMessage
         self.resumeDraftCount = resumeDraftCount
         self.isRecoveryLocked = isRecoveryLocked
         self.statusMessage = statusMessage
@@ -368,6 +371,7 @@ struct LogASipV3ProductionView: View {
                 draft: $draft,
                 photoImages: $photoImages,
                 isSaving: isSaving,
+                publicationValidationMessage: publicationValidationMessage,
                 isRecoveryLocked: isRecoveryLocked,
                 statusMessage: statusMessage,
                 onAddPhoto: onAddPhoto,
@@ -522,6 +526,7 @@ struct LogASipV3ProductionView: View {
                 draft: $draft,
                 photoImages: $photoImages,
                 isSaving: isSaving || isSavingHomeAttempt,
+                publicationValidationMessage: publicationValidationMessage,
                 isRecoveryLocked: isRecoveryLocked,
                 statusMessage: homeSaveError ?? statusMessage,
                 onAddPhoto: onAddPhoto,
@@ -1115,12 +1120,15 @@ struct LogASipV3ProductionView: View {
     }
 
     private func dismissKeyboard() {
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil,
-            from: nil,
-            for: nil
-        )
+        // Let the button gesture and step replacement finish before UIKit
+        // changes its input views. Synchronous global responder dispatch can
+        // reenter keyboard layout and strand Continue before navigation.
+        Task { @MainActor in
+            for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+                where scene.activationState == .foregroundActive {
+                scene.windows.first(where: \.isKeyWindow)?.endEditing(true)
+            }
+        }
     }
 
     private func addCustomCriterion(_ rawName: String, to target: LogASipV3CriterionTarget) {
@@ -2973,6 +2981,7 @@ private struct LogASipV3PublishSurface: View {
     @Binding var photoImages: [UIImage]
 
     let isSaving: Bool
+    let publicationValidationMessage: String?
     let isRecoveryLocked: Bool
     let statusMessage: String?
     let onAddPhoto: () -> Void
@@ -2997,17 +3006,20 @@ private struct LogASipV3PublishSurface: View {
         draft.context != .cafe || (draft.contextScore ?? 0) >= 1
     }
 
+    private var effectiveValidationMessage: String? {
+        // Home's private journal save has its own optional-rating/media contract.
+        if !isRecoveryLocked, isHome && draft.visibility == .private { return nil }
+        return publicationValidationMessage ?? (isRecoveryLocked ? nil : SipPublicationValidation.message(
+            for: draft, photoCount: photoImages.count, pending: nil,
+            authenticatedUserID: draft.ownerUserID
+        ))
+    }
+
     private var isReadyToPublish: Bool {
-        if isHome && draft.visibility == .private {
+        if !isRecoveryLocked, isHome && draft.visibility == .private {
             return draft.drinkName.remoteTrimmedNonEmpty != nil
         }
-        return draft.drinkName.remoteTrimmedNonEmpty != nil
-            && SipCaptionPolicy.validationError(for: draft.socialCaption) == nil
-            && draft.overallScore > 0
-            && hasRequiredContextScore
-            && (!photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto)
-            && draft.recipePublicationRequirement == .ready
-            && recipeAttachmentReady
+        return effectiveValidationMessage == nil && (isRecoveryLocked || recipeAttachmentReady)
     }
 
     private var selectedRecipeReference: HomeRecipeReference? {
@@ -3495,6 +3507,7 @@ private struct LogASipV3PublishSurface: View {
                 ? "Saving privately…"
                 : "Your draft stays protected."
         }
+        if let effectiveValidationMessage { return effectiveValidationMessage }
         if isRecoveryLocked { return "Retry uses the protected copy so nothing changes mid-upload." }
         switch draft.recipePublicationRequirement {
         case .ready:

@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-10-30
 ---
 
 # MugShot iOS QA Efficiency Framework
@@ -10,14 +10,14 @@ Date: 2026-07-22
 
 ## Outcome
 
-MugShot uses a no-Simulator-first verification loop. Deterministic checks find most defects cheaply; one prepared Simulator or human-QA session validates the small set of behaviors that require a live iOS runtime. The intended cadence is:
+MugShot uses an ECC-aligned verification loop selected by behavior and risk. Numbered tiers are retired; see [VERIFICATION_POLICY.md](VERIFICATION_POLICY.md). Deterministic checks find most defects cheaply; one prepared Simulator or human-QA session validates the small set of behaviors that require a live iOS runtime. The intended cadence is:
 
 ```text
 inspect -> static/pure/backend checks -> generic compile -> integration review
         -> one final runtime acceptance session -> batch any follow-up fixes
 ```
 
-Simulator is an acceptance environment, not the default debugger.
+Prefer deterministic checks for logic. Focused Simulator TDD is permitted when iOS-hosted tests or runtime behavior require it; consolidate broader journey acceptance after the fix.
 
 ## Repository commands
 
@@ -67,7 +67,7 @@ The generic destination uses the Simulator SDK only. It is not a runtime test an
 - Run SQL contract and RLS tests only in a disposable local PostgreSQL/Supabase environment or a transactionally isolated ephemeral harness.
 - Cover the success path and the highest-risk denial, retry, duplicate, stale-state, and cleanup paths.
 
-The current app unit target is Simulator-hosted because it imports the iOS app module. Queue that suite for the consolidated runtime checkpoint. As code is naturally refactored, moving pure domain logic into a host-testable Swift package would move more coverage below the runtime line; that is an optimization, not a prerequisite for using this framework now.
+The current app unit target is Simulator-hosted because it imports the iOS app module. Run focused hosted regressions when needed for RED/GREEN, then reuse that evidence during consolidated acceptance. As code is naturally refactored, moving pure domain logic into a host-testable Swift package would move more coverage below the runtime line; that is an optimization, not a prerequisite for using this framework now.
 
 The focused repository-owned PGlite harness in `qa/pglite` exercises account deletion, collaborative-list consent and expiry, device-registration limits, and delivery leases against a new in-memory database per process. Install its exact pinned PGlite and Deno dependencies once with `npm ci --prefix qa/pglite --ignore-scripts`; the normal backend command then runs the database suite and offline Edge Function checks automatically. PGlite does not emulate every Supabase service or extension, so the broader SQL/RLS files in `supabase/tests` still require a disposable local Supabase stack before deployment. Never substitute the linked project.
 
@@ -162,7 +162,7 @@ The default verification contract is:
 
 Report concise, exact evidence:
 
-- verification tier and mode;
+- verification scope, risks, and command mode;
 - commands that passed;
 - checks skipped and the missing tool or safe harness;
 - whether Simulator or a physical device was intentionally not used;

@@ -2047,6 +2047,10 @@ struct RemoteVisitDetailView: View {
                 currentUserID: currentUserId,
                 draft: draft
             )
+            guard self.currentUserId == currentUserId,
+                  client.auth.currentUser?.id == currentUserId else {
+                return .failure("Your account changed. Reopen this sip from the account that owns it.")
+            }
             if let refreshedDetail {
                 self.detail = refreshedDetail
             } else {

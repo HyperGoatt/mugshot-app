@@ -123,6 +123,10 @@ struct SipPublicationReliabilityTests {
         _ = try? await bound.from("cafes").select().execute()
         #expect(PublicationFixtureProtocol.authorizations.last == "Bearer mugshot-invalid-publication-session")
         #expect(PublicationFixtureProtocol.authorizations.last != "Bearer \(nextToken)")
+        _ = try? await bound.storage.from("visit-photos-private").upload("fixture.jpg", data: Data([1]))
+        #expect(PublicationFixtureProtocol.authorizations.last == "Bearer mugshot-invalid-publication-session")
+        let _: Data? = try? await bound.functions.invoke("fixture-function")
+        #expect(PublicationFixtureProtocol.authorizations.last == "Bearer mugshot-invalid-publication-session")
     }
 
     @MainActor @Test func acknowledgedPhotoCanFinishWithoutItsLocalBytesAndCancelledEmptyUploadCannotSucceed() async throws {
@@ -180,6 +184,13 @@ struct SipPublicationReliabilityTests {
         }
         restored.remove(userID: owner, visitID: visit)
         #expect(restored.completedPaths(userID: owner, visitID: visit, plannedPaths: paths).isEmpty)
+        let otherOwner = UUID()
+        let otherPaths = VisitPhotoUploadPlan.objectPaths(userId: otherOwner, visitId: visit, objectIds: [UUID()])
+        try restored.record(paths[0], userID: owner, visitID: visit, plannedPaths: paths)
+        try restored.record(otherPaths[0], userID: otherOwner, visitID: visit, plannedPaths: otherPaths)
+        restored.removeAll(userID: owner)
+        #expect(restored.completedPaths(userID: owner, visitID: visit, plannedPaths: paths).isEmpty)
+        #expect(restored.completedPaths(userID: otherOwner, visitID: visit, plannedPaths: otherPaths) == otherPaths)
     }
 
     @Test func publicationValidationCoversRequiredContextScoresAndBoundaryNotes() {

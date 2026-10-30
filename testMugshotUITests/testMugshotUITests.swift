@@ -6,6 +6,32 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testCafePublicationPreservesDraftAcrossFailureBackgroundAndRetry() throws {
+        executionTimeAllowance = 120
+        let app = launch(reset: true, extraArguments: ["--ui-testing-fail-first-save", "--ui-testing-reduce-motion"])
+        openV3SavedCafeDraftToPublish(in: app, drinkName: "Publication retry fixture")
+        let publish = v3Element("logASipV3.primaryAction", in: app)
+        tapAfterRevealing(publish, in: app)
+        XCTAssertTrue(app.staticTexts["We couldn’t finish this save. Your sip is safe—try again."].waitForExistence(timeout: 4))
+        XCTAssertFalse(v3Element("logASipV3.shareHub", in: app).exists)
+        XCTAssertTrue(publish.isEnabled)
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        tapAfterRevealing(publish, in: app)
+        XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
+        attachScreenshot(named: "Cafe publishing - protected failure then successful retry")
+    }
+
+    @MainActor
+    func testCafePublicationNormalLocalFixtureSuccess() throws {
+        executionTimeAllowance = 120
+        let app = launch(reset: true, extraArguments: ["--ui-testing-reduce-motion"])
+        openV3SavedCafeDraftToPublish(in: app, drinkName: "Publication success fixture")
+        tapV3PrimaryAction(in: app)
+        XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testPublishedRecoveryBannerIsTruthfulAndDismissible() throws {
         let app = XCUIApplication()
         app.launchArguments = [

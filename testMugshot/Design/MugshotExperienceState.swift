@@ -7,6 +7,9 @@ import SwiftUI
 
 enum MugshotUserFacingError {
     static func message(for error: Error, context: Context) -> String {
+        if let error = error as? CafeVerificationError { return error.localizedDescription }
+        if let error = error as? AutomaticSipRecoveryError { return error.localizedDescription }
+        if let error = error as? SipPostEditValidationError { return error.localizedDescription }
         if let pendingError = error as? PendingVisitSubmissionStoreError {
             return pendingError.localizedDescription
         }
@@ -84,7 +87,7 @@ enum MugshotUserFacingError {
     }
 }
 
-enum SipRemoteSaveOperation: Equatable {
+enum SipRemoteSaveOperation: String, Equatable {
     case preparing
     case creatingVisit
     case savingTastingLens

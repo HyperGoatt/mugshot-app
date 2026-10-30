@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-10-30
 ---
 
 # Mugshot PostHog analytics plan
@@ -13,6 +13,22 @@ last_verified: 2026-09-17
 - Use the existing PostHog project and reuse the wizard-created analytics assets where they match this taxonomy.
 - Keep product analytics within PostHog's free product-analytics allowance. Session replay, surveys, experiments, and broad UI autocapture are out of scope.
 - Never send captions, journal or raw-note content, cafe/place identifiers, names, email addresses, search text, coordinates, photo data, social identifiers, auth tokens, or raw error messages.
+
+## Publication diagnostics — 2026-10-30
+
+`sip_publish_failed` adds allowlisted `publication_stage` from the save operation:
+`preparing`, `creatingVisit`, `savingTastingLens`, `uploadingPhotos`, `finalizing`,
+or `finishingLocalCompletion`. Cafe-verification failures classify as
+`remote_service` (or `authentication` for HTTP 401), rather than `unknown`.
+No provider response body, raw error, place/account/visit ID, or user text is sent.
+Sharing-policy preflight failures are visible and emit a local-draft failure.
+The stage is diagnostic context, not proof that the server did or did not commit.
+
+The October 30 read-only investigation found no live taxonomy for
+`sip_publish_blocked`; source instrumentation does not establish delivered
+coverage. Disabled publish buttons cannot be measured from absent events. Keep
+pre-submission blocking, request failure, ambiguous completion and delayed recovery
+separate. See the [incident evidence](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md).
 
 ## Event taxonomy
 

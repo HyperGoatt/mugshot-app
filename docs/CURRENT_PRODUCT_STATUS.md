@@ -1,8 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-26
+last_verified: 2026-10-30
 ---
+
+## Sip publication reliability candidate — 2026-10-30
+
+Current source defers scene-scoped keyboard dismissal to avoid a reproduced
+iOS 27 Continue hang, shares validation between button state and tap handling, permits
+frozen retries after local photo loss, serializes foreground/background saves,
+and binds remote requests to their originating account. Edit saves lock before
+starting async work; cached local profiles cannot masquerade as remote success
+when Auth is unavailable. Uploaded photos remain protected through cancellation
+and recovery. Numbered verification tiers are retired in favor of the
+[ECC-aligned workflow](VERIFICATION_POLICY.md).
+
+Read-only production/device evidence identifies a protected five-photo draft
+blocked by `verify-cafe` HTTP 503 before any visit or photo upload. The provider's
+underlying failure remains unverified; no production data or service deployment
+was changed. Local verification passed 51 focused tests and two Simulator publishing journeys
+with synthetic backend configuration and disabled production analytics. The [evidence report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md)
+separates implementation, test/runtime results, and remaining acceptance gates.
+
 
 ## Signature Polish Sprint candidate — 2026-10-23
 

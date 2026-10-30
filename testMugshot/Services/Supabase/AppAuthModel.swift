@@ -1197,6 +1197,7 @@ final class AppAuthModel: ObservableObject {
         catch { completed = false }
         TastingLensPreferencesStore().removeAll(userID: userID)
         VisitMediaCleanupStore.shared.removeAll(userId: userID)
+        VisitEditMediaProgressStore.shared.removeAll(userID: userID)
         DrinkAnalysisRetryStore.shared.removeAll(userId: userID)
         do {
             try SafetyReportReceiptStore.shared.purge(accountID: userID)

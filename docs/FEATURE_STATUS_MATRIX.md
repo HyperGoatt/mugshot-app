@@ -1,8 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-26
+last_verified: 2026-10-30
 ---
+
+## Sip publication reliability — 2026-10-30
+
+Source implements shared visible validation, frozen-payload retries, per-visit
+serialization, originating-account credentials, cancellation/generation guards,
+acknowledged-photo retention and edit tap locking. Local verification passed 51 focused tests and two Simulator publishing journeys.
+Verification and remaining
+runtime/production gates are recorded in the
+[reliability evidence report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md).
+The protected cafe-verification 503 incident is not classified as successful
+publication or recovered merely because other retained rows are complete.
+
 
 ## Signature Polish Sprint candidate — 2026-10-23
 
