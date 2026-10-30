@@ -167,3 +167,29 @@ Deno.test("Maps JWT signature and scope are restricted to server API", async () 
     true,
   );
 });
+Deno.test("provider HTTP failures retain a bounded operation and status without response content", async () => {
+  let observed: unknown;
+  try {
+    await fetchPlace("google", "ChIJfixture", { googleKey: "synthetic" }, () =>
+      Promise.resolve(new Response("private provider response", { status: 403 }))
+    );
+  } catch (error) {
+    const failure = error as { reason?: string; operation?: string; status?: number };
+    observed = { reason: failure.reason, operation: failure.operation, status: failure.status };
+  }
+  assertEquals(observed, { reason: "provider_http", operation: "google_place", status: 403 });
+});
+Deno.test("handler diagnoses failed stage without logging raw errors or submitted identifiers", async () => {
+  const captured: unknown[] = [];
+  const deps = {
+    authenticate: () => Promise.resolve("private actor"),
+    reserve: () => Promise.resolve(true),
+    verify: () => Promise.reject(Error("private key and submitted identifier")),
+    save: () => Promise.resolve(place),
+    reportFailure: (event: unknown) => { captured.push(event); },
+  };
+  const response = await handle(req({ provider: "apple", place_id: "I123" }), deps);
+  assertEquals(response.status, 503);
+  assertEquals(captured, [{ stage: "provider", reason: "unexpected" }]);
+  assertEquals(JSON.stringify(captured).includes("private"), false);
+});
