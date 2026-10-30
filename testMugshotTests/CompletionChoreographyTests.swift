@@ -88,12 +88,14 @@ struct CompletionChoreographyTests {
         let afterDST = try #require(formatter.date(from: "2026-11-02T12:00:00Z"))
         let range = JournalReflectionEngine.dateInterval(for: .week, containing: afterDST, calendar: calendar)
         #expect(formatter.string(from: range.end) == "2026-11-01T23:00:00Z")
-        #expect(formatter.string(from: range.start) == "2026-10-25T22:00:00Z")
+        // The existing reminder SQL runs in UTC and subtracts 7 * 24 hours.
+        #expect(formatter.string(from: range.start) == "2026-10-25T23:00:00Z")
+        #expect(range.duration == 7 * 24 * 60 * 60)
         #expect(JournalReflectionEngine.includes(range.start, in: range))
         #expect(!JournalReflectionEngine.includes(range.end, in: range))
         let beforeSundayDelivery = try #require(formatter.date(from: "2026-11-01T22:59:59Z"))
         let prior = JournalReflectionEngine.dateInterval(for: .week, containing: beforeSundayDelivery, calendar: calendar)
-        #expect(prior.end == range.start)
+        #expect(formatter.string(from: prior.end) == "2026-10-25T22:00:00Z")
     }
 
     @Test func quietWeekHasNoInventedNumbersOrPressure() {
