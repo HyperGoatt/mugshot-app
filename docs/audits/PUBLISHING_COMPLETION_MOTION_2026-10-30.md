@@ -90,3 +90,22 @@ RED/GREEN, final runtime, preview and delivery results are appended as executed.
   State-driven social icon bounces are removed so rollback is not celebration.
 - Read-only device discovery reports Joe's paired iPhone unavailable. No device
   install, tactile acceptance or TestFlight operation is claimed.
+
+
+### Existing weekly contract / final focused GREEN
+
+The database timezone is UTC. Read-only SQL confirms the reminder's `interval
+7 days` is 168 hours even when the reader's timezone crosses DST. The initial
+calendar subtraction differed by one hour. RED `54f20a0` executes all eight
+completion tests: seven pass, the DST test fails with 608400 vs 604800 seconds.
+The fix retains local Sunday 6 PM as the endpoint and subtracts exactly 168 hours.
+A prior single-method filter executed zero tests and is not RED or GREEN proof.
+
+Final focused GREEN after the fix: **88/88**, zero failures/skips, covering
+publication, upload recovery, outbox, ownership, edits, analytics, completion,
+social feedback, rig and existing motion suites. Result:
+`test_sim_2026-10-30T22-52-13-277Z_pid353_f059e0e7.xcresult`.
+The signed Debug fixture app and both test bundles compile. Production analytics
+are disabled and the app backend is `publication-fixture.invalid`. Haptic
+generators are prepared before playback, and the first vector pose has an
+explicit frame boundary before the shared animation/beat clock starts.

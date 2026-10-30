@@ -18,7 +18,7 @@ last_verified: 2026-10-30
   when only its follow-up read fails. Scope delayed social results to the account,
   retain input after failed submission, and remove rollback-triggered icon bounce.
 - Extend the current Journal reflection destination with Week in review, using
-  the existing Sunday 6 PM window and exclusive end boundaries; retain month,
+  the existing Sunday 6 PM endpoint, UTC 168-hour window and exclusive end boundaries; retain month,
   year, actual data and warm quiet-week copy. No new gamification or backend
   contract. Final runtime/preview/delivery evidence is tracked in the
   [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).

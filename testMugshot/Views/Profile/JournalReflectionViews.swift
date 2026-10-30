@@ -245,7 +245,7 @@ struct JournalReflectionDetailView: View {
                 .foregroundColor(.espressoBrown)
                 .fixedSize(horizontal: false, vertical: true)
             if reflection.period == .week {
-                Text("Sunday 6 PM to Sunday 6 PM, in your current timezone.")
+                Text("Seven days ending Sunday at 6 PM, in your current timezone.")
                     .font(.caption)
                     .foregroundStyle(Color.secondaryText)
             }

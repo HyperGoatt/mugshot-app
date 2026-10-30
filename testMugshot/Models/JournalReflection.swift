@@ -162,11 +162,11 @@ enum JournalReflectionEngine {
     ) -> DateInterval {
         if period == .week {
             // Match the existing weekly reminder: the latest Sunday at 6 PM,
-            // in the reader's timezone, and the seven calendar days before it.
+            // in the reader's timezone, and the existing UTC 168-hour window.
             let components = DateComponents(hour: 18, minute: 0, second: 0, weekday: 1)
             let end = calendar.nextDate(after: date.addingTimeInterval(1), matching: components,
                                         matchingPolicy: .nextTime, direction: .backward) ?? date
-            let start = calendar.date(byAdding: .day, value: -7, to: end) ?? end
+            let start = end.addingTimeInterval(-7 * 24 * 60 * 60)
             return DateInterval(start: start, end: end)
         }
         if period == .month, let interval = calendar.dateInterval(of: .month, for: date) {

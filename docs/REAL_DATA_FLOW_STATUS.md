@@ -28,7 +28,8 @@ visibility, account, Reduce Motion and text-size changes.
 
 Week in review reuses canonical `JournalEntryProjection` data and existing
 people-count queries. It uses the latest Sunday at 6 PM in the current device
-timezone and the preceding seven calendar days, with an exclusive end boundary.
+timezone and the preceding 168 hours, matching the existing UTC reminder query, with an
+exclusive end boundary.
 No new schedule, push route, fabricated activity or backend write is introduced.
 This candidate currently summarizes canonical Mugshots; private Home attempts
 remain in their existing Home journal surfaces.
