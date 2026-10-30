@@ -41,6 +41,23 @@ struct SocialFeedbackTests {
         #expect(submissions == 1)
     }
 
+    @Test func confirmedCommentClearsOnlyTheSubmittedDraftEvenWhenRefreshFails() async throws {
+        for typedAgain in [false, true] {
+            let submitted = "A lovely cup"
+            var currentDraft = submitted
+            var cleared = 0
+            let _: Bool? = try await MugshotConfirmedAction.perform(commit: {
+                if typedAgain { currentDraft = "A second thought" }
+            }, refresh: { throw Failure.offline },
+            draftIsCurrent: { currentDraft == submitted }, clearSubmittedDraft: {
+                currentDraft = ""
+                cleared += 1
+            })
+            #expect(currentDraft == (typedAgain ? "A second thought" : ""))
+            #expect(cleared == (typedAgain ? 0 : 1))
+        }
+    }
+
     @Test func failedCommentNeverRefreshesOrReportsACommit() async {
         var reads = 0
         do {
