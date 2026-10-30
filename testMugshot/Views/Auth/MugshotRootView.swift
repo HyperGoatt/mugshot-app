@@ -26,6 +26,8 @@ struct MugshotRootView: View {
                 MainTabView(dataManager: dataManager)
             } else if MugshotLaunchEnvironment.shouldShowRecoveryBannerDesignQA {
                 AutomaticSipRecoveryBannerPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowCompletionMotionDesignQA {
+                MugshotCompletionPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowMugsySceneDesignQA {
                 NavigationStack {
                     MugsyStudioView()
@@ -69,6 +71,7 @@ struct MugshotRootView: View {
 #endif
         }
         .environmentObject(authModel)
+        .environment(\.mugshotFeedbackOwnerID, feedbackOwnerID)
         .modifier(MugshotDebugDynamicTypeModifier())
         .modifier(MugshotDebugReduceMotionModifier())
         .preferredColorScheme(.light)
@@ -107,6 +110,15 @@ struct MugshotRootView: View {
         .task(id: authModel.authenticatedUser?.id) {
             await refreshProfileSetupGate()
         }
+    }
+
+    private var feedbackOwnerID: UUID? {
+#if DEBUG
+        if MugshotLaunchEnvironment.isUITesting {
+            return authModel.authenticatedUser?.id ?? dataManager.appData.currentUser?.id
+        }
+#endif
+        return authModel.authenticatedUser?.id
     }
 
     private func startAnalyticsAfterRecovery() {

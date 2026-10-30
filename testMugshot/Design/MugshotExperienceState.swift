@@ -330,21 +330,8 @@ struct MugshotCompletionCard: View {
     var facts: [MugshotCompletionFact] = []
     var celebrates = false
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
-    @State private var revealProgress: CGFloat = 0
-    @State private var confettiProgress: CGFloat = 0
-
-    private var effectiveReduceMotion: Bool { reduceMotionOverride ?? reduceMotion }
-
     var body: some View {
         ZStack {
-            if celebrates {
-                MugshotConfettiBurst(progress: confettiProgress)
-                    .frame(width: 280, height: 188)
-                    .offset(y: -38)
-                    .accessibilityHidden(true)
-            }
 
             VStack(spacing: 14) {
                 Group {
@@ -353,11 +340,7 @@ struct MugshotCompletionCard: View {
                             .resizable()
                             .scaledToFit()
                     } else if let mugsyConfiguration {
-                        if celebrates {
-                            MugsyAnimatedView(configuration: mugsyConfiguration, action: .success)
-                        } else {
-                            MugsyAnimatedView(configuration: mugsyConfiguration, action: mugsyAction)
-                        }
+                        MugsyModelView(configuration: mugsyConfiguration)
                     } else {
                         Image(systemName: systemImage)
                             .font(.system(size: 26, weight: .bold))
@@ -419,27 +402,6 @@ struct MugshotCompletionCard: View {
         .padding(.horizontal, 26)
         .padding(.vertical, 24)
         .mugshotGlassSurface(radius: 26, tint: .foamWhite, interactive: false)
-        .scaleEffect(celebrates ? 0.88 + revealProgress * 0.12 : 1)
-        .offset(y: celebrates ? 24 * (1 - revealProgress) : 0)
-        .opacity(celebrates ? revealProgress : 1)
-        .task {
-            guard celebrates, revealProgress == 0 else { return }
-            MugshotHaptic.success.play()
-            if effectiveReduceMotion {
-                revealProgress = 1
-                confettiProgress = 1
-                return
-            }
-
-            withAnimation(MugshotMotion.celebration) {
-                revealProgress = 1
-            }
-            try? await Task.sleep(for: .milliseconds(90))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.92)) {
-                confettiProgress = 1
-            }
-        }
         .accessibilityElement(children: .combine)
     }
 }

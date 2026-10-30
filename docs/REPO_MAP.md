@@ -4,6 +4,19 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## Completion and reflection authoring
+
+`Design/MugshotCompletionPlan.swift` owns the numeric rig curves, shared 1.32 s
+clock, haptic beats and feedback-owner environment. `MugshotMotionSystem.swift`
+owns the UIKit haptic/preference/lifecycle boundary. `MugshotPolishPresentation`
+owns durable completed-operation consumption. `MugshotSaveReceiptView` samples
+the approved `MugsyModelView` rig directly and owns cancellable playback.
+`MugshotCompletionPreviewHost` is a DEBUG-only local inspection route.
+`JournalReflectionEngine` and `JournalReflectionDetailView` share the existing
+week/month/year destination and actual journal projections. Focused tests live
+in `CompletionChoreographyTests`; preview and delivery evidence is indexed in
+[audit ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
+
 # Repository map
 
 ## Native Home/Recipes implementation

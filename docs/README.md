@@ -13,6 +13,10 @@ with it.
 
 ## Current design planning
 
+The [publishing and completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
+tracks the current audit, ECC specifications, native implementation, free local
+preview sources, verification and delivery boundaries.
+
 The [October 23 polish audit and prioritized plan](audits/polish-2026-10-23/README.md)
 reviews the existing Home V4, Cafe, Feed, Map, Saved, Journal, and supporting
 surfaces, with a captured baseline walkthrough. It is audit and proposal

@@ -254,3 +254,31 @@ identity was introduced. Runtime/physical acceptance remains tracked in the
 
 Named accessibility refresh keeps the current scroll position and displays a quiet
 progress label. It does not pour coffee or insert the pull gesture gap.
+
+
+## Coordinated completed-operation acknowledgment — 2026-10-30
+
+The existing receipt owns a single 1.32-second native sequence. Result copy and
+navigation are immediately usable. Coffee fills only inside the open rim,
+gaze anticipates the pour, eyelids blink once, knees absorb weight over planted
+feet, the hand waves independently, and the rig settles without a loop. The
+shared clock places restrained pour/delight haptics at 180 and 680 ms. The
+renderer samples retained Swift numeric curves; no raster/video asset or
+replacement artwork enters interactive iOS playback.
+
+The completed-operation marker is durable and account scoped; restoring or
+reopening the same operation does not repeat feedback. Another account cannot
+see or play the stale receipt. Quick saves, Reduce Motion and accessibility text
+sizes use concise static acknowledgment and a single immediate success cue.
+The user's Haptics preference and active-scene guard apply independently of
+Reduce Motion. Existing social controls own touch feedback; only confirmed
+requests own confirmation cues. The generic completion card owns no haptic or
+celebration task.
+
+Week in review lives inside the existing Journal reflection view, with native
+period selection, finite restrained reveal, a quiet journal Mugsy and warm empty
+copy. No streak, points, leaderboard or consumption target is added. See the
+[completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md) for actual
+runtime/previews and acceptance boundaries. The repository's current
+[verification policy](VERIFICATION_POLICY.md) governs check selection; historical
+checklists above do not mandate extra Release builds.

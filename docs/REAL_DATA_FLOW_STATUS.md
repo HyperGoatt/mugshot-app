@@ -4,6 +4,29 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## Completion feedback ownership — 2026-10-30
+
+Only a completed private save or confirmed remote publication creates a
+`MugshotSaveReceipt`. `MugshotCompletionFeedback` persists an acknowledgment
+marker by account, operation kind and stable ID before playback. It stores no
+caption, photo, drink name or journal text, rejects another active account, and
+is purged with that account. Audience changes cannot replay a publication.
+View appearance alone never creates a success event. Restoring a completion
+surface renders the saved result without manufacturing a new receipt.
+
+The existing saved-result path remains responsible for journal/feed invalidation;
+visual coffee fill does not create posts, increment invented counters or deliver
+Activity. Failure/cancellation/pending recovery has no completion receipt.
+Delayed haptic work belongs to the view task and is invalidated by scene,
+visibility, account, Reduce Motion and text-size changes.
+
+Week in review reuses canonical `JournalEntryProjection` data and existing
+people-count queries. It uses the latest Sunday at 6 PM in the current device
+timezone and the preceding seven calendar days, with an exclusive end boundary.
+No new schedule, push route, fabricated activity or backend write is introduced.
+This candidate currently summarizes canonical Mugshots; private Home attempts
+remain in their existing Home journal surfaces.
+
 ## Cafe verification address repair and diagnostics — 2026-10-30
 
 Apple Maps may return multiple postal lines inside one `formattedAddressLines`

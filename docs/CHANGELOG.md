@@ -4,6 +4,22 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## 2026-10-30 — Coordinated completion and weekly reflection candidate
+
+- Extend the existing save receipt with finite native coffee-fill, gaze/blink,
+  planted-foot knee bend, articulated wave and settle. Success copy/navigation
+  are immediate; haptic beats accompany pour and delight at 180/680 ms.
+- Persist feedback consumption by operation and account, distinguish private
+  saves from publication, reject another account and stop delayed feedback on
+  disappearance, inactive scene or Reduce Motion changes. Quick/reduced moments
+  use one immediate acknowledgment. Existing haptic preferences now cover all
+  shared feedback, including social error/confirmation cues.
+- Extend the current Journal reflection destination with Week in review, using
+  the existing Sunday 6 PM window and exclusive end boundaries; retain month,
+  year, actual data and warm quiet-week copy. No new gamification or backend
+  contract. Final runtime/preview/delivery evidence is tracked in the
+  [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
+
 ## 2026-10-30 — Cafe verification 503 diagnosis and recovery
 
 - Fixed rejection of valid Apple Maps postal addresses containing line breaks

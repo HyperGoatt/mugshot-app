@@ -1,11 +1,25 @@
 import Foundation
 
 enum JournalReflectionPeriod: String, CaseIterable, Identifiable, Hashable {
+    case week
     case month
     case year
 
     var id: String { rawValue }
-    var title: String { self == .month ? "This month" : "This year" }
+    var title: String {
+        switch self {
+        case .week: "Week in review"
+        case .month: "This month"
+        case .year: "This year"
+        }
+    }
+    var navigationTitle: String {
+        switch self {
+        case .week: "Week in review"
+        case .month: "Monthly reflection"
+        case .year: "Yearly reflection"
+        }
+    }
 }
 
 struct JournalCaffeineEstimate: Equatable {
@@ -62,9 +76,20 @@ struct JournalReflectionSummary: Identifiable, Equatable {
 
     var id: String { "\(period.rawValue)-\(startDate.timeIntervalSince1970)" }
 
+    var periodLabel: String {
+        switch period {
+        case .week:
+            return "\(startDate.formatted(.dateTime.month(.abbreviated).day())) – \(endDate.formatted(.dateTime.month(.abbreviated).day().year()))"
+        case .month: return startDate.formatted(.dateTime.month(.wide).year())
+        case .year: return startDate.formatted(.dateTime.year())
+        }
+    }
+
     var headline: String {
-        guard entryCount > 0 else { return "A fresh page for your coffee memories" }
-        if let favoriteDrink { return "\(favoriteDrink) shaped \(period == .month ? "your month" : "your year")" }
+        guard entryCount > 0 else {
+            return period == .week ? "A quiet week belongs here too" : "A fresh page for your coffee memories"
+        }
+        if let favoriteDrink { return "\(favoriteDrink) shaped your \(period.rawValue)" }
         return "\(entryCount) sips worth remembering"
     }
 }
@@ -85,10 +110,11 @@ enum JournalReflectionEngine {
         calendar: Calendar = .current
     ) -> JournalReflectionSummary {
         let interval = dateInterval(for: period, containing: referenceDate, calendar: calendar)
-        let previousReference = calendar.date(byAdding: period == .month ? .month : .year, value: -1, to: referenceDate) ?? referenceDate
+        let component: Calendar.Component = period == .week ? .weekOfYear : period == .month ? .month : .year
+        let previousReference = calendar.date(byAdding: component, value: -1, to: referenceDate) ?? referenceDate
         let previousInterval = dateInterval(for: period, containing: previousReference, calendar: calendar)
-        let current = entries.filter { interval.contains($0.date) }
-        let previous = entries.filter { previousInterval.contains($0.date) }
+        let current = entries.filter { includes($0.date, in: interval) }
+        let previous = entries.filter { includes($0.date, in: previousInterval) }
 
         let cafeEntries = current.filter { $0.context == .cafe }
         let homeEntries = current.filter { $0.context == .home }
@@ -134,11 +160,24 @@ enum JournalReflectionEngine {
         containing date: Date = Date(),
         calendar: Calendar = .current
     ) -> DateInterval {
+        if period == .week {
+            // Match the existing weekly reminder: the latest Sunday at 6 PM,
+            // in the reader's timezone, and the seven calendar days before it.
+            let components = DateComponents(hour: 18, minute: 0, second: 0, weekday: 1)
+            let end = calendar.nextDate(after: date.addingTimeInterval(1), matching: components,
+                                        matchingPolicy: .nextTime, direction: .backward) ?? date
+            let start = calendar.date(byAdding: .day, value: -7, to: end) ?? end
+            return DateInterval(start: start, end: end)
+        }
         if period == .month, let interval = calendar.dateInterval(of: .month, for: date) {
             return interval
         }
         if let interval = calendar.dateInterval(of: .year, for: date) { return interval }
         return DateInterval(start: date, duration: 1)
+    }
+
+    static func includes(_ date: Date, in interval: DateInterval) -> Bool {
+        date >= interval.start && date < interval.end
     }
 
     static func milestones(entries: [JournalEntryProjection]) -> [JournalMilestone] {

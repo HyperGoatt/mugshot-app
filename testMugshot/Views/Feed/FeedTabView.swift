@@ -1088,7 +1088,7 @@ struct FeedTabView: View {
                 guard authModel.authenticatedUser?.id == userId else { return }
                 updateRemoteVisit(id: visit.id, socialState: visit.socialState)
                 socialRecoveryMessage = MugshotUserFacingError.message(for: error, context: .social)
-                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                MugshotHaptic.error.play()
             }
             pendingSocialVisitIDs.remove(visit.id)
         }
@@ -1152,7 +1152,7 @@ struct FeedTabView: View {
                     wantToTry: existingState.wantToTry
                 )
                 socialRecoveryMessage = MugshotUserFacingError.message(for: error, context: .social)
-                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                MugshotHaptic.error.play()
             }
             pendingSocialVisitIDs.remove(visit.id)
         }

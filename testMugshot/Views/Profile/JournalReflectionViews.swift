@@ -131,12 +131,36 @@ struct JournalReflectionsSection: View {
 }
 
 struct JournalReflectionDetailView: View {
-    let reflection: JournalReflectionSummary
+    let initialReflection: JournalReflectionSummary
     let entries: [JournalEntryProjection]
     let milestones: [JournalMilestone]
+    let peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]]
+    let referenceDate: Date
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedPeriod: JournalReflectionPeriod
     @State private var shareItems: [Any] = []
     @State private var showsShareSheet = false
+
+    init(reflection: JournalReflectionSummary, entries: [JournalEntryProjection],
+         milestones: [JournalMilestone], peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:],
+         referenceDate: Date = .now) {
+        initialReflection = reflection
+        self.entries = entries
+        self.milestones = milestones
+        self.peopleByPeriod = peopleByPeriod
+        self.referenceDate = referenceDate
+        _selectedPeriod = State(initialValue: reflection.period)
+    }
+
+    private var reflection: JournalReflectionSummary {
+        if selectedPeriod == initialReflection.period { return initialReflection }
+        return JournalReflectionEngine.summary(for: selectedPeriod, entries: entries,
+            people: peopleByPeriod[selectedPeriod] ?? [], referenceDate: referenceDate)
+    }
+
+    private var periodMilestones: [JournalMilestone] {
+        JournalReflectionEngine.milestones(entries: periodEntries)
+    }
 
     private var periodEntries: [JournalEntryProjection] {
         entries
@@ -156,7 +180,15 @@ struct JournalReflectionDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    Picker("Reflection period", selection: $selectedPeriod) {
+                        ForEach(JournalReflectionPeriod.allCases) { period in
+                            Text(period.rawValue.capitalized).tag(period)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("journal.reflection.period")
                     hero
+                        .modifier(MugshotReflectionReveal(identity: reflection.id))
                     if !photoEntries.isEmpty {
                         photoStory
                     }
@@ -168,7 +200,7 @@ struct JournalReflectionDetailView: View {
                     if let caffeine = reflection.caffeine {
                         caffeinePanel(caffeine)
                     }
-                    if !milestones.isEmpty {
+                    if !periodMilestones.isEmpty {
                         milestonePanel
                     }
                     Text("Your reflection is built from your journal. It stays useful even when you take a break from logging.")
@@ -179,9 +211,9 @@ struct JournalReflectionDetailView: View {
                 .padding(.bottom, 20)
             }
             .background(Color.creamWhite)
-            .navigationTitle(reflection.period == .month ? "Monthly reflection" : "Yearly reflection")
+            .navigationTitle(reflection.period.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("Done") { dismiss() } }
+            .toolbar { Button("Done") { dismiss() }.accessibilityIdentifier("journal.reflection.done") }
             .sheet(isPresented: $showsShareSheet) {
                 JournalReflectionActivityView(activityItems: shareItems)
             }
@@ -190,13 +222,33 @@ struct JournalReflectionDetailView: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                MugsyAnimatedView(
+                    configuration: MugsyModelConfiguration(
+                        expression: reflection.entryCount == 0 ? .curious : .delighted,
+                        prop: .journalNotebook, outfit: .cozyRitual,
+                        liquid: .coffee(fillProgress: reflection.entryCount == 0 ? 0.25 : 0.72, steamIntensity: 0.2)
+                    ), action: .entering
+                )
+                .frame(width: 76, height: 76)
+                .accessibilityHidden(true)
+                Text(reflection.entryCount == 0 ? "There is room for every pace." : "A few moments, kept with care.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondaryText)
+            }
             Text(periodLabel)
-                .font(.system(size: 12, weight: .bold))
+                .font(.caption.weight(.bold))
                 .tracking(0.8)
                 .foregroundColor(.mugshotSage)
             Text(reflection.headline)
-                .font(.system(size: 32, weight: .bold, design: .serif))
+                .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundColor(.espressoBrown)
+                .fixedSize(horizontal: false, vertical: true)
+            if reflection.period == .week {
+                Text("Sunday 6 PM to Sunday 6 PM, in your current timezone.")
+                    .font(.caption)
+                    .foregroundStyle(Color.secondaryText)
+            }
             if let average = reflection.averageRating {
                 Text("Your sip average was \(average.formatted(.number.precision(.fractionLength(1)))) stars.")
                     .font(.system(size: 14))
@@ -307,14 +359,12 @@ struct JournalReflectionDetailView: View {
     }
 
     private var periodLabel: String {
-        reflection.period == .month
-            ? reflection.startDate.formatted(.dateTime.month(.wide).year())
-            : reflection.startDate.formatted(.dateTime.year())
+        reflection.periodLabel
     }
 
     private var rhythmDetail: String {
         guard reflection.entryCount > 0 else {
-            return "A future sip can start the story without creating a logging streak to maintain."
+            return "Your journal is here whenever a moment is worth keeping. Quiet days need no catching up."
         }
         var parts = ["You remembered coffee on \(activeDayCount) \(activeDayCount == 1 ? "day" : "days") during this \(reflection.period.rawValue)."]
         if let favoriteDrink = reflection.favoriteDrink {
@@ -402,7 +452,7 @@ struct JournalReflectionDetailView: View {
             Text("Personal milestones")
                 .font(.system(size: 19, weight: .bold))
                 .foregroundColor(.espressoBrown)
-            ForEach(milestones) { milestone in
+            ForEach(periodMilestones) { milestone in
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(milestone.title).font(.system(size: 14, weight: .bold))
@@ -534,7 +584,7 @@ private struct JournalReflectionShareCard: View {
 
                 Spacer(minLength: 0)
 
-                Text(reflection.period == .month ? "MY MONTH IN COFFEE" : "MY YEAR IN COFFEE")
+                Text("MY \(reflection.period.rawValue.uppercased()) IN COFFEE")
                     .font(.system(size: 15, weight: .bold))
                     .tracking(1.5)
                     .foregroundColor(.mugshotSage)
@@ -574,9 +624,7 @@ private struct JournalReflectionShareCard: View {
     }
 
     private var periodLabel: String {
-        reflection.period == .month
-            ? reflection.startDate.formatted(.dateTime.month(.wide).year())
-            : reflection.startDate.formatted(.dateTime.year())
+        reflection.periodLabel
     }
 
     private func shareFact(_ value: String, _ label: String) -> some View {
@@ -603,4 +651,27 @@ private struct JournalReflectionActivityView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+/// A readable, finite reveal; content and navigation never wait for playback.
+private struct MugshotReflectionReveal: ViewModifier {
+    let identity: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var lastIdentity: String?
+    @State private var opacity = 1.0
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .task(id: "\(identity):\(scenePhase):\(motionOverride ?? reduceMotion)") {
+                guard scenePhase == .active, lastIdentity != identity else { opacity = 1; return }
+                lastIdentity = identity
+                guard !(motionOverride ?? reduceMotion), !UIAccessibility.isVoiceOverRunning else { opacity = 1; return }
+                opacity = 0.84
+                withAnimation(.easeOut(duration: 0.28)) { opacity = 1 }
+            }
+            .onDisappear { opacity = 1 }
+    }
 }

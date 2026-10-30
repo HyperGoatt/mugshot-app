@@ -72,16 +72,21 @@ enum MugshotMotion {
     }
 }
 
-enum MugshotHaptic {
+enum MugshotHaptic: Equatable {
     case selection
     case softImpact
     case refreshArmed
     case success
     case warning
+    case error
 
     @MainActor
     func play(isEnabled: Bool = true) {
-        guard isEnabled else { return }
+        let preference = UserDefaults.standard.object(forKey: "MugshotSettings.haptics.v1") as? Bool ?? true
+        guard MugshotFeedbackPolicy.shouldPlay(
+            isEnabled: isEnabled && preference,
+            appIsActive: UIApplication.shared.applicationState == .active
+        ) else { return }
         switch self {
         case .selection:
             UISelectionFeedbackGenerator().selectionChanged()
@@ -93,6 +98,8 @@ enum MugshotHaptic {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         case .warning:
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        case .error:
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
 }

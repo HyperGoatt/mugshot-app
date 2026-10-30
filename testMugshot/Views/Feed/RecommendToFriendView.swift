@@ -111,7 +111,7 @@ struct RecommendToFriendView: View {
                 targetID: targetID,
                 note: note
             )
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            MugshotHaptic.success.play()
             dismiss()
         } catch {
             errorMessage = MugshotUserFacingError.message(for: error, context: .social)

@@ -312,8 +312,14 @@ struct JournalTabView: View {
                 JournalReflectionDetailView(
                     reflection: reflection,
                     entries: journalEntries,
-                    milestones: JournalReflectionEngine.milestones(entries: journalEntries)
+                    milestones: JournalReflectionEngine.milestones(entries: journalEntries),
+                    peopleByPeriod: peopleByReflectionPeriod
                 )
+            }
+            .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+                selectedReflection = nil
+                journalEntries = []
+                peopleByReflectionPeriod = [:]
             }
             .fullScreenCover(isPresented: $showJournalArchive) {
                 JournalArchiveView(
@@ -476,16 +482,16 @@ struct JournalTabView: View {
                 columns: [GridItem(.flexible()), GridItem(.flexible())],
                 spacing: 10
             ) {
-                if phase5Reflections, !journalEntries.isEmpty {
+                if phase5Reflections {
                     journalShortcut(
-                        title: "Reflections",
-                        subtitle: "Month and year",
+                        title: "Week in review",
+                        subtitle: "Week, month and year",
                         systemImage: "sparkles.rectangle.stack"
                     ) {
                         selectedReflection = JournalReflectionEngine.summary(
-                            for: .month,
+                            for: .week,
                             entries: journalEntries,
-                            people: peopleByReflectionPeriod[.month] ?? []
+                            people: peopleByReflectionPeriod[.week] ?? []
                         )
                     }
                 }
@@ -904,6 +910,7 @@ struct JournalTabView: View {
             let journalService = JournalService(client: client)
             let monthlyInterval = JournalReflectionEngine.dateInterval(for: .month)
             let yearlyInterval = JournalReflectionEngine.dateInterval(for: .year)
+            let weeklyInterval = JournalReflectionEngine.dateInterval(for: .week)
             async let entriesRequest = journalService.fetchEntries(userID: userID)
             async let monthlyPeopleRequest = journalService.fetchPeopleCounts(
                 startAt: monthlyInterval.start,
@@ -912,6 +919,10 @@ struct JournalTabView: View {
             async let yearlyPeopleRequest = journalService.fetchPeopleCounts(
                 startAt: yearlyInterval.start,
                 endAt: yearlyInterval.end
+            )
+            async let weeklyPeopleRequest = journalService.fetchPeopleCounts(
+                startAt: weeklyInterval.start,
+                endAt: weeklyInterval.end
             )
             let loadedEntries = try await entriesRequest
             let cafeIDs: [UUID] = Array(Set(loadedEntries.compactMap { entry -> UUID? in
@@ -927,12 +938,14 @@ struct JournalTabView: View {
             let loadedCafeSummaries = (try? await summariesRequest) ?? []
             let loadedMonthlyPeople = (try? await monthlyPeopleRequest) ?? []
             let loadedYearlyPeople = (try? await yearlyPeopleRequest) ?? []
-            guard !Task.isCancelled else { return }
+            let loadedWeeklyPeople = (try? await weeklyPeopleRequest) ?? []
+            guard !Task.isCancelled, authModel.authenticatedUser?.id == userID else { return }
             lastJournalLoad = Date()
             loadedJournalRevision = dataManager.journalRevision
             journalEntries = loadedEntries
             cafeExperienceSummaries = loadedCafeSummaries
             peopleByReflectionPeriod = [
+                .week: loadedWeeklyPeople,
                 .month: loadedMonthlyPeople,
                 .year: loadedYearlyPeople
             ]

@@ -1686,7 +1686,7 @@ struct RemoteVisitDetailView: View {
             self.detail = previousDetail
             onSocialStateChanged?(previousDetail.summary.socialState)
             socialError = MugshotUserFacingError.message(for: error, context: .social)
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            MugshotHaptic.error.play()
             isSavingSocialAction = false
         }
     }

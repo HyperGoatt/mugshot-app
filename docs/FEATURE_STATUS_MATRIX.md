@@ -4,6 +4,22 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## Publishing and completion refinement — 2026-10-30
+
+Publishing verification after synchronizing main passes 53/53 focused/native
+Simulator tests and 12/12 backend/static checks. The live verification service
+is version 17; read-only evidence confirms a completed five-photo Friends post.
+The earlier provider uncertainty below is superseded by the confirmed multiline
+address-parser repair.
+
+Source extends the existing receipt, native rig, haptic namespace and reflection
+view. Durable account/operation consumption prevents replay after navigation or
+process restoration; expressive completion is finite, and quick/Reduce Motion
+feedback is concise. Week in review uses actual canonical journal entries in
+the latest Sunday 6 PM interval; month/year remain in the same view. Runtime,
+previews and physical acceptance are recorded in the
+[completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
+
 ## Shared profile compatibility — backend production-configured
 
 The current iOS model accepts missing coordinates in a top cafe. Migration

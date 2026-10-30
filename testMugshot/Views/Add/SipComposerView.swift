@@ -1807,6 +1807,9 @@ struct LogVisitView: View {
         ].compactMap { $0 }
 
         return VStack(spacing: 12) {
+            if let publicationReceipt {
+                MugshotSaveReceiptView(receipt: publicationReceipt, detail: "Kept in your journal")
+            }
             MugshotCompletionCard(
                 mugsyConfiguration: MugsyModelConfiguration(
                     expression: .delighted,
@@ -4682,7 +4685,7 @@ struct LogVisitView: View {
             return
         }
         draft.tags.append(tag)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        MugshotHaptic.selection.play()
     }
 
     private func commitCustomTag() {
@@ -5253,7 +5256,7 @@ private struct SipPhotoOrganizer: View {
                             HStack(spacing: 8) {
                                 Button {
                                     posterPhotoIndex = index
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    MugshotHaptic.selection.play()
                                 } label: {
                                     Image(systemName: index == safePosterIndex ? "checkmark.circle.fill" : "circle")
                                         .font(.system(size: 22, weight: .semibold))

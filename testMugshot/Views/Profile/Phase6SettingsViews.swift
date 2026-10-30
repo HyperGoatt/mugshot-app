@@ -307,7 +307,9 @@ struct AppearanceAccessibilitySettingsView: View {
                 LabeledContent("Photo legibility", value: "Automatic")
             }
             Section("Accessibility") {
-                Toggle("Rating haptics", isOn: $haptics)
+                Toggle("Haptics", isOn: $haptics)
+                Text("Gentle feedback for ratings, actions and completed saves.")
+                    .font(.caption)
                 LabeledContent("Reduce Motion", value: reduceMotion ? "On" : "Off")
                 LabeledContent("Text size", value: "Follows iOS")
                 Text("Mugshot follows Dynamic Type, VoiceOver, contrast, and Reduce Motion settings from iOS.")

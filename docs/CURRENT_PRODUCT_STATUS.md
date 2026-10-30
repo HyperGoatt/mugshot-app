@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## Publishing and completion candidate — 2026-10-30
+
+The publishing candidate now incorporates main's cafe-verification repair.
+Read-only current production evidence shows version 17 serving a successful app
+request and a completed Friends post with five distinct photo references. The
+confirmed parser defect rejected valid CR/LF postal separators; this supersedes
+older provider-configuration uncertainty below. Existing original UX failures
+remain reliability defects despite eventual recovery.
+
+After synchronization, 53/53 focused/Simulator publishing tests and all 12
+backend/static checks pass. New completion-policy/rig/date tests plus existing
+motion tests pass 33/33. The native shared receipt now has a finite 1.32-second
+coffee/articulation sequence, durable account/operation consumption, shared
+haptic preference enforcement and concise accessibility alternatives. The
+existing reflection view now includes a Sunday-window Week in review. Current
+UI capture, physical tactile acceptance and final repository delivery are
+tracked separately in the [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
+No native distribution or TestFlight change is claimed.
+
 ## National Coffee Day alpha notification — 2026-09-29
 
 The owner-approved one-time greeting was submitted to all six active production
