@@ -32,4 +32,30 @@ permitted. Verify the exact original visit ID and frozen five-photo plan.
   diagnosis and raw-error redaction.
 - Generic user response remains unchanged. Server log contains no secret,
   authorization header, actor/place identifier, provider body or journal content.
-- Deployment, root-cause reproduction and original-draft acceptance are pending.
+
+## Confirmed root cause and repair
+
+An operator-only provider-read check in the live Edge runtime reproduced
+`invalid_place`. Apple's token exchange and place lookup succeeded. The returned
+ID matched the selection; name, coordinates and address types were valid. The
+single 59-character address string contained CR/LF characters. Mugshot's parser
+rejected every ASCII control character, including these valid address line
+breaks, and its handler converted that error into a generic 503 before any cafe
+admission, sip creation or photo upload.
+
+Temporary versions 12–14 required the existing service-role credential plus a
+specific incident header, used a fixed public cafe ID, never called persistence,
+and returned only bounded failure/schema flags. Version 15 removed the probe and
+restored the version 11 diagnostic-only bundle. Secrets/provider values were not
+copied to the browser, repository or logs.
+
+- Address regression RED checkpoint `f7998b3`: seven pass, two fail, including
+  full handler 503 vs expected 200. Boundary checkpoint `b15e18d` preserves
+  rejection of leading/trailing tabs and other controls before trimming.
+- Fix splits CR/LF boundaries, trims ordinary postal lines and joins nonempty
+  parts with comma separators. Non-newline controls, empty addresses, oversized
+  raw entries/combined addresses, mismatched IDs and invalid coordinates remain
+  rejected. No alternate provider, invented catalog data or auth bypass is used.
+- GREEN: all nine focused Deno tests pass, zero failures. The entrypoint and
+  pinned dependency graph also type-check through `test --no-run`.
+- Final live provider recheck and original-draft acceptance remain pending.

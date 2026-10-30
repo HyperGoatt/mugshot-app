@@ -10,6 +10,11 @@ Cafe verification diagnostics log only `cafe_verification_failed`, a bounded
 phase/reason, and optional provider operation/numeric HTTP status. Keep JWT,
 live-account and rate-limit enforcement active. Preserve the prior deployed
 bundle for rollback; never bypass catalog verification to unblock a post.
+Normalize Apple postal line breaks without accepting other control characters.
+Temporary incident probes must require the existing administrator credential,
+perform provider reads only, expose no credential/provider-content values, and
+be removed after the controlled check. The final deployed entrypoint must match
+the committed source and contain no diagnostic route.
 Local tests and the production original-draft recovery boundary are recorded in
 [the service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
 

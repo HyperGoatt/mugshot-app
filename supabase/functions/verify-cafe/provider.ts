@@ -61,9 +61,18 @@ export function parsePlace(
   if (provider === "apple") {
     if (
       !Array.isArray(p.formattedAddressLines) ||
-      !p.formattedAddressLines.every((s: unknown) => text(s, 500))
+      !p.formattedAddressLines.every((s: unknown) =>
+        typeof s === "string" && s.length <= 500 && s.trim().length > 0 &&
+        !/[\u0000-\u0009\u000b\u000c\u000e-\u001f]/.test(s)
+      )
     ) throw Error("invalid_place");
-    address = text(p.formattedAddressLines.join(", "), 2000);
+    // Apple can return a whole postal address inside one array entry. Preserve
+    // its line boundaries as separators; retain rejection of other controls.
+    const lines: string[] = p.formattedAddressLines.flatMap((s: string) =>
+      s.split(/\r\n?|\n/).map((line) => line.trim()).filter(Boolean)
+    );
+    if (!lines.every((line) => text(line, 500))) throw Error("invalid_place");
+    address = text(lines.join(", "), 2000);
     city = text(p.structuredAddress?.locality, 300);
     country = text(p.country, 300);
   } else {
