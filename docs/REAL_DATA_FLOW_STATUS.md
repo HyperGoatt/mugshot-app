@@ -18,7 +18,10 @@ diagnostics identifying authentication/reservation/provider/persistence stage,
 an allowlisted reason, and (for provider HTTP failures) the fixed provider
 operation plus numeric status. No auth header, key, provider response, place ID,
 actor ID or sip content is logged. Diagnostic sink failure cannot change the
-safe response. Nine focused local Deno tests pass; production status is recorded
+safe response. Nine focused local Deno tests pass. Production function version
+17 is deployed with an exact source match and a successful provider-only check;
+physical original-draft recovery remains blocked by the unavailable iPhone.
+Full production status is recorded
 in the [incident evidence](audits/CAFE_VERIFICATION_503_2026-10-30.md).
 
 

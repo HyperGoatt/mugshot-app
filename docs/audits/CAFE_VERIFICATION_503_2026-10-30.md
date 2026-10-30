@@ -46,8 +46,10 @@ admission, sip creation or photo upload.
 Temporary versions 12–14 required the existing service-role credential plus a
 specific incident header, used a fixed public cafe ID, never called persistence,
 and returned only bounded failure/schema flags. Version 15 removed the probe and
-restored the version 11 diagnostic-only bundle. Secrets/provider values were not
-copied to the browser, repository or logs.
+restored the version 11 diagnostic-only bundle. Provider credentials and place
+values were not copied to the browser, repository or logs. Supabase's built-in
+test form supplied its existing administrator authorization; that header was
+never extracted into shell commands or repository files.
 
 - Address regression RED checkpoint `f7998b3`: seven pass, two fail, including
   full handler 503 vs expected 200. Boundary checkpoint `b15e18d` preserves
@@ -58,4 +60,34 @@ copied to the browser, repository or logs.
   rejected. No alternate provider, invented catalog data or auth bypass is used.
 - GREEN: all nine focused Deno tests pass, zero failures. The entrypoint and
   pinned dependency graph also type-check through `test --no-run`.
-- Final live provider recheck and original-draft acceptance remain pending.
+
+## Production deployment and acceptance boundary
+
+- The same operator-only check with the repaired parser returned
+  `provider_check: ok` against Apple's live response for the selected cafe.
+  This proves provider verification; the probe deliberately did not call
+  catalog persistence, create a sip or upload a photo.
+- Final `verify-cafe` version **17**, deployed **2026-10-30T21:34:19Z**, is active
+  with JWT verification enabled. A fresh downloaded bundle matches all five
+  committed source files exactly and contains no temporary operator route.
+  SHA256: `a3d48a28d0b3eb7a04a18a0e4aab9473d0b6370c3163d1a593b74359d19dc32a`.
+- A fresh unauthenticated production POST returns **401**. Local static checks
+  pass **7/7**, no failures/skips. Documentation integrity and diff checks pass.
+- After deployment the exact original visit has **zero visit rows**, **zero
+  photo rows**, and **zero Storage objects across buckets**. The owner has zero
+  new visit rows during the controlled-check interval starting 21:20Z. The
+  provider checks therefore did not publish or duplicate the protected draft.
+- Physical original-draft acceptance is **blocked**: Joe's paired iPhone is
+  unavailable to CoreDevice, and the fresh read-only draft backup fails because
+  there is no trusted connection. The owner has been asked to connect/unlock
+  that specific iPhone. No replacement draft, queue edit or manual database
+  publication has been performed. The prior five-local-photo observation is
+  historical evidence, not a fresh integrity check.
+- Once connected: copy the frozen pending record and five local JPEGs before
+  recovery; compare hashes/counts; launch the existing app and resume only the
+  same original visit; confirm complete state, frozen audience, five distinct
+  photo rows/objects, no other new post and an empty original outbox record.
+  Do not equate eventual recovery with successful original publishing UX.
+- This server-only hotfix needs no new native build. Existing client work has
+  separate local/Simulator evidence in draft PR #105; no new physical-device
+  or TestFlight acceptance is claimed by this service check.

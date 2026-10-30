@@ -17,7 +17,9 @@ last_verified: 2026-10-30
 - The existing authentication, live-account check, rate limit and verified-only
   catalog write remain unchanged. No schema, Storage or app build change.
 - Nine focused Deno tests pass, including RED/GREEN reproduction of the address
-  rejection and unsafe-character boundaries. Production and original-draft acceptance are tracked in
+  rejection and unsafe-character boundaries. Production version 17 passes the
+  live provider-only check; original-draft recovery is blocked by the unavailable
+  iPhone connection. Deployment and acceptance are tracked in
   the [service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
 
 
