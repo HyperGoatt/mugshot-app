@@ -149,3 +149,17 @@ covered by synthetic URLProtocol tests.
 - TestFlight: not requested; no archive, upload, assignment or version change.
 - GitHub: the checkout is based on the held signature-polish candidate (PR #104),
   not current `main`. Do not merge unrelated prerelease work to deliver this fix.
+
+## GitHub delivery
+
+- Branch: `codex/sip-publication-reliability`, pushed and tracking origin.
+- RED checkpoints: `a253557`, `1af4e40`, `a9be732`.
+- Implemented/GREEN commit: `1f043ad`.
+- [Draft PR #105](https://github.com/HyperGoatt/mugshot-app/pull/105) targets
+  `codex/signature-polish-sprint`; GitHub reports it mergeable with no configured
+  check runs and no submitted review decision at this checkpoint.
+- Merge is held: the live cafe-verification provider cause remains blocked by
+  dashboard access, and parent [PR #104](https://github.com/HyperGoatt/mugshot-app/pull/104)
+  is draft/held for its independent acceptance. `main` was not changed.
+- Final local tree and pushed head are checked separately from production,
+  physical-device, and TestFlight acceptance. No release was performed.
