@@ -81,26 +81,48 @@ enum MugshotHaptic: Equatable {
     case error
 
     @MainActor
+    private enum Generators {
+        static let selection = UISelectionFeedbackGenerator()
+        static let soft = UIImpactFeedbackGenerator(style: .soft)
+        static let light = UIImpactFeedbackGenerator(style: .light)
+        static let notification = UINotificationFeedbackGenerator()
+    }
+
+    @MainActor
+    func prepare() {
+        guard canPlay(isEnabled: true) else { return }
+        switch self {
+        case .selection: Generators.selection.prepare()
+        case .softImpact: Generators.soft.prepare()
+        case .refreshArmed: Generators.light.prepare()
+        case .success, .warning, .error: Generators.notification.prepare()
+        }
+    }
+
+    @MainActor
     func play(isEnabled: Bool = true) {
-        let preference = UserDefaults.standard.object(forKey: "MugshotSettings.haptics.v1") as? Bool ?? true
-        guard MugshotFeedbackPolicy.shouldPlay(
-            isEnabled: isEnabled && preference,
-            appIsActive: UIApplication.shared.applicationState == .active
-        ) else { return }
+        guard canPlay(isEnabled: isEnabled) else { return }
         switch self {
         case .selection:
-            UISelectionFeedbackGenerator().selectionChanged()
+            Generators.selection.selectionChanged()
         case .softImpact:
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+            Generators.soft.impactOccurred()
         case .refreshArmed:
-            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.72)
+            Generators.light.impactOccurred(intensity: 0.72)
         case .success:
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Generators.notification.notificationOccurred(.success)
         case .warning:
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            Generators.notification.notificationOccurred(.warning)
         case .error:
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            Generators.notification.notificationOccurred(.error)
         }
+    }
+
+    @MainActor
+    private func canPlay(isEnabled: Bool) -> Bool {
+        let preference = UserDefaults.standard.object(forKey: "MugshotSettings.haptics.v1") as? Bool ?? true
+        return MugshotFeedbackPolicy.shouldPlay(isEnabled: isEnabled && preference,
+                                               appIsActive: UIApplication.shared.applicationState == .active)
     }
 }
 

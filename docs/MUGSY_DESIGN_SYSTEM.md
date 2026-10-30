@@ -277,7 +277,8 @@ celebration task.
 
 Week in review lives inside the existing Journal reflection view, with native
 period selection, finite restrained reveal, a quiet journal Mugsy and warm empty
-copy. No streak, points, leaderboard or consumption target is added. See the
+copy. Canonical Mugshots and completed private Home saves contribute actual
+activity; drafts and published counterparts are excluded from private counts. No streak, points, leaderboard or consumption target is added. See the
 [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md) for actual
 runtime/previews and acceptance boundaries. The repository's current
 [verification policy](VERIFICATION_POLICY.md) governs check selection; historical

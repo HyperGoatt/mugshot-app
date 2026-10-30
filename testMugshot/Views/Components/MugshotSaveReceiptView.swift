@@ -61,9 +61,13 @@ struct MugshotSaveReceiptView: View {
               MugshotCompletionFeedback.shared.consume(receipt, activeOwnerID: activeOwnerID) else { return }
         UIAccessibility.post(notification: .announcement, argument: "\(receipt.title). \(receipt.drinkName). \(detail)")
         let expressive = receipt.isExpressive && !typeSize.isAccessibilitySize
+        for beat in MugshotCompletionPlan.beats(expressive: expressive, reduceMotion: reduced) {
+            beat.haptic.prepare()
+        }
         if expressive && !reduced {
             progress = 0
-            await Task.yield()
+            do { try await Task.sleep(for: .milliseconds(34)) }
+            catch { settleImmediately(); return }
             guard !Task.isCancelled, isCurrent else { settleImmediately(); return }
             withAnimation(.linear(duration: MugshotCompletionPlan.duration)) { progress = 1 }
         }
@@ -108,10 +112,11 @@ struct MugsyCompletionMoment: View, Animatable {
                                                      eyeOpenness: pose.eyeOpenness)
             )
             GeometryReader { geometry in
+                let rimY = geometry.size.height * (91 + pose.bend * 20) / 500
                 Capsule()
                     .fill(MugshotDrinkAppearance.coffee.liquidColor)
-                    .frame(width: 2.5, height: geometry.size.height * 0.15)
-                    .position(x: geometry.size.width * 205 / 500, y: geometry.size.height * 0.09)
+                    .frame(width: 2.5, height: rimY)
+                    .position(x: geometry.size.width * 205 / 500, y: rimY / 2)
                     .opacity(pouring)
             }
         }

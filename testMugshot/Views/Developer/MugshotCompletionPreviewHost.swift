@@ -5,12 +5,13 @@ import SwiftUI
 /// performs no network mutation, installs no asset and is excluded from Release.
 struct MugshotCompletionPreviewHost: View {
     private let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000051")!
+    private let alternateOwner = UUID(uuidString: "00000000-0000-4000-8000-000000000052")!
     @State private var operation = UUID()
     @State private var renderIdentity = UUID()
     @State private var quick = false
     @State private var social = true
     @State private var otherAccount = false
-    @State private var quietWeek = false
+    @State private var quietWeek = ProcessInfo.processInfo.arguments.contains("--ui-testing-completion-quiet-week")
     @State private var showsWeek = false
     @State private var scrub = false
     @State private var progress = 0.5
@@ -32,7 +33,7 @@ struct MugshotCompletionPreviewHost: View {
                     MugshotSaveReceiptView(receipt: receipt,
                         detail: social ? "Kept in your journal · Friends" : "Kept in your private Home journal")
                         .id(renderIdentity)
-                        .environment(\.mugshotFeedbackOwnerID, otherAccount ? UUID() : owner)
+                        .environment(\.mugshotFeedbackOwnerID, otherAccount ? alternateOwner : owner)
                     Button("Replay new completion") { operation = UUID() }
                         .buttonStyle(PrimaryButtonStyle())
                     Button("Reopen same completion") { renderIdentity = UUID() }
@@ -59,16 +60,24 @@ struct MugshotCompletionPreviewHost: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showsWeek) {
                 let entries = quietWeek ? [] : Self.entries
+                let privateHome = quietWeek ? [] : [Self.privateHome]
                 JournalReflectionDetailView(
                     reflection: JournalReflectionEngine.summary(for: .week, entries: entries,
+                                                                savedHomeAttempts: privateHome,
                                                                 referenceDate: Self.referenceDate),
-                    entries: entries, milestones: [], referenceDate: Self.referenceDate
+                    entries: entries, milestones: [], savedHomeAttempts: privateHome,
+                    referenceDate: Self.referenceDate
                 )
             }
         }
     }
 
     private static let referenceDate = ISO8601DateFormatter().date(from: "2026-10-30T12:00:00Z")!
+    private static var privateHome: HomeAttemptRecord {
+        var value = HomeAttemptRecord(name: "Private filter coffee")
+        value.savedAt = ISO8601DateFormatter().date(from: "2026-10-22T12:00:00Z")!
+        return value
+    }
     private static var entries: [JournalEntryProjection] {
         ["Cortado", "Filter coffee"].enumerated().map { index, name in
             let row = SupabaseVisitRow(

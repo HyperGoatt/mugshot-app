@@ -109,3 +109,20 @@ The signed Debug fixture app and both test bundles compile. Production analytics
 are disabled and the app backend is `publication-fixture.invalid`. Haptic
 generators are prepared before playback, and the first vector pose has an
 explicit frame boundary before the shared animation/beat clock starts.
+
+
+### Private Home activity RED / GREEN
+
+Final data review found the existing reflection projection omitted private Home
+saves. RED `77ffb88` reached the missing savedHomeAttempts input. Three focused
+specifications cover saved-only inclusion, recorded rating/save-date boundaries,
+and deduplication against canonical visit/draft IDs. The current-account Home
+workspace contributes only completed saves; private notes never enter share
+artwork. Canonical published counterparts retain journal authority.
+
+GREEN: **93/93**, zero failures/skips, on the signed iOS 27 Simulator fixture
+candidate. This includes all publication/recovery/ownership and motion/social
+suites plus the completed private Home boundaries. Result:
+`test_sim_2026-10-30T23-14-19-355Z_pid353_f547ad88.xcresult`.
+Two prior actual-component UI batches also passed 2/2 each. Final runtime
+acceptance of this source, captured previews and delivery follow below.

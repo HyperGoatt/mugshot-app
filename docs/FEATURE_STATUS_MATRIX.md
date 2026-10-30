@@ -15,8 +15,10 @@ address-parser repair.
 Source extends the existing receipt, native rig, haptic namespace and reflection
 view. Durable account/operation consumption prevents replay after navigation or
 process restoration; expressive completion is finite, and quick/Reduce Motion
-feedback is concise. Week in review uses actual canonical journal entries in
-the latest Sunday 6 PM interval; month/year remain in the same view. Runtime,
+feedback is concise. Week in review uses actual canonical journal entries plus completed private
+Home saves in the latest Sunday 6 PM / UTC 168-hour interval; drafts and duplicate
+published attempts are excluded. Unknown ratings remain unknown. Month/year
+remain in the same view. Runtime,
 previews and physical acceptance are recorded in the
 [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
 

@@ -31,8 +31,13 @@ people-count queries. It uses the latest Sunday at 6 PM in the current device
 timezone and the preceding 168 hours, matching the existing UTC reminder query, with an
 exclusive end boundary.
 No new schedule, push route, fabricated activity or backend write is introduced.
-This candidate currently summarizes canonical Mugshots; private Home attempts
-remain in their existing Home journal surfaces.
+The same summary includes account-scoped Home attempts with an actual savedAt
+receipt. Drafts are excluded; canonical visit/draft IDs and published status
+prevent double counting. Private attempts use their saved date; unknown ratings
+are excluded from averages and unknown caffeine remains unestimated. The Home
+workspace must match the current account scope before it contributes. No
+private note is included in share artwork; explicit sharing includes visible
+totals and drink names, explained beside the share action.
 
 ## Cafe verification address repair and diagnostics — 2026-10-30
 

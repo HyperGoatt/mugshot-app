@@ -17,6 +17,9 @@ last_verified: 2026-10-30
 - Restore optimistic cafe-save state on failure and preserve a committed comment
   when only its follow-up read fails. Scope delayed social results to the account,
   retain input after failed submission, and remove rollback-triggered icon bounce.
+- Include completed private Home saves in reflections, using actual save dates,
+  excluding drafts and published counterparts, and keeping unknown ratings out
+  of averages. Share copy explains visible totals/names and preserves private notes.
 - Extend the current Journal reflection destination with Week in review, using
   the existing Sunday 6 PM endpoint, UTC 168-hour window and exclusive end boundaries; retain month,
   year, actual data and warm quiet-week copy. No new gamification or backend

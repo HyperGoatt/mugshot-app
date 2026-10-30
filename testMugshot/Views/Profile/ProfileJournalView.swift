@@ -127,6 +127,11 @@ struct JournalTabView: View {
         return Array(privateHomeAttempts.prefix(3))
     }
 
+    private var reflectionHomeAttempts: [HomeAttemptRecord] {
+        guard homeStore.scope == localAccountScope else { return [] }
+        return homeStore.workspace.attempts
+    }
+
     private var privateHomeAttempts: [HomeAttemptRecord] {
         let publishedVisitIDs = Set(remoteVisits.map(\.id))
         return homeStore.workspace.attempts
@@ -313,6 +318,7 @@ struct JournalTabView: View {
                     reflection: reflection,
                     entries: journalEntries,
                     milestones: JournalReflectionEngine.milestones(entries: journalEntries),
+                    savedHomeAttempts: reflectionHomeAttempts,
                     peopleByPeriod: peopleByReflectionPeriod
                 )
             }
@@ -491,6 +497,7 @@ struct JournalTabView: View {
                         selectedReflection = JournalReflectionEngine.summary(
                             for: .week,
                             entries: journalEntries,
+                            savedHomeAttempts: reflectionHomeAttempts,
                             people: peopleByReflectionPeriod[.week] ?? []
                         )
                     }

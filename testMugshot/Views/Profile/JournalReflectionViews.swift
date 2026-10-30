@@ -134,6 +134,7 @@ struct JournalReflectionDetailView: View {
     let initialReflection: JournalReflectionSummary
     let entries: [JournalEntryProjection]
     let milestones: [JournalMilestone]
+    let savedHomeAttempts: [HomeAttemptRecord]
     let peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]]
     let referenceDate: Date
     @Environment(\.dismiss) private var dismiss
@@ -142,11 +143,13 @@ struct JournalReflectionDetailView: View {
     @State private var showsShareSheet = false
 
     init(reflection: JournalReflectionSummary, entries: [JournalEntryProjection],
-         milestones: [JournalMilestone], peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:],
+         milestones: [JournalMilestone], savedHomeAttempts: [HomeAttemptRecord] = [],
+         peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:],
          referenceDate: Date = .now) {
         initialReflection = reflection
         self.entries = entries
         self.milestones = milestones
+        self.savedHomeAttempts = savedHomeAttempts
         self.peopleByPeriod = peopleByPeriod
         self.referenceDate = referenceDate
         _selectedPeriod = State(initialValue: reflection.period)
@@ -155,6 +158,7 @@ struct JournalReflectionDetailView: View {
     private var reflection: JournalReflectionSummary {
         if selectedPeriod == initialReflection.period { return initialReflection }
         return JournalReflectionEngine.summary(for: selectedPeriod, entries: entries,
+            savedHomeAttempts: savedHomeAttempts,
             people: peopleByPeriod[selectedPeriod] ?? [], referenceDate: referenceDate)
     }
 
@@ -173,7 +177,15 @@ struct JournalReflectionDetailView: View {
     }
 
     private var activeDayCount: Int {
-        Set(periodEntries.map { Calendar.current.startOfDay(for: $0.date) }).count
+        let canonicalIDs = Set(entries.map(\.id))
+        let localDates = savedHomeAttempts.compactMap { attempt -> Date? in
+            guard attempt.publicationStatus != .published,
+                  !canonicalIDs.contains(attempt.id),
+                  !(attempt.publicationDraftID.map(canonicalIDs.contains) ?? false),
+                  let savedAt = attempt.savedAt, savedAt >= reflection.startDate, savedAt < reflection.endDate else { return nil }
+            return savedAt
+        }
+        return Set((periodEntries.map(\.date) + localDates).map { Calendar.current.startOfDay(for: $0) }).count
     }
 
     var body: some View {
@@ -248,6 +260,12 @@ struct JournalReflectionDetailView: View {
                 Text("Seven days ending Sunday at 6 PM, in your current timezone.")
                     .font(.caption)
                     .foregroundStyle(Color.secondaryText)
+            }
+            if reflection.privateHomeEntryCount > 0 {
+                Text("Includes \(reflection.privateHomeEntryCount) privately saved Home \(reflection.privateHomeEntryCount == 1 ? "sip" : "sips").")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+                Text("Sharing includes the visible totals and drink names. Private notes stay yours.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
             }
             if let average = reflection.averageRating {
                 Text("Your sip average was \(average.formatted(.number.precision(.fractionLength(1)))) stars.")
@@ -598,7 +616,7 @@ private struct JournalReflectionShareCard: View {
                 HStack(spacing: 10) {
                     shareFact("\(reflection.entryCount)", "SIPS")
                     shareFact("\(reflection.cafeCount)", "CAFES")
-                    shareFact("\(reflection.photoCount)", "PHOTOS")
+                    shareFact("\(reflection.photoCount)", "PHOTO MEMORIES")
                 }
 
                 if let favoriteDrink = reflection.favoriteDrink {
