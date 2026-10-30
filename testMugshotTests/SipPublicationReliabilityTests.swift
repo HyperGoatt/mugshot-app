@@ -30,6 +30,10 @@ struct SipPublicationReliabilityTests {
         )
         pending.phase = .photosUploaded
         pending.uploadedPhotoURLs = ["fixture-reference"]
+        pending.completedPhotoObjectPaths = pending.objectPaths
+        let photoFile = directory.appendingPathComponent("v2/users/\(owner.uuidString.lowercased())/\(pending.id.uuidString.lowercased())/\(pending.localPhotoNames[0])")
+        try FileManager.default.removeItem(at: photoFile)
+        #expect(try store.loadUploadImages(for: pending).first! == nil)
         #expect(SipPublicationValidation.message(for: draft, photoCount: 0, pending: nil, authenticatedUserID: owner) != nil)
         #expect(SipPublicationValidation.message(for: draft, photoCount: 0, pending: pending, authenticatedUserID: owner) == nil)
         draft.socialCaption = ""
@@ -72,6 +76,30 @@ struct SipPublicationReliabilityTests {
         let result = try await CafeService(client: fixture.client).findOrCreateCafe(from: cafe)
         #expect(result.id == PublicationFixtureProtocol.cafeID)
         #expect(!PublicationFixtureProtocol.paths.contains { $0.contains("verify-cafe") })
+    }
+
+    @MainActor @Test func newCafeVerificationOutageIsExplicitAndNeverFallsBackToUnverifiedInsert() async {
+        let fixture = makeClient()
+        defer { fixture.session.invalidateAndCancel() }
+        PublicationFixtureProtocol.reset()
+        PublicationFixtureProtocol.setCatalogAvailable(false)
+        do {
+            _ = try await CafeService(client: fixture.client).findOrCreateCafe(from: Cafe(name: "Synthetic cafe", appleMapsPlaceID: "I123"))
+            Issue.record("New cafe must remain unverified during outage")
+        } catch {
+            #expect(error as? CafeVerificationError == .unavailable)
+            #expect(MugshotAnalyticsErrorCode(error: error) == .remoteService)
+            #expect(MugshotUserFacingError.message(for: error, context: .sipSave).contains("verify this cafe"))
+        }
+        #expect(PublicationFixtureProtocol.paths.filter { $0.contains("verify-cafe") }.count == 1)
+    }
+
+    @Test func publishingFailureTelemetryIncludesOnlyBoundedStageAndClassifiedReason() {
+        let snapshot = MugshotSipAnalyticsSnapshot(draft: SipDraft(), photoCount: 0, isDraftResume: false)
+        let payload = MugshotAnalyticsEvent.sipPublishFailed(snapshot, errorCode: .remoteService, recoveryState: .protectedRetry, operation: .creatingVisit).payload
+        #expect(payload.properties["publication_stage"] == .string("creatingVisit"))
+        #expect(payload.properties["error_code"] == .string("remote_service"))
+        #expect(!payload.properties.keys.contains("visit_id"))
     }
 
     @MainActor @Test func publicationClientNeverBorrowsTheNextAccountsToken() async throws {
@@ -135,6 +163,43 @@ struct SipPublicationReliabilityTests {
         ), session)
     }
 
+    @MainActor @Test func editUploadReceiptsSurviveServiceReloadAndStayAccountAndVisitScoped() throws {
+        let suite = "EditPublicationRegression-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let owner = UUID(), visit = UUID()
+        let paths = VisitPhotoUploadPlan.objectPaths(userId: owner, visitId: visit, objectIds: [UUID(), UUID()])
+        let store = VisitEditMediaProgressStore(defaults: defaults)
+        try store.record(paths[0], userID: owner, visitID: visit, plannedPaths: paths)
+        let restored = VisitEditMediaProgressStore(defaults: defaults)
+        #expect(restored.completedPaths(userID: owner, visitID: visit, plannedPaths: paths) == [paths[0]])
+        #expect(restored.completedPaths(userID: UUID(), visitID: visit, plannedPaths: paths).isEmpty)
+        #expect(restored.completedPaths(userID: owner, visitID: UUID(), plannedPaths: paths).isEmpty)
+        #expect(throws: VisitPhotoUploadError.invalidUploadPlan) {
+            try restored.record(paths[0], userID: UUID(), visitID: visit, plannedPaths: paths)
+        }
+        restored.remove(userID: owner, visitID: visit)
+        #expect(restored.completedPaths(userID: owner, visitID: visit, plannedPaths: paths).isEmpty)
+    }
+
+    @Test func publicationValidationCoversRequiredContextScoresAndBoundaryNotes() {
+        let owner = UUID()
+        let draft = SipDraft(ownerUserID: owner, context: .cafe, cafe: Cafe(name: "Fixture cafe"), drinkName: "Tea", overallScore: 4, socialCaption: "Fixture", visibility: .friends, contextScore: 1, photoFallback: .mugsyMissedPhoto)
+        #expect(SipPublicationValidation.message(for: draft, photoCount: 0, pending: nil, authenticatedUserID: owner) == nil)
+        var invalid = draft
+        invalid.contextScore = 0.5
+        #expect(SipPublicationValidation.message(for: invalid, photoCount: 0, pending: nil, authenticatedUserID: owner)?.contains("cafe score") == true)
+        invalid = draft
+        invalid.captureMode = .addDetails
+        #expect(SipPublicationValidation.message(for: invalid, photoCount: 0, pending: nil, authenticatedUserID: owner)?.contains("Tasting Lens") == true)
+        invalid = draft
+        invalid.contextNotes = String(repeating: "x", count: 10_001)
+        #expect(SipPublicationValidation.message(for: invalid, photoCount: 0, pending: nil, authenticatedUserID: owner)?.contains("context journal") == true)
+        invalid = draft
+        invalid.socialCaption = String(repeating: "x", count: 1_001)
+        #expect(SipPublicationValidation.message(for: invalid, photoCount: 0, pending: nil, authenticatedUserID: owner) == SipCaptionValidationError.tooLong(maximum: 1_000).localizedDescription)
+    }
+
     @Test func uploadPlanRejectsMissingDuplicateAndForeignAccountPhotos() throws {
         let owner = UUID(), visit = UUID()
         let paths = VisitPhotoUploadPlan.objectPaths(userId: owner, visitId: visit, objectIds: [UUID(), UUID()])
@@ -163,13 +228,15 @@ private final class PublicationFixtureProtocol: URLProtocol, @unchecked Sendable
     static let cafeID = UUID(uuidString: "00000000-0000-4000-8000-000000000099")!
     private static let lock = NSLock()
     private static var recordedPaths: [String] = []
+    private static var catalogAvailable = true
+    static func setCatalogAvailable(_ value: Bool) { lock.lock(); defer { lock.unlock() }; catalogAvailable = value }
     private static var recordedAuthorizations: [String] = []
     static var activeUserID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
     static var paths: [String] { lock.lock(); defer { lock.unlock() }; return recordedPaths }
     static var authorizations: [String] { lock.lock(); defer { lock.unlock() }; return recordedAuthorizations }
     static func reset() {
         lock.lock(); defer { lock.unlock() }
-        recordedPaths = []; recordedAuthorizations = []
+        recordedPaths = []; recordedAuthorizations = []; catalogAvailable = true
         activeUserID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
     }
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "publication-fixture.invalid" }
@@ -180,6 +247,7 @@ private final class PublicationFixtureProtocol: URLProtocol, @unchecked Sendable
         Self.recordedPaths.append(path)
         Self.recordedAuthorizations.append(request.value(forHTTPHeaderField: "Authorization") ?? "")
         let userID = Self.activeUserID
+        let hasCafe = Self.catalogAvailable
         Self.lock.unlock()
         let status: Int
         let body: String
@@ -190,7 +258,7 @@ private final class PublicationFixtureProtocol: URLProtocol, @unchecked Sendable
             body = "{\"id\":\"\(userID.uuidString)\",\"aud\":\"authenticated\",\"role\":\"authenticated\",\"app_metadata\":{},\"user_metadata\":{},\"created_at\":\"2026-10-30T00:00:00Z\",\"updated_at\":\"2026-10-30T00:00:00Z\"}"
         } else {
             status = 200
-            body = "[{\"id\":\"\(Self.cafeID.uuidString)\",\"name\":\"Synthetic cafe\",\"apple_maps_place_id\":\"I123\"}]"
+            body = hasCafe ? "[{\"id\":\"\(Self.cafeID.uuidString)\",\"name\":\"Synthetic cafe\",\"apple_maps_place_id\":\"I123\"}]" : "[]"
         }
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(body.utf8))
