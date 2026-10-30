@@ -1,8 +1,10 @@
 import Foundation
+import Supabase
 import Testing
 import UIKit
 @testable import testMugshot
 
+@Suite(.serialized)
 struct SipPublicationReliabilityTests {
     @MainActor @Test func frozenUploadedSubmissionCanRetryWithoutLocalPhotosOrFreshFormValidation() throws {
         let owner = UUID()
@@ -62,6 +64,77 @@ struct SipPublicationReliabilityTests {
         #expect(gate.begin(userID: owner, visitID: visit) != nil)
     }
 
+    @MainActor @Test func existingProviderCafeDoesNotDependOnVerificationBeingOnline() async throws {
+        let fixture = makeClient()
+        defer { fixture.session.invalidateAndCancel() }
+        PublicationFixtureProtocol.reset()
+        let cafe = Cafe(name: "Synthetic cafe", appleMapsPlaceID: "I123")
+        let result = try await CafeService(client: fixture.client).findOrCreateCafe(from: cafe)
+        #expect(result.id == PublicationFixtureProtocol.cafeID)
+        #expect(!PublicationFixtureProtocol.paths.contains { $0.contains("verify-cafe") })
+    }
+
+    @MainActor @Test func publicationClientNeverBorrowsTheNextAccountsToken() async throws {
+        let fixture = makeClient()
+        defer { fixture.session.invalidateAndCancel() }
+        PublicationFixtureProtocol.reset()
+        let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+        let ownerToken = token("owner")
+        let nextToken = token("next")
+        _ = try await fixture.client.auth.setSession(accessToken: ownerToken, refreshToken: "synthetic-refresh")
+        let bound = SupabaseClientProvider.makePublicationClient(
+            configuration: SupabaseConfiguration(url: URL(string: "https://publication-fixture.invalid")!, publishableKey: "synthetic-key"),
+            source: fixture.client, userID: owner, session: fixture.session
+        )
+        let _: [SupabaseCafeSummary] = try await bound.from("cafes").select().execute().value
+        #expect(PublicationFixtureProtocol.authorizations.last == "Bearer \(ownerToken)")
+        try await fixture.client.auth.signOut(scope: .local)
+        // A subsequent account must never be used by the old publication.
+        PublicationFixtureProtocol.activeUserID = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
+        _ = try await fixture.client.auth.setSession(accessToken: nextToken, refreshToken: "synthetic-next-refresh")
+        _ = try? await bound.from("cafes").select().execute()
+        #expect(PublicationFixtureProtocol.authorizations.last == "Bearer mugshot-invalid-publication-session")
+        #expect(PublicationFixtureProtocol.authorizations.last != "Bearer \(nextToken)")
+    }
+
+    @MainActor @Test func acknowledgedPhotoCanFinishWithoutItsLocalBytesAndCancelledEmptyUploadCannotSucceed() async throws {
+        let fixture = makeClient()
+        defer { fixture.session.invalidateAndCancel() }
+        PublicationFixtureProtocol.reset()
+        let owner = UUID(), visit = UUID()
+        let path = VisitPhotoUploadPlan.objectPath(userId: owner, visitId: visit, objectId: UUID())
+        let service = VisitPhotoUploadService(client: fixture.client)
+        let result = try await service.uploadPlannedPhotos(
+            userId: owner, visitId: visit, images: [nil], posterPhotoIndex: 0,
+            plannedObjectPaths: [path], completedObjectPaths: [path], onPhotoUploaded: { _ in Issue.record("Must not re-upload") }
+        )
+        #expect(result.objectPaths == [path])
+        #expect(PublicationFixtureProtocol.paths.isEmpty)
+        let task = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await service.uploadPhotos(userId: owner, visitId: visit, images: [], posterPhotoIndex: 0)
+        }
+        do { _ = try await task.value; Issue.record("Cancelled upload must not report success") }
+        catch { #expect(error is CancellationError) }
+    }
+
+    private func token(_ label: String) -> String {
+        let payload = Data("{\"exp\":\(Date().timeIntervalSince1970 + 3600)}".utf8)
+            .base64EncodedString().replacingOccurrences(of: "=", with: "")
+            .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+        return "e30.\(payload).synthetic-\(label)"
+    }
+
+    private func makeClient() -> (client: SupabaseClient, session: URLSession) {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [PublicationFixtureProtocol.self]
+        let session = URLSession(configuration: configuration)
+        return (SupabaseClient(
+            supabaseURL: URL(string: "https://publication-fixture.invalid")!, supabaseKey: "synthetic-key",
+            options: .init(auth: .init(storage: PublicationMemoryAuthStorage(), autoRefreshToken: false, emitLocalSessionAsInitialSession: true), global: .init(session: session))
+        ), session)
+    }
+
     @Test func uploadPlanRejectsMissingDuplicateAndForeignAccountPhotos() throws {
         let owner = UUID(), visit = UUID()
         let paths = VisitPhotoUploadPlan.objectPaths(userId: owner, visitId: visit, objectIds: [UUID(), UUID()])
@@ -76,4 +149,52 @@ struct SipPublicationReliabilityTests {
             try VisitPhotoUploadPlan.validate(userID: UUID(), visitID: visit, imageCount: 2, paths: paths, completedPaths: [])
         }
     }
+}
+
+private final class PublicationMemoryAuthStorage: AuthLocalStorage, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: Data] = [:]
+    func store(key: String, value: Data) throws { lock.lock(); defer { lock.unlock() }; values[key] = value }
+    func retrieve(key: String) throws -> Data? { lock.lock(); defer { lock.unlock() }; return values[key] }
+    func remove(key: String) throws { lock.lock(); defer { lock.unlock() }; values[key] = nil }
+}
+
+private final class PublicationFixtureProtocol: URLProtocol, @unchecked Sendable {
+    static let cafeID = UUID(uuidString: "00000000-0000-4000-8000-000000000099")!
+    private static let lock = NSLock()
+    private static var recordedPaths: [String] = []
+    private static var recordedAuthorizations: [String] = []
+    static var activeUserID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+    static var paths: [String] { lock.lock(); defer { lock.unlock() }; return recordedPaths }
+    static var authorizations: [String] { lock.lock(); defer { lock.unlock() }; return recordedAuthorizations }
+    static func reset() {
+        lock.lock(); defer { lock.unlock() }
+        recordedPaths = []; recordedAuthorizations = []
+        activeUserID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+    }
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "publication-fixture.invalid" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let path = request.url!.path
+        Self.lock.lock()
+        Self.recordedPaths.append(path)
+        Self.recordedAuthorizations.append(request.value(forHTTPHeaderField: "Authorization") ?? "")
+        let userID = Self.activeUserID
+        Self.lock.unlock()
+        let status: Int
+        let body: String
+        if path.contains("verify-cafe") {
+            status = 503; body = "{\"error\":\"verification unavailable\"}"
+        } else if path.contains("/auth/v1/user") {
+            status = 200
+            body = "{\"id\":\"\(userID.uuidString)\",\"aud\":\"authenticated\",\"role\":\"authenticated\",\"app_metadata\":{},\"user_metadata\":{},\"created_at\":\"2026-10-30T00:00:00Z\",\"updated_at\":\"2026-10-30T00:00:00Z\"}"
+        } else {
+            status = 200
+            body = "[{\"id\":\"\(Self.cafeID.uuidString)\",\"name\":\"Synthetic cafe\",\"apple_maps_place_id\":\"I123\"}]"
+        }
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }
