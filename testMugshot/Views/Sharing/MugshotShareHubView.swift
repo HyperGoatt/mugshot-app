@@ -137,6 +137,7 @@ struct MugshotShareHubView: View {
                 items: presentation.items,
                 onCompletion: { completed in
                     if completed {
+                        MugshotHaptic.selection.play()
                         record(
                             .systemShareCompleted,
                             destination: .more,

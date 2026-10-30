@@ -6,6 +6,12 @@ last_verified: 2026-10-30
 
 ## Completion feedback ownership — 2026-10-30
 
+Social detail cafe writes use an account-bound client and a scoped optimistic
+completion/rollback gate. A successful comment write is separate from refreshing
+the conversation: failed refresh never reclassifies the posted comment as unsent.
+Following and friendship feedback uses confirmed results; system sharing uses
+its completion callback, without claiming external delivery.
+
 Only a completed private save or confirmed remote publication creates a
 `MugshotSaveReceipt`. `MugshotCompletionFeedback` persists an acknowledgment
 marker by account, operation kind and stable ID before playback. It stores no

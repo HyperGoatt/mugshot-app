@@ -74,3 +74,19 @@ RED/GREEN, final runtime, preview and delivery results are appended as executed.
 - This establishes numeric/behavior guarantees and preserves the approved rig's
   geometry/palette tests. Final source/preview acceptance is recorded below as
   it is executed, independently of this checkpoint.
+
+
+### Social feedback RED / GREEN
+
+- RED `b9ee45e`: four tests intentionally fail compilation on missing scoped
+  optimistic-action and committed-write/refresh boundaries.
+- GREEN: **37/37** motion, rig, date and social tests pass, zero failures/skips;
+  result `test_sim_2026-10-30T22-45-02-080Z_pid353_95aebd71.xcresult`.
+- Remote-detail cafe saves now restore prior flags on a current-account failure,
+  reject concurrent operations and cancel offscreen work. A committed comment
+  clears its input and remains posted when only refresh fails. Follow/friend
+  confirmation cues follow server success; share cues follow system completion.
+  Optimistic reaction touch feedback remains immediate, with rollback errors.
+  State-driven social icon bounces are removed so rollback is not celebration.
+- Read-only device discovery reports Joe's paired iPhone unavailable. No device
+  install, tactile acceptance or TestFlight operation is claimed.

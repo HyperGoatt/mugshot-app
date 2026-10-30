@@ -94,6 +94,9 @@ struct RemoteVisitDetailView: View {
     @State private var socialError: String?
     @State private var socialStatus: String?
     @State private var isSavingSocialAction = false
+    @State private var cafeStateTask: Task<Void, Never>?
+    @State private var cafeStateOperation: UUID?
+    @State private var isDetailVisible = false
     @State private var commentText = ""
     @State private var replyingTo: RemoteVisitComment?
     @State private var mentionSuggestions: [PeopleSearchResult] = []
@@ -238,12 +241,20 @@ struct RemoteVisitDetailView: View {
         .toolbarBackground(Color.creamWhite, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .onAppear {
+            isDetailVisible = true
             MugshotAnalytics.shared.capture(
                 .screenViewed(
                     .sipDetail,
                     source: justPosted ? .postPublish : .navigation
                 )
             )
+        }
+        .onDisappear {
+            isDetailVisible = false
+            cafeStateTask?.cancel()
+            if cafeStateOperation != nil { isSavingSocialAction = false }
+            cafeStateTask = nil
+            cafeStateOperation = nil
         }
         .onChange(of: currentUserId) { _, _ in
             detail = nil
@@ -1507,58 +1518,66 @@ struct RemoteVisitDetailView: View {
         isFavorite: Bool?,
         wantToTry: Bool?
     ) {
-        guard let currentUserId else {
-            socialError = "Sign in to save cafes."
-            return
-        }
-
-        guard let remoteCafe = detail.summary.cafe else {
-            return
-        }
-
-        MugshotHaptic.selection.play()
+        guard let currentUserId else { socialError = "Sign in to save cafes."; return }
+        guard !isSavingSocialAction, cafeStateOperation == nil,
+              let remoteCafe = detail.summary.cafe else { return }
+        let operation = UUID()
+        cafeStateOperation = operation
+        isSavingSocialAction = true
+        MugshotHaptic.selection.play() // Touch acknowledgment, not server success.
         let existing = cafeState(detail)
         let nextFavorite = isFavorite ?? existing.isFavorite
         let nextWantToTry = wantToTry ?? existing.wantToTry
-        let localCafe = dataManager.upsertRemoteCafe(
-            remoteCafe,
-            isFavorite: nextFavorite,
-            wantToTry: nextWantToTry
-        )
-
-        Task {
+        let localCafe = dataManager.upsertRemoteCafe(remoteCafe, isFavorite: nextFavorite, wantToTry: nextWantToTry)
+        cafeStateTask = Task { @MainActor in
+            defer {
+                if cafeStateOperation == operation {
+                    cafeStateOperation = nil
+                    cafeStateTask = nil
+                    isSavingSocialAction = false
+                }
+            }
             do {
-                let client = try SupabaseClientProvider.shared.client()
-                let service = CafeStateService(client: client)
-                let summary = try await service.setCafeState(
-                    userId: currentUserId,
-                    cafe: localCafe,
-                    isFavorite: nextFavorite,
-                    wantToTry: nextWantToTry
+                try await MugshotOptimisticAction.perform(
+                    isCurrent: { cafeStateOperation == operation && socialOwnerIsCurrent(currentUserId) },
+                    request: {
+                        let client = try await SupabaseClientProvider.shared.publicationClient(userID: currentUserId)
+                        return try await CafeStateService(client: client).setCafeState(
+                            userId: currentUserId, cafe: localCafe,
+                            isFavorite: nextFavorite, wantToTry: nextWantToTry)
+                    },
+                    commit: { summary in
+                        dataManager.applyRemoteCafeState(summary)
+                        socialError = nil
+                        if existing.isFavorite != nextFavorite {
+                            MugshotAnalytics.shared.capture(.cafeStateChanged(state: .favorite,
+                                action: nextFavorite ? .added : .removed, surface: .remoteSipDetail))
+                        }
+                        if existing.wantToTry != nextWantToTry {
+                            MugshotAnalytics.shared.capture(.cafeStateChanged(state: .wantToTry,
+                                action: nextWantToTry ? .added : .removed, surface: .remoteSipDetail))
+                        }
+                    },
+                    rollback: {
+                        dataManager.setCafeState(cafeId: localCafe.id,
+                            isFavorite: existing.isFavorite, wantToTry: existing.wantToTry)
+                    }
                 )
-                dataManager.applyRemoteCafeState(summary)
-                if existing.isFavorite != nextFavorite {
-                    MugshotAnalytics.shared.capture(
-                        .cafeStateChanged(
-                            state: .favorite,
-                            action: nextFavorite ? .added : .removed,
-                            surface: .remoteSipDetail
-                        )
-                    )
-                }
-                if existing.wantToTry != nextWantToTry {
-                    MugshotAnalytics.shared.capture(
-                        .cafeStateChanged(
-                            state: .wantToTry,
-                            action: nextWantToTry ? .added : .removed,
-                            surface: .remoteSipDetail
-                        )
-                    )
-                }
             } catch {
-                socialError = "Could not update this cafe."
+                guard cafeStateOperation == operation, socialOwnerIsCurrent(currentUserId) else { return }
+                socialError = "Could not save this cafe. Your previous choice is restored. Try again."
+                MugshotHaptic.error.play()
             }
         }
+    }
+
+    private func socialAccountMatches(_ userID: UUID) -> Bool {
+        currentUserId == userID
+            && (try? SupabaseClientProvider.shared.client())?.auth.currentUser?.id == userID
+    }
+
+    private func socialOwnerIsCurrent(_ userID: UUID) -> Bool {
+        isDetailVisible && socialAccountMatches(userID)
     }
 
     private func loadDetail() async {
@@ -1693,52 +1712,47 @@ struct RemoteVisitDetailView: View {
 
     @MainActor
     private func postComment() async {
-        guard !requestAuthenticationIfNeeded(for: .comment) else { return }
-        guard let currentUserId,
-              let detail,
-              commentText.remoteTrimmedNonEmpty != nil else {
-            return
-        }
-
+        guard !isSavingSocialAction, !requestAuthenticationIfNeeded(for: .comment),
+              let currentUserId, let detail,
+              commentText.remoteTrimmedNonEmpty != nil else { return }
         let text = commentText
+        let parentID = replyingTo?.id
+        let resolvedMentions = mentionedUserIDs.compactMap { userID -> CommentMentionSelection? in
+            guard let token = mentionedTokensByUserID[userID],
+                  MentionTextFormatter.containsAccountBackedToken(token, in: text) else { return nil }
+            return CommentMentionSelection(userID: userID, token: token)
+        }
         isSavingSocialAction = true
         socialError = nil
-
+        defer { if socialAccountMatches(currentUserId) { isSavingSocialAction = false } }
         do {
-            let client = try SupabaseClientProvider.shared.client()
+            let client = try await SupabaseClientProvider.shared.publicationClient(userID: currentUserId)
             let service = VisitService(client: client)
-            let resolvedMentions = mentionedUserIDs.compactMap { userID -> CommentMentionSelection? in
-                guard let token = mentionedTokensByUserID[userID] else { return nil }
-                guard MentionTextFormatter.containsAccountBackedToken(token, in: text) else {
-                    return nil
-                }
-                return CommentMentionSelection(userID: userID, token: token)
-            }
-            _ = try await service.addComment(
-                visitId: visitId,
-                userId: currentUserId,
-                text: text,
-                parentCommentId: replyingTo?.id,
-                mentions: resolvedMentions
-            )
-            self.detail = try await service.fetchVisitDetail(
-                visitId: visitId,
-                currentUserId: currentUserId
-            )
-            MugshotAnalytics.shared.capture(
-                .commentAdded(surface: .remoteSipDetail)
-            )
-            commentText = ""
-            replyingTo = nil
-            mentionedUserIDs = []
-            mentionedTokensByUserID = [:]
-            mentionSuggestions = []
-            isCommentFocused = false
-            isSavingSocialAction = false
+            let refreshed = try await MugshotConfirmedAction.perform(commit: {
+                _ = try await service.addComment(visitId: visitId, userId: currentUserId,
+                    text: text, parentCommentId: parentID, mentions: resolvedMentions)
+                guard socialAccountMatches(currentUserId) else { return }
+                MugshotAnalytics.shared.capture(.commentAdded(surface: .remoteSipDetail))
+                commentText = ""
+                replyingTo = nil
+                mentionedUserIDs = []
+                mentionedTokensByUserID = [:]
+                mentionSuggestions = []
+                isCommentFocused = false
+                socialStatus = "Comment posted."
+                if isDetailVisible { MugshotHaptic.selection.play() } // Confirmed send only.
+            }, refresh: {
+                guard socialOwnerIsCurrent(currentUserId) else { throw CancellationError() }
+                return try await service.fetchVisitDetail(visitId: visitId, currentUserId: currentUserId)
+            })
+            guard socialOwnerIsCurrent(currentUserId) else { return }
+            if let refreshed { self.detail = refreshed }
+            else { socialStatus = "Your comment was posted. Pull to refresh the conversation." }
         } catch {
+            guard socialOwnerIsCurrent(currentUserId) else { return }
             self.detail = detail
             socialError = MugshotUserFacingError.message(for: error, context: .social)
-            isSavingSocialAction = false
+            MugshotHaptic.error.play()
         }
     }
 

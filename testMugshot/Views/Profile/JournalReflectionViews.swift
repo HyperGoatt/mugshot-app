@@ -204,7 +204,7 @@ struct JournalReflectionDetailView: View {
                         milestonePanel
                     }
                     Text("Your reflection is built from your journal. It stays useful even when you take a break from logging.")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.secondaryText)
                 }
                 .padding(16)
@@ -251,7 +251,7 @@ struct JournalReflectionDetailView: View {
             }
             if let average = reflection.averageRating {
                 Text("Your sip average was \(average.formatted(.number.precision(.fractionLength(1)))) stars.")
-                    .font(.system(size: 14))
+                    .font(.body)
                     .foregroundColor(.secondaryText)
             }
             if let change = reflection.ratingChange, abs(change) >= 0.1 {
@@ -266,10 +266,10 @@ struct JournalReflectionDetailView: View {
                 prepareShare()
             } label: {
                 Label("Share this reflection", systemImage: "square.and.arrow.up")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.body.weight(.bold))
                     .foregroundColor(.foamWhite)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(minHeight: 48)
                     .background(Color.mugshotSage, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -286,11 +286,11 @@ struct JournalReflectionDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("The moments")
-                    .font(.system(size: 19, weight: .bold))
+                    .font(.title3.weight(.bold))
                     .foregroundColor(.espressoBrown)
                 Spacer()
                 Text("\(reflection.photoCount) \(reflection.photoCount == 1 ? "photo" : "photos")")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundColor(.mugshotSage)
             }
 
@@ -307,7 +307,7 @@ struct JournalReflectionDetailView: View {
                         .overlay(alignment: .bottomLeading) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.summary.visit.drinkDisplayName)
-                                    .font(.system(size: 11, weight: .bold))
+                                    .font(.caption2.weight(.bold))
                                 Text(entry.date.formatted(date: .abbreviated, time: .omitted))
                                     .font(.system(size: 9, weight: .semibold))
                             }
@@ -330,14 +330,14 @@ struct JournalReflectionDetailView: View {
     private var rhythmPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("The rhythm", systemImage: "waveform.path.ecg")
-                .font(.system(size: 12, weight: .bold))
+                .font(.caption.weight(.bold))
                 .foregroundColor(.mugshotSage)
             Text(rhythmHeadline)
                 .font(.system(size: 21, weight: .bold, design: .serif))
                 .foregroundColor(.espressoBrown)
                 .fixedSize(horizontal: false, vertical: true)
             Text(rhythmDetail)
-                .font(.system(size: 13))
+                .font(.subheadline)
                 .foregroundColor(.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -381,7 +381,7 @@ struct JournalReflectionDetailView: View {
     private var memoryHighlights: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Your coffee story")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
             reflectionRow("Sips remembered", "\(reflection.entryCount)", "cup.and.saucer.fill")
             reflectionRow("Cafes explored", "\(reflection.cafeCount)", "map.fill")
@@ -402,10 +402,10 @@ struct JournalReflectionDetailView: View {
     private var peoplePanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("People in your coffee story")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
             Text("Private to you · based on people currently tagged in your Mugshots")
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundColor(.secondaryText)
 
             ForEach(reflection.people.prefix(3)) { person in
@@ -416,7 +416,7 @@ struct JournalReflectionDetailView: View {
                         imageURL: person.avatarURL
                     )
                     Text("\(person.sipCount) \(person.sipCount == 1 ? "sip" : "sips") with \(person.personLabel)")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundColor(.espressoBrown)
                     Spacer(minLength: 0)
                 }
@@ -431,16 +431,16 @@ struct JournalReflectionDetailView: View {
     private func caffeinePanel(_ caffeine: JournalCaffeineEstimate) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Deep journal data")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
             Text("About \(caffeine.roundedTotal) mg estimated caffeine")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.espressoBrown)
             Text(caffeine.coverageText)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(.mugshotSage)
             Text("Calculated from traditional preparation averages (\(caffeine.referenceVersions.joined(separator: ", "))) using parser \(caffeine.parserVersions.joined(separator: ", ")). Unknown drinks are excluded. This is a personal journal estimate, not medical guidance.")
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundColor(.secondaryText)
         }
         .padding(16)
@@ -450,13 +450,13 @@ struct JournalReflectionDetailView: View {
     private var milestonePanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Personal milestones")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
             ForEach(periodMilestones) { milestone in
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(milestone.title).font(.system(size: 14, weight: .bold))
-                        Text(milestone.detail).font(.system(size: 12)).foregroundColor(.secondaryText)
+                        Text(milestone.title).font(.body.weight(.bold))
+                        Text(milestone.detail).font(.caption).foregroundColor(.secondaryText)
                     }
                 } icon: {
                     Image(systemName: milestone.systemImage).foregroundColor(.mugshotSage)
@@ -487,11 +487,11 @@ struct JournalReflectionDetailView: View {
                 .foregroundColor(.mugshotSage)
                 .frame(width: 20)
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(.secondaryText)
             Spacer()
             Text(value)
-                .font(.system(size: 14, weight: .bold))
+                .font(.body.weight(.bold))
                 .foregroundColor(.espressoBrown)
                 .multilineTextAlignment(.trailing)
         }

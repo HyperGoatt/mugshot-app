@@ -422,15 +422,19 @@ struct PublicCafeListDetailView: View {
     @MainActor
     private func toggleFollowing() async {
         guard !isWorking else { return }
-        guard currentUserID != nil else {
+        guard let currentUserID else {
             statusMessage = "Sign in to follow public cafe lists."
             return
         }
         isWorking = true
         defer { isWorking = false }
         do {
-            try await makeService().setFollowing(listID: list.id, following: !list.isFollowing)
+            let source = try SupabaseClientProvider.shared.client()
+            let client = try await SupabaseClientProvider.shared.publicationClient(userID: currentUserID)
+            try await PublicCafeListService(client: client).setFollowing(listID: list.id, following: !list.isFollowing)
+            guard !Task.isCancelled, source.auth.currentUser?.id == currentUserID else { return }
             list.isFollowing.toggle()
+            MugshotHaptic.selection.play()
             onChanged(list)
             statusMessage = list.isFollowing ? "Added to Saved → Following." : "Removed from Following."
             errorMessage = nil

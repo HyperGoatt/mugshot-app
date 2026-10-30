@@ -14,6 +14,9 @@ last_verified: 2026-10-30
   disappearance, inactive scene or Reduce Motion changes. Quick/reduced moments
   use one immediate acknowledgment. Existing haptic preferences now cover all
   shared feedback, including social error/confirmation cues.
+- Restore optimistic cafe-save state on failure and preserve a committed comment
+  when only its follow-up read fails. Scope delayed social results to the account,
+  retain input after failed submission, and remove rollback-triggered icon bounce.
 - Extend the current Journal reflection destination with Week in review, using
   the existing Sunday 6 PM window and exclusive end boundaries; retain month,
   year, actual data and warm quiet-week copy. No new gamification or backend

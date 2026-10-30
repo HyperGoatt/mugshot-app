@@ -2285,7 +2285,7 @@ struct SipDetailDockLabel: View {
         HStack(spacing: 5) {
             Image(systemName: activeSystemImage)
                 .font(.system(size: 22, weight: .medium))
-                .symbolEffect(.bounce, value: isActive)
+
             if let value {
                 Text(value)
                     .font(.system(size: 13, weight: .semibold))
