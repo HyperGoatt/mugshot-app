@@ -7,15 +7,18 @@ final class VisitEditService {
     private let visitService: VisitService
     private let photoService: VisitPhotoUploadService
     private let cleanupStore: VisitMediaCleanupStore
+    private let progressStore: VisitEditMediaProgressStore
 
     init(
         client: SupabaseClient,
-        cleanupStore: VisitMediaCleanupStore = .shared
+        cleanupStore: VisitMediaCleanupStore = .shared,
+        progressStore: VisitEditMediaProgressStore = .shared
     ) {
         self.client = client
         visitService = VisitService(client: client)
         photoService = VisitPhotoUploadService(client: client)
         self.cleanupStore = cleanupStore
+        self.progressStore = progressStore
     }
 
     func save(
@@ -23,10 +26,16 @@ final class VisitEditService {
         currentUserID: UUID,
         draft sourceDraft: SipPostEditDraft
     ) async throws -> RemoteVisitDetail? {
-        guard detail.summary.visit.userId == currentUserID else {
+        try Task.checkCancellation()
+        guard client.auth.currentUser?.id == currentUserID,
+              detail.summary.visit.userId == currentUserID else {
             throw SipPostEditValidationError.notOwner
         }
 
+        guard let token = SipPublicationGate.shared.begin(userID: currentUserID, visitID: detail.id) else {
+            throw VisitServiceError.accountScopeChanged
+        }
+        defer { SipPublicationGate.shared.finish(token: token) }
         var draft = sourceDraft
         SipPostEditPolicy.moveCoverFirst(in: &draft)
         let values = try SipPostEditPolicy.normalize(
@@ -35,12 +44,26 @@ final class VisitEditService {
             hasV3Reflection: detail.v3Reflection != nil
         )
 
-        let addedPhotos = draft.photos.compactMap(\.addedImage)
+        let added = draft.photos.filter { $0.addedImage != nil }
+        let addedPhotos = added.compactMap(\.addedImage)
+        let paths = try added.map { photo in
+            guard photo.id.hasPrefix("added-"),
+                  let objectID = UUID(uuidString: String(photo.id.dropFirst(6))) else {
+                throw VisitPhotoUploadError.invalidUploadPlan
+            }
+            return VisitPhotoUploadPlan.objectPath(userId: currentUserID, visitId: detail.id, objectId: objectID)
+        }
         let uploaded = try await photoService.uploadPhotos(
             userId: currentUserID,
             visitId: detail.id,
             images: addedPhotos,
-            posterPhotoIndex: 0
+            posterPhotoIndex: 0,
+            plannedObjectPaths: paths,
+            replacingExisting: true,
+            completedObjectPaths: progressStore.completedPaths(userID: currentUserID, visitID: detail.id, plannedPaths: paths),
+            onPhotoUploaded: { path in
+                try self.progressStore.record(path, userID: currentUserID, visitID: detail.id, plannedPaths: paths)
+            }
         )
         let uploadedByID = Dictionary(
             uniqueKeysWithValues: zip(
@@ -51,11 +74,11 @@ final class VisitEditService {
         let orderedPhotoReferences = draft.photos.compactMap { photo in
             photo.existingStoredValue ?? uploadedByID[photo.id]
         }
-        let newLocations = uploaded.attachmentReferences.compactMap(
-            VisitPhotoStorageLocation.init(storedValue:)
-        )
-
         do {
+            try Task.checkCancellation()
+            guard client.auth.currentUser?.id == currentUserID else {
+                throw SipPostEditValidationError.notOwner
+            }
             try await client.rpc(
                 "edit_owned_visit_v2",
                 params: EditOwnedVisitParameters(
@@ -83,6 +106,7 @@ final class VisitEditService {
                     values: values,
                     orderedPhotoReferences: orderedPhotoReferences
                 ) {
+                    finishMediaProgress(currentUserID: currentUserID, visitID: detail.id, retaining: Set(orderedPhotoReferences))
                     await removeDetachedMedia(
                         from: detail,
                         retaining: Set(orderedPhotoReferences),
@@ -94,9 +118,8 @@ final class VisitEditService {
                     )
                 }
 
-                if !newLocations.isEmpty {
-                    try? await photoService.deletePhotos(at: newLocations)
-                }
+                // Keep acknowledged objects for this exact edit's stable photo
+                // IDs. A later retry must not re-upload successful photos.
             } catch {
                 // The write outcome is ambiguous. Keep uploaded objects because
                 // deleting one that the committed row references would break a
@@ -105,6 +128,7 @@ final class VisitEditService {
             throw rpcError
         }
 
+        finishMediaProgress(currentUserID: currentUserID, visitID: detail.id, retaining: Set(orderedPhotoReferences))
         await removeDetachedMedia(
             from: detail,
             retaining: Set(orderedPhotoReferences),
@@ -115,6 +139,18 @@ final class VisitEditService {
             visitId: detail.id,
             currentUserId: currentUserID
         )
+    }
+
+    private func finishMediaProgress(currentUserID: UUID, visitID: UUID, retaining references: Set<String>) {
+        let obsolete = progressStore.allPaths(userID: currentUserID, visitID: visitID)
+            .compactMap { path -> VisitPhotoStorageLocation? in
+                let location = VisitPhotoStorageLocation(bucketName: VisitPhotoStorageReference.privateBucketName, objectPath: path)
+                return references.contains(location.cleanupIdentifier) ? nil : location
+            }
+        // Only a confirmed canonical commit makes abandoned edit objects safe
+        // for the existing durable cleanup queue. Ambiguous responses retain them.
+        if !obsolete.isEmpty { cleanupStore.enqueue(obsolete, userId: currentUserID) }
+        progressStore.remove(userID: currentUserID, visitID: visitID)
     }
 
     private func canonicalEditMatches(

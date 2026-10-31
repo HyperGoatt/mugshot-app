@@ -131,12 +131,40 @@ struct JournalReflectionsSection: View {
 }
 
 struct JournalReflectionDetailView: View {
-    let reflection: JournalReflectionSummary
+    let initialReflection: JournalReflectionSummary
     let entries: [JournalEntryProjection]
     let milestones: [JournalMilestone]
+    let savedHomeAttempts: [HomeAttemptRecord]
+    let peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]]
+    let referenceDate: Date
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedPeriod: JournalReflectionPeriod
     @State private var shareItems: [Any] = []
     @State private var showsShareSheet = false
+
+    init(reflection: JournalReflectionSummary, entries: [JournalEntryProjection],
+         milestones: [JournalMilestone], savedHomeAttempts: [HomeAttemptRecord] = [],
+         peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:],
+         referenceDate: Date = .now) {
+        initialReflection = reflection
+        self.entries = entries
+        self.milestones = milestones
+        self.savedHomeAttempts = savedHomeAttempts
+        self.peopleByPeriod = peopleByPeriod
+        self.referenceDate = referenceDate
+        _selectedPeriod = State(initialValue: reflection.period)
+    }
+
+    private var reflection: JournalReflectionSummary {
+        if selectedPeriod == initialReflection.period { return initialReflection }
+        return JournalReflectionEngine.summary(for: selectedPeriod, entries: entries,
+            savedHomeAttempts: savedHomeAttempts,
+            people: peopleByPeriod[selectedPeriod] ?? [], referenceDate: referenceDate)
+    }
+
+    private var periodMilestones: [JournalMilestone] {
+        JournalReflectionEngine.milestones(entries: periodEntries)
+    }
 
     private var periodEntries: [JournalEntryProjection] {
         entries
@@ -149,14 +177,30 @@ struct JournalReflectionDetailView: View {
     }
 
     private var activeDayCount: Int {
-        Set(periodEntries.map { Calendar.current.startOfDay(for: $0.date) }).count
+        let canonicalIDs = Set(entries.map(\.id))
+        let localDates = savedHomeAttempts.compactMap { attempt -> Date? in
+            guard attempt.publicationStatus != .published,
+                  !canonicalIDs.contains(attempt.id),
+                  !(attempt.publicationDraftID.map(canonicalIDs.contains) ?? false),
+                  let savedAt = attempt.savedAt, savedAt >= reflection.startDate, savedAt < reflection.endDate else { return nil }
+            return savedAt
+        }
+        return Set((periodEntries.map(\.date) + localDates).map { Calendar.current.startOfDay(for: $0) }).count
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    Picker("Reflection period", selection: $selectedPeriod) {
+                        ForEach(JournalReflectionPeriod.allCases) { period in
+                            Text(period.rawValue.capitalized).tag(period)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("journal.reflection.period")
                     hero
+                        .modifier(MugshotReflectionReveal(identity: reflection.id))
                     if !photoEntries.isEmpty {
                         photoStory
                     }
@@ -168,20 +212,20 @@ struct JournalReflectionDetailView: View {
                     if let caffeine = reflection.caffeine {
                         caffeinePanel(caffeine)
                     }
-                    if !milestones.isEmpty {
+                    if !periodMilestones.isEmpty {
                         milestonePanel
                     }
                     Text("Your reflection is built from your journal. It stays useful even when you take a break from logging.")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.secondaryText)
                 }
                 .padding(16)
                 .padding(.bottom, 20)
             }
             .background(Color.creamWhite)
-            .navigationTitle(reflection.period == .month ? "Monthly reflection" : "Yearly reflection")
+            .navigationTitle(reflection.period.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("Done") { dismiss() } }
+            .toolbar { Button("Done") { dismiss() }.accessibilityIdentifier("journal.reflection.done") }
             .sheet(isPresented: $showsShareSheet) {
                 JournalReflectionActivityView(activityItems: shareItems)
             }
@@ -190,16 +234,42 @@ struct JournalReflectionDetailView: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                MugsyAnimatedView(
+                    configuration: MugsyModelConfiguration(
+                        expression: reflection.entryCount == 0 ? .curious : .delighted,
+                        prop: .journalNotebook, outfit: .cozyRitual,
+                        liquid: .coffee(fillProgress: reflection.entryCount == 0 ? 0.25 : 0.72, steamIntensity: 0.2)
+                    ), action: .entering
+                )
+                .frame(width: 76, height: 76)
+                .accessibilityHidden(true)
+                Text(reflection.entryCount == 0 ? "There is room for every pace." : "A few moments, kept with care.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondaryText)
+            }
             Text(periodLabel)
-                .font(.system(size: 12, weight: .bold))
+                .font(.caption.weight(.bold))
                 .tracking(0.8)
                 .foregroundColor(.mugshotSage)
             Text(reflection.headline)
-                .font(.system(size: 32, weight: .bold, design: .serif))
+                .font(.system(.largeTitle, design: .serif).weight(.bold))
                 .foregroundColor(.espressoBrown)
+                .fixedSize(horizontal: false, vertical: true)
+            if reflection.period == .week {
+                Text("Seven days ending Sunday at 6 PM, in your current timezone.")
+                    .font(.caption)
+                    .foregroundStyle(Color.secondaryText)
+            }
+            if reflection.privateHomeEntryCount > 0 {
+                Text("Includes \(reflection.privateHomeEntryCount) privately saved Home \(reflection.privateHomeEntryCount == 1 ? "sip" : "sips").")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+                Text("Sharing includes the visible totals and drink names. Private notes stay yours.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            }
             if let average = reflection.averageRating {
                 Text("Your sip average was \(average.formatted(.number.precision(.fractionLength(1)))) stars.")
-                    .font(.system(size: 14))
+                    .font(.body)
                     .foregroundColor(.secondaryText)
             }
             if let change = reflection.ratingChange, abs(change) >= 0.1 {
@@ -214,10 +284,10 @@ struct JournalReflectionDetailView: View {
                 prepareShare()
             } label: {
                 Label("Share this reflection", systemImage: "square.and.arrow.up")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.body.weight(.bold))
                     .foregroundColor(.foamWhite)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(minHeight: 48)
                     .background(Color.mugshotSage, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -234,11 +304,11 @@ struct JournalReflectionDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text("The moments")
-                    .font(.system(size: 19, weight: .bold))
+                    .font(.title3.weight(.bold))
                     .foregroundColor(.espressoBrown)
                 Spacer()
                 Text("\(reflection.photoCount) \(reflection.photoCount == 1 ? "photo" : "photos")")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundColor(.mugshotSage)
             }
 
@@ -255,7 +325,7 @@ struct JournalReflectionDetailView: View {
                         .overlay(alignment: .bottomLeading) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.summary.visit.drinkDisplayName)
-                                    .font(.system(size: 11, weight: .bold))
+                                    .font(.caption2.weight(.bold))
                                 Text(entry.date.formatted(date: .abbreviated, time: .omitted))
                                     .font(.system(size: 9, weight: .semibold))
                             }
@@ -278,14 +348,14 @@ struct JournalReflectionDetailView: View {
     private var rhythmPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("The rhythm", systemImage: "waveform.path.ecg")
-                .font(.system(size: 12, weight: .bold))
+                .font(.caption.weight(.bold))
                 .foregroundColor(.mugshotSage)
             Text(rhythmHeadline)
                 .font(.system(size: 21, weight: .bold, design: .serif))
                 .foregroundColor(.espressoBrown)
                 .fixedSize(horizontal: false, vertical: true)
             Text(rhythmDetail)
-                .font(.system(size: 13))
+                .font(.subheadline)
                 .foregroundColor(.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -307,14 +377,12 @@ struct JournalReflectionDetailView: View {
     }
 
     private var periodLabel: String {
-        reflection.period == .month
-            ? reflection.startDate.formatted(.dateTime.month(.wide).year())
-            : reflection.startDate.formatted(.dateTime.year())
+        reflection.periodLabel
     }
 
     private var rhythmDetail: String {
         guard reflection.entryCount > 0 else {
-            return "A future sip can start the story without creating a logging streak to maintain."
+            return "Your journal is here whenever a moment is worth keeping. Quiet days need no catching up."
         }
         var parts = ["You remembered coffee on \(activeDayCount) \(activeDayCount == 1 ? "day" : "days") during this \(reflection.period.rawValue)."]
         if let favoriteDrink = reflection.favoriteDrink {
@@ -331,7 +399,7 @@ struct JournalReflectionDetailView: View {
     private var memoryHighlights: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Your coffee story")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
             reflectionRow("Sips remembered", "\(reflection.entryCount)", "cup.and.saucer.fill")
             reflectionRow("Cafes explored", "\(reflection.cafeCount)", "map.fill")
@@ -352,10 +420,10 @@ struct JournalReflectionDetailView: View {
     private var peoplePanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("People in your coffee story")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
             Text("Private to you · based on people currently tagged in your Mugshots")
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundColor(.secondaryText)
 
             ForEach(reflection.people.prefix(3)) { person in
@@ -366,7 +434,7 @@ struct JournalReflectionDetailView: View {
                         imageURL: person.avatarURL
                     )
                     Text("\(person.sipCount) \(person.sipCount == 1 ? "sip" : "sips") with \(person.personLabel)")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundColor(.espressoBrown)
                     Spacer(minLength: 0)
                 }
@@ -381,16 +449,16 @@ struct JournalReflectionDetailView: View {
     private func caffeinePanel(_ caffeine: JournalCaffeineEstimate) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Deep journal data")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
             Text("About \(caffeine.roundedTotal) mg estimated caffeine")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.espressoBrown)
             Text(caffeine.coverageText)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(.mugshotSage)
             Text("Calculated from traditional preparation averages (\(caffeine.referenceVersions.joined(separator: ", "))) using parser \(caffeine.parserVersions.joined(separator: ", ")). Unknown drinks are excluded. This is a personal journal estimate, not medical guidance.")
-                .font(.system(size: 12))
+                .font(.caption)
                 .foregroundColor(.secondaryText)
         }
         .padding(16)
@@ -400,13 +468,13 @@ struct JournalReflectionDetailView: View {
     private var milestonePanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Personal milestones")
-                .font(.system(size: 19, weight: .bold))
+                .font(.title3.weight(.bold))
                 .foregroundColor(.espressoBrown)
-            ForEach(milestones) { milestone in
+            ForEach(periodMilestones) { milestone in
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(milestone.title).font(.system(size: 14, weight: .bold))
-                        Text(milestone.detail).font(.system(size: 12)).foregroundColor(.secondaryText)
+                        Text(milestone.title).font(.body.weight(.bold))
+                        Text(milestone.detail).font(.caption).foregroundColor(.secondaryText)
                     }
                 } icon: {
                     Image(systemName: milestone.systemImage).foregroundColor(.mugshotSage)
@@ -437,11 +505,11 @@ struct JournalReflectionDetailView: View {
                 .foregroundColor(.mugshotSage)
                 .frame(width: 20)
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(.secondaryText)
             Spacer()
             Text(value)
-                .font(.system(size: 14, weight: .bold))
+                .font(.body.weight(.bold))
                 .foregroundColor(.espressoBrown)
                 .multilineTextAlignment(.trailing)
         }
@@ -534,7 +602,7 @@ private struct JournalReflectionShareCard: View {
 
                 Spacer(minLength: 0)
 
-                Text(reflection.period == .month ? "MY MONTH IN COFFEE" : "MY YEAR IN COFFEE")
+                Text("MY \(reflection.period.rawValue.uppercased()) IN COFFEE")
                     .font(.system(size: 15, weight: .bold))
                     .tracking(1.5)
                     .foregroundColor(.mugshotSage)
@@ -548,7 +616,7 @@ private struct JournalReflectionShareCard: View {
                 HStack(spacing: 10) {
                     shareFact("\(reflection.entryCount)", "SIPS")
                     shareFact("\(reflection.cafeCount)", "CAFES")
-                    shareFact("\(reflection.photoCount)", "PHOTOS")
+                    shareFact("\(reflection.photoCount)", "PHOTO MEMORIES")
                 }
 
                 if let favoriteDrink = reflection.favoriteDrink {
@@ -574,9 +642,7 @@ private struct JournalReflectionShareCard: View {
     }
 
     private var periodLabel: String {
-        reflection.period == .month
-            ? reflection.startDate.formatted(.dateTime.month(.wide).year())
-            : reflection.startDate.formatted(.dateTime.year())
+        reflection.periodLabel
     }
 
     private func shareFact(_ value: String, _ label: String) -> some View {
@@ -603,4 +669,27 @@ private struct JournalReflectionActivityView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+/// A readable, finite reveal; content and navigation never wait for playback.
+private struct MugshotReflectionReveal: ViewModifier {
+    let identity: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var lastIdentity: String?
+    @State private var opacity = 1.0
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .task(id: "\(identity):\(scenePhase):\(motionOverride ?? reduceMotion)") {
+                guard scenePhase == .active, lastIdentity != identity else { opacity = 1; return }
+                lastIdentity = identity
+                guard !(motionOverride ?? reduceMotion), !UIAccessibility.isVoiceOverRunning else { opacity = 1; return }
+                opacity = 0.84
+                withAnimation(.easeOut(duration: 0.28)) { opacity = 1 }
+            }
+            .onDisappear { opacity = 1 }
+    }
 }

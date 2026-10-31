@@ -1,11 +1,25 @@
 import Foundation
 
 enum JournalReflectionPeriod: String, CaseIterable, Identifiable, Hashable {
+    case week
     case month
     case year
 
     var id: String { rawValue }
-    var title: String { self == .month ? "This month" : "This year" }
+    var title: String {
+        switch self {
+        case .week: "Week in review"
+        case .month: "This month"
+        case .year: "This year"
+        }
+    }
+    var navigationTitle: String {
+        switch self {
+        case .week: "Week in review"
+        case .month: "Monthly reflection"
+        case .year: "Yearly reflection"
+        }
+    }
 }
 
 struct JournalCaffeineEstimate: Equatable {
@@ -59,12 +73,24 @@ struct JournalReflectionSummary: Identifiable, Equatable {
     let ratingChange: Double?
     let caffeine: JournalCaffeineEstimate?
     let people: [JournalPeopleCount]
+    var privateHomeEntryCount = 0
 
     var id: String { "\(period.rawValue)-\(startDate.timeIntervalSince1970)" }
 
+    var periodLabel: String {
+        switch period {
+        case .week:
+            return "\(startDate.formatted(.dateTime.month(.abbreviated).day())) – \(endDate.formatted(.dateTime.month(.abbreviated).day().year()))"
+        case .month: return startDate.formatted(.dateTime.month(.wide).year())
+        case .year: return startDate.formatted(.dateTime.year())
+        }
+    }
+
     var headline: String {
-        guard entryCount > 0 else { return "A fresh page for your coffee memories" }
-        if let favoriteDrink { return "\(favoriteDrink) shaped \(period == .month ? "your month" : "your year")" }
+        guard entryCount > 0 else {
+            return period == .week ? "A quiet week belongs here too" : "A fresh page for your coffee memories"
+        }
+        if let favoriteDrink { return "\(favoriteDrink) shaped your \(period.rawValue)" }
         return "\(entryCount) sips worth remembering"
     }
 }
@@ -80,46 +106,59 @@ enum JournalReflectionEngine {
     static func summary(
         for period: JournalReflectionPeriod,
         entries: [JournalEntryProjection],
+        savedHomeAttempts: [HomeAttemptRecord] = [],
         people: [JournalPeopleCount] = [],
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> JournalReflectionSummary {
         let interval = dateInterval(for: period, containing: referenceDate, calendar: calendar)
-        let previousReference = calendar.date(byAdding: period == .month ? .month : .year, value: -1, to: referenceDate) ?? referenceDate
+        let component: Calendar.Component = period == .week ? .weekOfYear : period == .month ? .month : .year
+        let previousReference = calendar.date(byAdding: component, value: -1, to: referenceDate) ?? referenceDate
         let previousInterval = dateInterval(for: period, containing: previousReference, calendar: calendar)
-        let current = entries.filter { interval.contains($0.date) }
-        let previous = entries.filter { previousInterval.contains($0.date) }
+        let current = entries.filter { includes($0.date, in: interval) }
+        let previous = entries.filter { includes($0.date, in: previousInterval) }
+        let canonicalIDs = Set(entries.map(\.id))
+        let privateHome = savedHomeAttempts.filter { attempt in
+            attempt.savedAt != nil && attempt.publicationStatus != .published
+                && !canonicalIDs.contains(attempt.id)
+                && !(attempt.publicationDraftID.map(canonicalIDs.contains) ?? false)
+        }
+        let currentHome = privateHome.filter { $0.savedAt.map { includes($0, in: interval) } ?? false }
+        let previousHome = privateHome.filter { $0.savedAt.map { includes($0, in: previousInterval) } ?? false }
 
         let cafeEntries = current.filter { $0.context == .cafe }
         let homeEntries = current.filter { $0.context == .home }
         let recipes = current.filter { $0.context == .recipe }
-        let average = averageRating(current)
-        let previousAverage = averageRating(previous)
+        let average = averageRating(current, privateHome: currentHome)
+        let previousAverage = averageRating(previous, privateHome: previousHome)
         let caffeineRows = current.compactMap(\.drinkAnalysis)
         let covered = caffeineRows.filter(\.isCoveredEstimate)
         let caffeine: JournalCaffeineEstimate? = covered.isEmpty ? nil : JournalCaffeineEstimate(
             totalMilligrams: covered.compactMap(\.estimatedCaffeineMilligrams).reduce(0, +),
             coveredEntries: covered.count,
-            totalEntries: current.count,
+            totalEntries: current.count + currentHome.count,
             referenceVersions: Array(Set(covered.map(\.caffeineReferenceVersion))).sorted(),
             parserVersions: Array(Set(covered.map(\.parserVersion))).sorted()
         )
 
-        return JournalReflectionSummary(
+        var result = JournalReflectionSummary(
             period: period,
             startDate: interval.start,
             endDate: interval.end,
-            entryCount: current.count,
+            entryCount: current.count + currentHome.count,
             cafeCount: Set(cafeEntries.compactMap { $0.summary.cafe?.id }).count,
-            homeExperimentCount: homeEntries.count,
-            recipeCount: recipes.count,
-            favoriteDrink: mostFrequent(current.map { $0.summary.visit.drinkDisplayName }),
+            homeExperimentCount: homeEntries.count + currentHome.count,
+            recipeCount: recipes.count + currentHome.filter { $0.recipe != nil }.count,
+            favoriteDrink: mostFrequent(current.map { $0.summary.visit.drinkDisplayName } + currentHome.map(\.name)),
             favoriteCafe: topCafe(in: cafeEntries),
             neighborhoods: Array(Set(cafeEntries.compactMap {
                 $0.summary.cafe?.city?.remoteTrimmedNonEmpty ?? $0.summary.visit.cityState?.remoteTrimmedNonEmpty
             })).sorted(),
-            meaningfulMemoryCount: current.filter(isMeaningfulMemory).count,
-            photoCount: current.filter { $0.summary.visit.posterPhotoURL?.remoteTrimmedNonEmpty != nil }.count,
+            meaningfulMemoryCount: current.filter(isMeaningfulMemory).count + currentHome.filter {
+                !$0.privateNote.isEmpty || !$0.nextTimeNote.isEmpty || !$0.reaction.isEmpty || !$0.photoNames.isEmpty
+            }.count,
+            photoCount: current.filter { $0.summary.visit.posterPhotoURL?.remoteTrimmedNonEmpty != nil }.count
+                + currentHome.filter { !$0.photoNames.isEmpty }.count,
             averageRating: average,
             ratingChange: average.flatMap { currentAverage in
                 previousAverage.map { currentAverage - $0 }
@@ -127,6 +166,8 @@ enum JournalReflectionEngine {
             caffeine: caffeine,
             people: people
         )
+        result.privateHomeEntryCount = currentHome.count
+        return result
     }
 
     static func dateInterval(
@@ -134,11 +175,24 @@ enum JournalReflectionEngine {
         containing date: Date = Date(),
         calendar: Calendar = .current
     ) -> DateInterval {
+        if period == .week {
+            // Match the existing weekly reminder: the latest Sunday at 6 PM,
+            // in the reader's timezone, and the existing UTC 168-hour window.
+            let components = DateComponents(hour: 18, minute: 0, second: 0, weekday: 1)
+            let end = calendar.nextDate(after: date.addingTimeInterval(1), matching: components,
+                                        matchingPolicy: .nextTime, direction: .backward) ?? date
+            let start = end.addingTimeInterval(-7 * 24 * 60 * 60)
+            return DateInterval(start: start, end: end)
+        }
         if period == .month, let interval = calendar.dateInterval(of: .month, for: date) {
             return interval
         }
         if let interval = calendar.dateInterval(of: .year, for: date) { return interval }
         return DateInterval(start: date, duration: 1)
+    }
+
+    static func includes(_ date: Date, in interval: DateInterval) -> Bool {
+        date >= interval.start && date < interval.end
     }
 
     static func milestones(entries: [JournalEntryProjection]) -> [JournalMilestone] {
@@ -182,9 +236,11 @@ enum JournalReflectionEngine {
         return result
     }
 
-    private static func averageRating(_ entries: [JournalEntryProjection]) -> Double? {
-        guard !entries.isEmpty else { return nil }
-        return entries.reduce(0) { $0 + $1.summary.visit.overallScore } / Double(entries.count)
+    private static func averageRating(_ entries: [JournalEntryProjection], privateHome: [HomeAttemptRecord]) -> Double? {
+        let values = (entries.map { $0.summary.visit.overallScore } + privateHome.compactMap(\.resolvedRating))
+            .filter { $0.isFinite && (0.5...5).contains($0) }
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
     }
 
     private static func mostFrequent(_ values: [String]) -> String? {

@@ -72,28 +72,67 @@ enum MugshotMotion {
     }
 }
 
-enum MugshotHaptic {
+enum MugshotHaptic: Equatable {
     case selection
     case softImpact
+    case completionPour
+    case completionLand
     case refreshArmed
     case success
     case warning
+    case error
+
+    @MainActor
+    private enum Generators {
+        static let selection = UISelectionFeedbackGenerator()
+        static let soft = UIImpactFeedbackGenerator(style: .soft)
+        static let light = UIImpactFeedbackGenerator(style: .light)
+        static let completionPour = UIImpactFeedbackGenerator(style: .medium)
+        static let completionLand = UIImpactFeedbackGenerator(style: .heavy)
+        static let notification = UINotificationFeedbackGenerator()
+    }
+
+    @MainActor
+    func prepare() {
+        guard canPlay(isEnabled: true) else { return }
+        switch self {
+        case .selection: Generators.selection.prepare()
+        case .softImpact: Generators.soft.prepare()
+        case .completionPour: Generators.completionPour.prepare()
+        case .completionLand: Generators.completionLand.prepare()
+        case .refreshArmed: Generators.light.prepare()
+        case .success, .warning, .error: Generators.notification.prepare()
+        }
+    }
 
     @MainActor
     func play(isEnabled: Bool = true) {
-        guard isEnabled else { return }
+        guard canPlay(isEnabled: isEnabled) else { return }
         switch self {
         case .selection:
-            UISelectionFeedbackGenerator().selectionChanged()
+            Generators.selection.selectionChanged()
         case .softImpact:
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+            Generators.soft.impactOccurred()
+        case .completionPour:
+            Generators.completionPour.impactOccurred(intensity: 0.85)
+        case .completionLand:
+            Generators.completionLand.impactOccurred(intensity: 1)
         case .refreshArmed:
-            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.72)
+            Generators.light.impactOccurred(intensity: 0.72)
         case .success:
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Generators.notification.notificationOccurred(.success)
         case .warning:
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            Generators.notification.notificationOccurred(.warning)
+        case .error:
+            Generators.notification.notificationOccurred(.error)
         }
+    }
+
+    @MainActor
+    private func canPlay(isEnabled: Bool) -> Bool {
+        let preference = UserDefaults.standard.object(forKey: "MugshotSettings.haptics.v1") as? Bool ?? true
+        return MugshotFeedbackPolicy.shouldPlay(isEnabled: isEnabled && preference,
+                                               appIsActive: UIApplication.shared.applicationState == .active)
     }
 }
 

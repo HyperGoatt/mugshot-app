@@ -149,6 +149,15 @@ enum MugshotAnalyticsErrorCode: String {
     case unknown
 
     init(error: Error) {
+        if let error = error as? CafeVerificationError {
+            self = error == .authenticationRequired ? .authentication : .remoteService
+            return
+        }
+        if let error = error as? AutomaticSipRecoveryError,
+           error == .accountMismatch || error == .identityMismatch {
+            self = .authentication
+            return
+        }
         if error is URLError {
             self = .network
             return
@@ -421,7 +430,8 @@ enum MugshotAnalyticsEvent: Equatable {
     case sipPublishFailed(
         MugshotSipAnalyticsSnapshot,
         errorCode: MugshotAnalyticsErrorCode,
-        recoveryState: MugshotSipRecoveryState
+        recoveryState: MugshotSipRecoveryState,
+        operation: SipRemoteSaveOperation = .preparing
     )
     case sipDraftSaved(
         MugshotSipAnalyticsSnapshot,
@@ -634,13 +644,14 @@ enum MugshotAnalyticsEvent: Equatable {
                     "was_recovery": .boolean(wasRecovery)
                 ]
             )
-        case .sipPublishFailed(let snapshot, let errorCode, let recoveryState):
+        case .sipPublishFailed(let snapshot, let errorCode, let recoveryState, let operation):
             return sipPayload(
                 "sip_publish_failed",
                 snapshot: snapshot,
                 additional: [
                     "error_code": .string(errorCode.rawValue),
-                    "recovery_state": .string(recoveryState.rawValue)
+                    "recovery_state": .string(recoveryState.rawValue),
+                    "publication_stage": .string(operation.rawValue)
                 ]
             )
         case .sipDraftSaved(let snapshot, let durationSeconds):

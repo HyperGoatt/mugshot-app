@@ -157,6 +157,7 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
     private var homeRecoveryTask: Task<Void, Never>?
     private var homeRecoveryID: UUID?
     private var homeWorkspaceObservation: AnyCancellable?
+    private var publicationObservation: AnyCancellable?
     private let homeWorkspaceRecovery: HomeWorkspaceRecoveryDependencies?
 
     init(
@@ -173,6 +174,12 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                 self?.setNetworkAvailable(isAvailable)
             }
         }
+        publicationObservation = NotificationCenter.default.publisher(for: .sipPublicationFinished)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshState()
+                self?.scheduleIfEligible()
+            }
     }
 
     private func scheduleHomeRecovery() {
@@ -337,6 +344,13 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                 }
 
                 do {
+                    if SipPublicationGate.shared.isActive(userID: accountID, visitID: record.id) {
+                        continue
+                    }
+                    guard let token = SipPublicationGate.shared.begin(userID: accountID, visitID: record.id) else {
+                        continue
+                    }
+                    defer { SipPublicationGate.shared.finish(token: token) }
                     state = .recovering(passRecords.count)
                     // Reconcile the exact owner-bound row before any create or
                     // upload. A failed lookup remains unknown and never grants
@@ -402,6 +416,14 @@ final class AutomaticSipRecoveryCoordinator: ObservableObject {
                 suppressAutomaticRetry = false
                 state = .idle
                 BatteryDiagnostics.visitRecoveryFinished(.completed, remainingCount: 0)
+                return
+            }
+
+            if passIssues.isEmpty, remainingRecords.allSatisfy({
+                SipPublicationGate.shared.isActive(userID: accountID, visitID: $0.id)
+            }) {
+                state = .recovering(remainingRecords.count)
+                BatteryDiagnostics.visitRecoveryFinished(.interrupted, remainingCount: remainingRecords.count)
                 return
             }
 
@@ -595,7 +617,7 @@ private struct PendingVisitPublicationWorker {
             throw AutomaticSipRecoveryError.identityMismatch
         }
 
-        let client = try SupabaseClientProvider.shared.client()
+        let client = try await SupabaseClientProvider.shared.publicationClient(userID: record.userId)
         let remoteState = try await VisitService(client: client)
             .fetchOwnedVisitUploadState(
                 visitId: latest.id,
@@ -631,7 +653,7 @@ private struct PendingVisitPublicationWorker {
                 ?? AutomaticSipRecoveryError.invalidPayload
         }
 
-        let client = try SupabaseClientProvider.shared.client()
+        let client = try await SupabaseClientProvider.shared.publicationClient(userID: submission.userId)
         let visits = VisitService(client: client)
         let cafeSessions = CafeSessionService(client: client)
         var savedVisit: RemoteVisitSummary?
@@ -718,10 +740,10 @@ private struct PendingVisitPublicationWorker {
             }
 
             if submission.phase < .photosUploaded {
-                let images = try pendingStore.loadImages(for: submission)
+                let images = try pendingStore.loadUploadImages(for: submission)
                 let uploadPlan = submission
                 let uploaded = try await VisitPhotoUploadService(client: client)
-                    .uploadPhotos(
+                    .uploadPlannedPhotos(
                         userId: submission.userId,
                         visitId: submission.id,
                         images: images,
@@ -754,6 +776,7 @@ private struct PendingVisitPublicationWorker {
                 try saveAndReload(&submission)
             }
 
+            try Task.checkCancellation()
             if let session = submission.cafeSession {
                 try await cafeSessions.finalizeSipUpload(
                     sessionID: session.sessionID,
@@ -780,6 +803,7 @@ private struct PendingVisitPublicationWorker {
         // complete, the composer draft is no longer a draft. Remove it before
         // best-effort projection/setup work so a downstream retry can never
         // leave an already-visible post stuck in Drafts.
+        try Task.checkCancellation()
         PublishedSipDraftCleaner(draftStore: draftStore)
             .removeDraft(matching: submission)
 

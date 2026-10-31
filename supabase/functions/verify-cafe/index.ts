@@ -15,6 +15,10 @@ Deno.serve((request) => {
     },
   };
   return handle(request, {
+    reportFailure: (report) =>
+      console.error(
+        JSON.stringify({ event: "cafe_verification_failed", ...report }),
+      ),
     authenticate: async (authorization) => {
       if (!base || !publicKey || !secret) return null;
       const viewer = createClient(base, publicKey, {

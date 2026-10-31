@@ -1017,6 +1017,7 @@ final class VisitService {
             .update(update)
             .eq("id", value: visitId.uuidString)
             .eq("user_id", value: userId.uuidString)
+            .neq("upload_state", value: VisitUploadState.complete.rawValue)
             .execute()
     }
 

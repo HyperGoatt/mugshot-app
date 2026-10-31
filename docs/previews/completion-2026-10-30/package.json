@@ -1,0 +1,13 @@
+{
+  "name": "mugshot-native-completion-review",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "HYPERFRAMES_SKIP_SKILLS=1 HYPERFRAMES_NO_UPDATE_CHECK=1 HYPERFRAMES_NO_TELEMETRY=1 npx --yes hyperframes@0.8.185 preview --background",
+    "check": "HYPERFRAMES_SKIP_SKILLS=1 HYPERFRAMES_NO_UPDATE_CHECK=1 HYPERFRAMES_NO_TELEMETRY=1 npx --yes hyperframes@0.8.185 check",
+    "render": "HYPERFRAMES_SKIP_SKILLS=1 HYPERFRAMES_NO_UPDATE_CHECK=1 HYPERFRAMES_NO_TELEMETRY=1 npx --yes hyperframes@0.8.185 render --workers 1 --fps 30 --quality standard --output review.mp4"
+  },
+  "devDependencies": {
+    "hyperframes": "0.8.185"
+  }
+}

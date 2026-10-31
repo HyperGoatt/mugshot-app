@@ -136,17 +136,20 @@ struct MugshotShareHubView: View {
             MugshotSystemShareView(
                 items: presentation.items,
                 onCompletion: { completed in
-                    if completed {
+                    guard systemSharePresentation?.id == presentation.id else { return }
+                    defer { systemSharePresentation = nil }
+                    if completed && presentation.ownerID == authModel.authenticatedUser?.id {
+                        MugshotHaptic.selection.play()
                         record(
                             .systemShareCompleted,
                             destination: .more,
                             format: presentation.format
                         )
                     }
-                    systemSharePresentation = nil
                 }
             )
         }
+        .onChange(of: authModel.authenticatedUser?.id) { _, _ in systemSharePresentation = nil }
         .accessibilityIdentifier("logASipV3.shareHub")
     }
 
@@ -687,7 +690,8 @@ struct MugshotShareHubView: View {
         systemSharePresentation = MugshotSystemSharePresentation(
             items: package.primaryActivityItems(for: selectedFormat),
             format: selectedFormat,
-            mode: publicURL == nil ? .artwork : .link
+            mode: publicURL == nil ? .artwork : .link,
+            ownerID: authModel.authenticatedUser?.id
         )
         record(.handoffOpened, destination: .more, format: selectedFormat)
     }
@@ -1262,6 +1266,7 @@ private struct MugshotSystemSharePresentation: Identifiable {
     let items: [Any]
     let format: MugshotShareFormat
     let mode: MugshotSystemShareMode
+    let ownerID: UUID?
 }
 
 private struct MugshotSystemShareView: UIViewControllerRepresentable {

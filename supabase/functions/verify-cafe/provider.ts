@@ -1,5 +1,23 @@
 // Only provider identifiers leave Mugshot. Never send journal text or images.
 export type Provider = "apple" | "google";
+type ProviderOperation =
+  | "configuration"
+  | "apple_token"
+  | "apple_place"
+  | "google_place";
+export class ProviderFailure extends Error {
+  constructor(
+    readonly reason:
+      | "configuration"
+      | "provider_http"
+      | "provider_unavailable"
+      | "provider_payload",
+    readonly operation: ProviderOperation,
+    readonly status?: number,
+  ) {
+    super("Cafe provider verification failed");
+  }
+}
 export type Place = {
   name: string;
   address: string | null;
@@ -43,9 +61,18 @@ export function parsePlace(
   if (provider === "apple") {
     if (
       !Array.isArray(p.formattedAddressLines) ||
-      !p.formattedAddressLines.every((s: unknown) => text(s, 500))
+      !p.formattedAddressLines.every((s: unknown) =>
+        typeof s === "string" && s.length <= 500 && s.trim().length > 0 &&
+        !/[\u0000-\u0009\u000b\u000c\u000e-\u001f]/.test(s)
+      )
     ) throw Error("invalid_place");
-    address = text(p.formattedAddressLines.join(", "), 2000);
+    // Apple can return a whole postal address inside one array entry. Preserve
+    // its line boundaries as separators; retain rejection of other controls.
+    const lines: string[] = p.formattedAddressLines.flatMap((s: string) =>
+      s.split(/\r\n?|\n/).map((line) => line.trim()).filter(Boolean)
+    );
+    if (!lines.every((line) => text(line, 500))) throw Error("invalid_place");
+    address = text(lines.join(", "), 2000);
     city = text(p.structuredAddress?.locality, 300);
     country = text(p.country, 300);
   } else {
@@ -108,41 +135,68 @@ export async function fetchPlace(provider: Provider, id: string, credentials: {
 }, request: typeof fetch = fetch): Promise<Place> {
   if (!placeID(id)) throw Error("invalid_place");
   // Fixed hosts and encoded identifiers: no client-controlled URL or redirects.
-  const get = async (url: string, authorization?: string) => {
-    const response = await request(url, {
-      headers: authorization
-        ? { Authorization: "Bearer " + authorization }
-        : {},
-      redirect: "error",
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) throw Error("provider_unavailable");
-    return await response.json();
+  const get = async (
+    url: string,
+    operation: ProviderOperation,
+    authorization?: string,
+  ) => {
+    let response: Response;
+    try {
+      response = await request(url, {
+        headers: authorization
+          ? { Authorization: "Bearer " + authorization }
+          : {},
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      });
+    } catch {
+      throw new ProviderFailure("provider_unavailable", operation);
+    }
+    if (!response.ok) {
+      throw new ProviderFailure("provider_http", operation, response.status);
+    }
+    try {
+      return await response.json();
+    } catch {
+      throw new ProviderFailure("provider_payload", operation);
+    }
   };
   if (provider === "apple") {
     if (
       !credentials.appleKey || !credentials.appleKeyID ||
       !credentials.appleTeamID
-    ) throw Error("configuration");
-    const jwt = await appleAuthorization(
-      credentials.appleKey,
-      credentials.appleKeyID,
-      credentials.appleTeamID,
+    ) throw new ProviderFailure("configuration", "configuration");
+    let jwt: string;
+    try {
+      jwt = await appleAuthorization(
+        credentials.appleKey,
+        credentials.appleKeyID,
+        credentials.appleTeamID,
+      );
+    } catch {
+      throw new ProviderFailure("configuration", "configuration");
+    }
+    const token = await get(
+      "https://maps-api.apple.com/v1/token",
+      "apple_token",
+      jwt,
     );
-    const token = await get("https://maps-api.apple.com/v1/token", jwt);
     if (typeof token.accessToken !== "string" || !token.accessToken) {
-      throw Error("provider_unavailable");
+      throw new ProviderFailure("provider_payload", "apple_token");
     }
     return parsePlace(
       provider,
       id,
       await get(
         "https://maps-api.apple.com/v1/place/" + encodeURIComponent(id),
+        "apple_place",
         token.accessToken,
       ),
     );
   }
-  if (!credentials.googleKey) throw Error("configuration");
+  if (!credentials.googleKey) {
+    throw new ProviderFailure("configuration", "configuration");
+  }
   const query = new URLSearchParams({
     place_id: id,
     fields: "place_id,name,formatted_address,address_components,geometry",
@@ -150,6 +204,7 @@ export async function fetchPlace(provider: Provider, id: string, credentials: {
   });
   const result = await get(
     "https://maps.googleapis.com/maps/api/place/details/json?" + query,
+    "google_place",
   );
   if (result.status !== "OK") throw Error("provider_unavailable");
   return parsePlace(provider, id, result.result);

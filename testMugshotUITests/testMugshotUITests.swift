@@ -6,6 +6,88 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testCompletionReceiptNavigationAndExistingWeeklyReflection() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-completion-motion-design-qa"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["mugshot.saveReceipt"].waitForExistence(timeout: 5))
+        app.buttons["Reopen same completion"].tap()
+        XCTAssertTrue(app.staticTexts["Posted to Friends"].exists)
+        app.buttons["Week in review"].tap()
+        XCTAssertTrue(app.navigationBars["Week in review"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Cortado shaped your week"].exists)
+        attachScreenshot(named: "Week in review - actual local journal data")
+        app.segmentedControls["journal.reflection.period"].buttons["Month"].tap()
+        XCTAssertTrue(app.navigationBars["Monthly reflection"].exists)
+        app.buttons["journal.reflection.done"].tap()
+        XCTAssertTrue(app.buttons["Replay new completion"].exists)
+        attachScreenshot(named: "Native completed receipt - navigation stays available")
+    }
+
+    @MainActor
+    func testPhysicalMotionPlaybackFinishesAndManualNavigationCancelsIt() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-completion-motion-design-qa", "--ui-testing-motion-playback"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Playback complete"].waitForExistence(timeout: 35))
+        XCTAssertTrue(app.staticTexts["Saved privately"].exists)
+        attachScreenshot(named: "Native authoring playback completed")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Week in review"].waitForExistence(timeout: 5))
+        app.buttons["Week in review"].tap()
+        XCTAssertTrue(app.navigationBars["Week in review"].waitForExistence(timeout: 3))
+        app.buttons["journal.reflection.done"].tap()
+        let oldPlayback = expectation(for: NSPredicate(format: "exists == true"),
+            evaluatedWith: app.staticTexts["New completed social operation"])
+        oldPlayback.isInverted = true
+        wait(for: [oldPlayback], timeout: 8)
+        XCTAssertTrue(app.staticTexts["Waiting for recording"].exists)
+        XCTAssertFalse(app.staticTexts["Playback complete"].exists)
+    }
+
+    @MainActor
+    func testQuietWeekAndCompletionAtAccessibleTextWithReducedMotion() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-completion-motion-design-qa",
+            "--ui-testing-completion-quiet-week", "--ui-testing-reduce-motion", "--ui-testing-accessibility-xxxl"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["mugshot.saveReceipt"].waitForExistence(timeout: 5))
+        tapAfterRevealing(app.buttons["Week in review"], in: app)
+        XCTAssertTrue(app.staticTexts["A quiet week belongs here too"].waitForExistence(timeout: 3))
+        XCTAssertGreaterThan(app.staticTexts["A quiet week belongs here too"].frame.height, 120,
+                             "The presented reflection must preserve the largest accessible text size")
+        XCTAssertTrue(app.buttons["journal.reflection.done"].isHittable)
+        attachScreenshot(named: "Quiet week - accessible text and reduced motion")
+    }
+
+    @MainActor
+    func testCafePublicationPreservesDraftAcrossFailureBackgroundAndRetry() throws {
+        executionTimeAllowance = 120
+        let app = launch(reset: true, extraArguments: ["--ui-testing-fail-first-save", "--ui-testing-reduce-motion"])
+        openV3SavedCafeDraftToPublish(in: app, drinkName: "Publication retry fixture")
+        let publish = v3Element("logASipV3.primaryAction", in: app)
+        tapAfterRevealing(publish, in: app)
+        XCTAssertTrue(app.staticTexts["We couldn’t finish this save. Your sip is safe—try again."].waitForExistence(timeout: 4))
+        XCTAssertFalse(v3Element("logASipV3.shareHub", in: app).exists)
+        XCTAssertTrue(publish.isEnabled)
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        tapAfterRevealing(publish, in: app)
+        XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
+        attachScreenshot(named: "Cafe publishing - protected failure then successful retry")
+    }
+
+    @MainActor
+    func testCafePublicationNormalLocalFixtureSuccess() throws {
+        executionTimeAllowance = 120
+        let app = launch(reset: true, extraArguments: ["--ui-testing-reduce-motion"])
+        openV3SavedCafeDraftToPublish(in: app, drinkName: "Publication success fixture")
+        tapV3PrimaryAction(in: app)
+        XCTAssertTrue(v3Element("logASipV3.shareHub", in: app).waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testPublishedRecoveryBannerIsTruthfulAndDismissible() throws {
         let app = XCUIApplication()
         app.launchArguments = [

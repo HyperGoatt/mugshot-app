@@ -594,6 +594,25 @@ final class PendingVisitSubmissionStore {
         }
     }
 
+    func loadUploadImages(for record: PendingVisitSubmissionRecord) throws -> [UIImage?] {
+        lock.lock()
+        defer { lock.unlock() }
+        try VisitPhotoUploadPlan.validate(
+            userID: record.userId, visitID: record.id,
+            imageCount: record.localPhotoNames.count, paths: record.objectPaths,
+            completedPaths: record.completedPhotoObjectPaths ?? []
+        )
+        let completed = Set(record.completedPhotoObjectPaths ?? [])
+        return try zip(record.localPhotoNames, record.objectPaths).map { name, path in
+            let url = visitDirectory(record.id, userId: record.userId).appendingPathComponent(name)
+            let image = UIImage(contentsOfFile: url.path)
+            guard image != nil || completed.contains(path) else {
+                throw PendingVisitSubmissionStoreError.missingLocalPhoto
+            }
+            return image
+        }
+    }
+
     /// Rebuilds only the durable photo plan while preserving the frozen visit,
     /// session, tasting, rating, and publication payload. The new plan is
     /// persisted before old local files are removed, so a failed rewrite leaves

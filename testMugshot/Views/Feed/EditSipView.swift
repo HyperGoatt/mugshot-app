@@ -52,8 +52,8 @@ struct EditSipView: View {
                     Divider()
                     taggedPeopleSection
 
-                    if let errorMessage {
-                        Text(errorMessage)
+                    if let message = errorMessage ?? validationError?.localizedDescription {
+                        Text(message)
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(Color.red)
                             .fixedSize(horizontal: false, vertical: true)
@@ -119,6 +119,8 @@ struct EditSipView: View {
             } message: {
                 Text("This Mugshot will be visible to everyone using its text-only presentation.")
             }
+            .interactiveDismissDisabled(isSaving)
+            .disabled(isSaving)
             .onChange(of: draft.postAudience) { _, postAudience in
                 if draft.journalAudience.breadth > postAudience.breadth {
                     draft.journalAudience = postAudience
@@ -491,10 +493,12 @@ struct EditSipView: View {
     }
 
     private func performSave() {
+        guard !isSaving else { return }
+        isSaving = true
+        errorMessage = nil
+        let submittedDraft = draft
         Task { @MainActor in
-            isSaving = true
-            errorMessage = nil
-            let result = await onSave(draft)
+            let result = await onSave(submittedDraft)
             isSaving = false
             switch result {
             case .success:

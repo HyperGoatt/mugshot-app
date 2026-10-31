@@ -1,0 +1,9 @@
+{
+  "scene_cancellation": "verified",
+  "same_process_resume": true,
+  "completed_receipts_before_cancel": 2,
+  "later_receipts_after_return": 0,
+  "state_after_return": "cancelled",
+  "backend": "synthetic",
+  "physical_device": "iPhone 16 Pro / iOS 27.0.1"
+}

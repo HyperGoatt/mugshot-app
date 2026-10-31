@@ -167,3 +167,133 @@ Deno.test("Maps JWT signature and scope are restricted to server API", async () 
     true,
   );
 });
+Deno.test("Apple formatted addresses accept provider line breaks and normalize separators", () => {
+  for (const newline of ["\n", "\r\n", "\r"]) {
+    assertEquals(
+      parsePlace("apple", "I123", {
+        id: "I123",
+        name: "Synthetic cafe",
+        coordinate: { latitude: 10, longitude: 20 },
+        formattedAddressLines: [
+          ` 123 Test St${newline} ${newline}Test City ${newline}Test Country `,
+        ],
+      }),
+      { ...place, address: "123 Test St, Test City, Test Country" },
+    );
+  }
+});
+Deno.test("Apple address normalization retains unsafe character and size rejection", async () => {
+  const apple = {
+    id: "I123",
+    name: "Synthetic cafe",
+    coordinate: { latitude: 10, longitude: 20 },
+  };
+  for (
+    const formattedAddressLines of [
+      [],
+      [""],
+      [" \n\r\n "],
+      ["Test\tSt"],
+      ["\tTest St"],
+      ["Test St\t"],
+      ["\u000bTest St"],
+      ["Test\u0000St"],
+      ["Test\u001fSt"],
+      ["x".repeat(501)],
+      Array(5).fill("x".repeat(500)),
+    ]
+  ) {
+    await assertRejects(async () =>
+      parsePlace("apple", "I123", { ...apple, formattedAddressLines })
+    );
+  }
+});
+Deno.test("valid multi-line Apple response passes the full handler and writes once", async () => {
+  const keys = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"],
+  );
+  const key = new Uint8Array(
+    await crypto.subtle.exportKey("pkcs8", keys.privateKey),
+  );
+  let calls = 0, saves = 0;
+  const response = await handle(req({ provider: "apple", place_id: "I123" }), {
+    authenticate: async () => "actor",
+    reserve: async () => true,
+    verify: (provider, id) =>
+      fetchPlace(provider, id, {
+        appleKey: btoa(String.fromCharCode(...key)),
+        appleKeyID: "1234567890",
+        appleTeamID: "ABCDEFGHIJ",
+      }, async (input) => {
+        calls++;
+        if (String(input).endsWith("/token")) {
+          return Response.json({ accessToken: "synthetic" });
+        }
+        return Response.json({
+          id: "I123",
+          name: "Synthetic cafe",
+          coordinate: { latitude: 10, longitude: 20 },
+          formattedAddressLines: ["123 Test St\nTest City\nTest Country"],
+        });
+      }),
+    save: async (_actor, _provider, _id, verified) => {
+      saves++;
+      assertEquals(verified.address, "123 Test St, Test City, Test Country");
+      return { id: "cafe" };
+    },
+  });
+  assertEquals(response.status, 200);
+  assertEquals(calls, 2);
+  assertEquals(saves, 1);
+});
+Deno.test("provider HTTP failures retain a bounded operation and status without response content", async () => {
+  let observed: unknown;
+  try {
+    await fetchPlace(
+      "google",
+      "ChIJfixture",
+      { googleKey: "synthetic" },
+      () =>
+        Promise.resolve(
+          new Response("private provider response", { status: 403 }),
+        ),
+    );
+  } catch (error) {
+    const failure = error as {
+      reason?: string;
+      operation?: string;
+      status?: number;
+    };
+    observed = {
+      reason: failure.reason,
+      operation: failure.operation,
+      status: failure.status,
+    };
+  }
+  assertEquals(observed, {
+    reason: "provider_http",
+    operation: "google_place",
+    status: 403,
+  });
+});
+Deno.test("handler diagnoses failed stage without logging raw errors or submitted identifiers", async () => {
+  const captured: unknown[] = [];
+  const deps = {
+    authenticate: () => Promise.resolve("private actor"),
+    reserve: () => Promise.resolve(true),
+    verify: () => Promise.reject(Error("private key and submitted identifier")),
+    save: () => Promise.resolve(place),
+    reportFailure: (event: unknown) => {
+      captured.push(event);
+    },
+  };
+  const response = await handle(
+    req({ provider: "apple", place_id: "I123" }),
+    deps,
+  );
+  assertEquals(response.status, 503);
+  assertEquals(captured, [{ stage: "provider", reason: "unexpected" }]);
+  assertEquals(JSON.stringify(captured).includes("private"), false);
+});

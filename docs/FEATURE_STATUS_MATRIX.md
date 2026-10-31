@@ -1,8 +1,60 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-26
+last_verified: 2026-10-31
 ---
+
+## Publishing and completion refinement — 2026-10-30
+
+Publishing verification after synchronizing main passes 53/53 focused/native
+Simulator tests and 12/12 backend/static checks. The live verification service
+is version 17; read-only evidence confirms a completed five-photo Friends post.
+The earlier provider uncertainty below is superseded by the confirmed multiline
+address-parser repair.
+
+Source extends the existing receipt, native rig, haptic namespace and reflection
+view. Durable account/operation consumption prevents replay after navigation or
+process restoration; expressive completion is finite, and quick/Reduce Motion
+feedback is concise. Week in review uses actual canonical journal entries plus completed private
+Home saves in the latest Sunday 6 PM / UTC 168-hour interval; drafts and duplicate
+published attempts are excluded. Unknown ratings remain unknown. Month/year
+remain in the same view. Final scoped batches pass 96 distinct unit tests and
+four native journeys, zero failures/skips. Corrected accessibility5/Reduce Motion
+captures and editable previews are retained. Native behavior is locally and
+Simulator verified. October 31 signed iPhone fixture playback passed default and
+largest-text/Reduce Motion sequences, three fresh account-scoped receipts and
+wrong-owner denial. Physical stills are retained; touch routing remains Simulator
+evidence. The owner's original haptic feedback was too weak; a stronger medium/
+heavy completion revision is installed and played, with owner tactile acceptance.
+VoiceOver is restored off; first-use setup prevented spoken acceptance. Wider interaction,
+exact original protected-draft acceptance and the existing parent PR holds remain
+open. No TestFlight work occurred. See the
+[completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
+
+## Shared profile compatibility — backend production-configured
+
+The current iOS model accepts missing coordinates in a top cafe. Migration
+`20260928153756_tolerate_unlocated_profile_cafes.sql` omits only unlocated
+entries from the optional v4 top-cafe summary for existing clients. The
+affected user's profile, published post, and dedicated cafe list remain
+authorized. The focused database and native decoding checks passed, the
+data-less QA branch passed 66/66 hosted SQL contracts, and the production
+authenticated profile read returns one public Mugshot and one cafe in stats.
+Production is at 183 migrations; the iOS model change is source-only, not
+TestFlight-accepted.
+
+
+## Sip publication reliability — 2026-10-30
+
+Source implements shared visible validation, frozen-payload retries, per-visit
+serialization, originating-account credentials, cancellation/generation guards,
+acknowledged-photo retention and edit tap locking. Local verification passed 51 focused tests and two Simulator publishing journeys.
+Verification and remaining
+runtime/production gates are recorded in the
+[reliability evidence report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md).
+The protected cafe-verification 503 incident is not classified as successful
+publication or recovered merely because other retained rows are complete.
+
 
 ## Signature Polish Sprint candidate — 2026-10-23
 

@@ -163,6 +163,7 @@ struct FeedTabView: View {
     @State private var hasMoreRemoteVisits = false
     @State private var remoteVisitError: String?
     @State private var pendingSocialVisitIDs: Set<UUID> = []
+    @State private var socialAccountGeneration = UUID()
     @State private var socialRecoveryMessage: String?
     @State private var activeFeedRequestID: UUID?
     @State private var feedSearchQuery = ""
@@ -448,6 +449,7 @@ struct FeedTabView: View {
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, _ in
             mediaSelections = FeedMediaSelectionStore()
+            socialAccountGeneration = UUID()
             pendingSocialVisitIDs.removeAll()
             socialRecoveryMessage = nil
         }
@@ -1046,6 +1048,7 @@ struct FeedTabView: View {
         }
 
         guard pendingSocialVisitIDs.insert(visit.id).inserted else { return }
+        let generation = socialAccountGeneration
         socialRecoveryMessage = nil
         MugshotHaptic.selection.play()
 
@@ -1062,15 +1065,22 @@ struct FeedTabView: View {
         )
 
         Task {
+            defer {
+                if socialActionIsCurrent(userID: userId, generation: generation) {
+                    pendingSocialVisitIDs.remove(visit.id)
+                }
+            }
+            guard socialActionIsCurrent(userID: userId, generation: generation), !Task.isCancelled else { return }
             do {
-                let client = try SupabaseClientProvider.shared.client()
+                let client = try await SupabaseClientProvider.shared.publicationClient(userID: userId)
+                guard socialActionIsCurrent(userID: userId, generation: generation), !Task.isCancelled else { return }
                 let service = VisitService(client: client)
                 let reactionState = try await service.setReaction(
                     visitId: visit.id,
                     userId: userId,
                     reaction: reaction
                 )
-                guard authModel.authenticatedUser?.id == userId else { return }
+                guard socialActionIsCurrent(userID: userId, generation: generation), !Task.isCancelled else { return }
                 let state = RemoteVisitSocialState(
                     likeCount: reactionState.totalCount,
                     commentCount: visit.socialState.commentCount,
@@ -1085,12 +1095,11 @@ struct FeedTabView: View {
                     )
                 )
             } catch {
-                guard authModel.authenticatedUser?.id == userId else { return }
+                guard socialActionIsCurrent(userID: userId, generation: generation), !Task.isCancelled else { return }
                 updateRemoteVisit(id: visit.id, socialState: visit.socialState)
                 socialRecoveryMessage = MugshotUserFacingError.message(for: error, context: .social)
-                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                if tabIsActive { MugshotHaptic.error.play() }
             }
-            pendingSocialVisitIDs.remove(visit.id)
         }
     }
 
@@ -1106,55 +1115,51 @@ struct FeedTabView: View {
         )
     }
 
-    private func saveCafe(from visit: RemoteVisitSummary) {
-        guard let remoteCafe = visit.cafe else {
-            return
-        }
+    private func socialActionIsCurrent(userID: UUID, generation: UUID) -> Bool {
+        authModel.authenticatedUser?.id == userID && socialAccountGeneration == generation
+    }
 
+    private func saveCafe(from visit: RemoteVisitSummary) {
+        guard let remoteCafe = visit.cafe, let userId = authModel.authenticatedUser?.id,
+              pendingSocialVisitIDs.insert(visit.id).inserted else { return }
+        let generation = socialAccountGeneration
         let existingState = existingCafeState(for: remoteCafe.id)
         let localCafe = dataManager.upsertRemoteCafe(
-            remoteCafe,
-            isFavorite: true,
-            wantToTry: existingState.wantToTry
-        )
-
-        guard let userId = authModel.authenticatedUser?.id else {
-            return
-        }
-
-        guard pendingSocialVisitIDs.insert(visit.id).inserted else { return }
+            remoteCafe, isFavorite: true, wantToTry: existingState.wantToTry)
         socialRecoveryMessage = nil
-        MugshotHaptic.selection.play()
+        MugshotHaptic.selection.play() // Immediate touch only.
 
         Task {
+            defer {
+                if socialActionIsCurrent(userID: userId, generation: generation) {
+                    pendingSocialVisitIDs.remove(visit.id)
+                }
+            }
             do {
-                let client = try SupabaseClientProvider.shared.client()
-                let service = CafeStateService(client: client)
-                let state = existingCafeState(for: remoteCafe.id)
-                let summary = try await service.setCafeState(
-                    userId: userId,
-                    cafe: localCafe,
-                    isFavorite: true,
-                    wantToTry: state.wantToTry
-                )
-                dataManager.applyRemoteCafeState(summary)
-                MugshotAnalytics.shared.capture(
-                    .cafeStateChanged(
-                        state: .favorite,
-                        action: .added,
-                        surface: .feed
-                    )
+                try await MugshotOptimisticAction.perform(
+                    isCurrent: { socialActionIsCurrent(userID: userId, generation: generation) },
+                    request: {
+                        let client = try await SupabaseClientProvider.shared.publicationClient(userID: userId)
+                        guard socialActionIsCurrent(userID: userId, generation: generation), !Task.isCancelled else {
+                            throw CancellationError()
+                        }
+                        return try await CafeStateService(client: client).setCafeState(
+                            userId: userId, cafe: localCafe,
+                            isFavorite: true, wantToTry: existingState.wantToTry)
+                    }, commit: { summary in
+                        dataManager.applyRemoteCafeState(summary)
+                        MugshotAnalytics.shared.capture(.cafeStateChanged(
+                            state: .favorite, action: .added, surface: .feed))
+                    }, rollback: {
+                        dataManager.setCafeState(cafeId: localCafe.id,
+                            isFavorite: existingState.isFavorite, wantToTry: existingState.wantToTry)
+                    }
                 )
             } catch {
-                dataManager.setCafeState(
-                    cafeId: localCafe.id,
-                    isFavorite: existingState.isFavorite,
-                    wantToTry: existingState.wantToTry
-                )
+                guard socialActionIsCurrent(userID: userId, generation: generation), !Task.isCancelled else { return }
                 socialRecoveryMessage = MugshotUserFacingError.message(for: error, context: .social)
-                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                if tabIsActive { MugshotHaptic.error.play() }
             }
-            pendingSocialVisitIDs.remove(visit.id)
         }
     }
 

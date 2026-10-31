@@ -1,10 +1,29 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-30
 ---
 
 # Native Home and Recipes implementation
+
+## 2026-10-30 completion and weekly reflection candidate
+
+The shared save receipt now uses the approved native Mugsy rig for a finite
+1.32-second coffee-fill, knee bend, wave and settle. Quick saves remain concise;
+Reduce Motion and accessibility text use a discrete result. Consumption is
+persisted per operation/account before playback and cancelled when the surface
+loses its active scene, tab or account. Private Home saves and confirmed social
+posts retain distinct result copy; pending sync/publication never becomes Posted.
+This supersedes the notebook completion treatment described below.
+
+The existing Journal reflection includes completed, account-scoped private Home
+saves using savedAt. Drafts, published attempts and canonical visit/draft-ID
+counterparts are excluded from the private contribution. Unrecorded ratings and
+caffeine remain unknown. Explicit share artwork includes visible totals/drink
+names and omits private notes; the action explains that boundary. Week in review
+shares the existing month/year destination and Sunday 6 PM / UTC 168-hour window.
+Local/Simulator evidence, previews and hardware limits are retained in the
+[completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
 
 ## 2026-10-23 signature polish candidate
 
