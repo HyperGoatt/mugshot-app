@@ -392,3 +392,116 @@ refactor removes CLI argument parsing on test import. The corrected test harness
 executes two tests and fails on the intentionally missing code-discovery API;
 the initial import/argument-parser harness failure is not counted as product RED.
 Runtime dyld and individual unsigned-library checks are the primary RED evidence.
+
+
+## October 31 physical GREEN and owner refinement
+
+Documentation impact for this continuation: product tactile behavior, DEBUG
+verification tooling/signing and privacy/operations. The earlier locked/installed
+and unsigned-library checkpoints above are superseded by this runtime evidence;
+their chronology remains intact.
+
+### Corrected package and current-source provenance
+
+The signer now discovers every dylib, including the app-root Debug and preview
+libraries, and signs frameworks child-first. Each nested code object receives an
+individual strict verification before the app is signed. The two package-boundary
+regressions pass **2/2** after RED checkpoint `a7293be`. The corrected package
+launches and stays open; a native phone screenshot captured the production rig
+mid-pour. The subsequent owner refinement also compiles/signs successfully.
+The current signed Debug library hash, exact restricted fixture boundary, device
+and ten matching current implementation/authoring source hashes are retained in
+[provenance.json](../previews/completion-2026-10-30/assets/physical/provenance.json).
+The main executable is a Debug loader stub; the library hash identifies the
+current app implementation. No profile, private key, account backup or binary is
+published. The original regular/development app identities remain preserved.
+
+### Native authoring, lifecycle and physical captures
+
+Current native UI tools expose Simulator taps, not physical taps. The existing
+DEBUG inspection host now offers explicit state-driven playback of the real
+receipt, rig and reflection components. It remains interactive; manual controls
+cancel automatic work. Scene inactivity cancels delayed work and returning does
+not restart playback. It uses three new local operation IDs, reopens an existing
+ID, changes the feedback owner, and presents populated/quiet fixture weeks.
+This does not simulate backend success or replace the real publication journey.
+It is excluded from Release and uses an isolated synthetic backend without
+production analytics.
+
+The first phone capture failed closed when the owner switched apps. Its state was
+cancelled, and no completion acceptance was claimed. Unrelated screen captures
+were removed from local artifacts; no unrelated account content is retained in
+the repository. The subsequent default run and the accessibility5/Reduce Motion
+run both completed, with **three fresh receipts consumed once each and zero
+wrong-owner consumptions**. A further default replay also completed for owner
+feel assessment. Current installed QA version is **0.5.3 (8)** on **iPhone 16 Pro /
+iOS 27.0.1**. This is signed hardware playback evidence, not physical touch or
+original-account publication acceptance.
+
+This phone explicitly rejects CoreDevice's Screen Recording capability. The
+capture script therefore takes timed native screenshots and fails if the
+sequence was interrupted or the operation IDs are stale. Reviewed physical
+screenshots are in the [preview package](../previews/completion-2026-10-30/README.md).
+Only the top 170 status-bar pixels are cropped to remove the prior-app breadcrumb;
+no app content or animation is synthesized. The existing native Simulator MP4s
+remain the animation recordings.
+
+VoiceOver baseline was off. It was temporarily enabled and restored off in a
+finally block. Its first-use tutorial appeared over the app, so spoken VoiceOver
+acceptance remains open. The final largest-text quiet-week and receipt frames
+were unobstructed and inspected. This does not claim spoken output from enabling
+a setting or receiving an accessibility announcement call.
+
+### Tactile refinement and focused checks
+
+The controlled physical lifecycle probe awaits observed running state, opens
+system Settings without changing any settings, awaits cancellation, then returns
+to the same QA process. Eight seconds after return, playback remains cancelled
+and the receipt set is unchanged. Two completed fixture receipts existed before
+cancellation; no delayed private operation or replay appeared afterward. The
+initial probe raced asynchronous app launch/preferences and was inconclusive;
+the corrected probe waits for actual states rather than assuming startup timing.
+Sanitized lifecycle evidence and the settled return frame are in the preview
+package. This establishes scene cancellation/reopen on hardware separately from
+Simulator touch routing.
+
+The owner physically reported the first haptic version as **too weak**. Expressive
+completion now uses a prepared medium UIKit impact at 0.85 intensity for the
+180 ms pour beat and a heavy impact at full intensity for the 680 ms landing.
+No extra beat is layered onto the existing plan. Frequent interactions and the
+single quick/reduced success cue retain their prior behavior. Shared preferences,
+active-scene guards, account fences and cancellation still apply. The revised
+package is installed and played; subjective acceptance awaits owner feedback.
+
+The new native authoring completion/manual-navigation-cancellation journey passes
+with the two existing receipt/reflection/accessibility journeys: **3/3**, no
+failures/skips (207.9 s), result
+`test_sim_2026-10-31T22-01-12-716Z_pid73072_11e9a1b2.xcresult` in the local
+XcodeBuildMCP result directory. This adds one distinct UI journey to the previous
+four; repeated checks are not counted as new coverage. The later diagnostic-only
+preferences/fixed-fixture flag are also compiled in the final physical package.
+
+The revised completion suite passes **13/13**, zero failures/skips, in
+`/tmp/mugshot-stronger-completion-native.xcresult` (28.1 s runner time). Two initial
+plugin test-product runs failed before executing tests with Simulator launcher
+Mach -308 errors; they are tooling failures, not behavior RED or passing tests.
+The built products were reused through native `xcodebuild test-without-building`
+with parallel testing disabled; no extra app build was needed. Source assertions
+cover beat offsets, cancellation, inactive/preferences, owner/durable receipt
+boundaries, pose settle, quiet weeks, exact DST/UTC interval and real private Home
+inclusion. The existing 96 distinct unit tests, publishing journeys and 12/12
+backend/static evidence remain applicable to unchanged production behavior.
+No app-wide coverage percentage is inferred from this focused suite.
+
+Security/state review confirms the new playback diagnostics and fixtures are
+DEBUG-only, contain no account data, perform no backend mutation, and cancel on
+manual/scene changes. The stronger haptic cases remain behind the same global
+preference and active-app gate. The capture/signing helpers fail closed on bundle,
+backend, analytics, capabilities, signatures and operation freshness. Physical
+screenshots are review artifacts only and never enter the app bundle. There is
+no new SDK, subscription, paid export, generation credit, royalty, watermark or
+vendor splash.
+
+Exact original-draft hardware recovery, wider touch/spoken/tactile acceptance and
+the inherited parent-PR holds remain separate. No TestFlight archive, export,
+upload, assignment, marketing-version or build-number change occurred.

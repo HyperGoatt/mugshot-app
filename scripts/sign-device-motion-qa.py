@@ -15,6 +15,15 @@ import shutil
 import subprocess
 import tempfile
 
+def nested_code_to_sign(app):
+    """Include root Debug/preview libraries and sign children before containers."""
+    frameworks = app / 'Frameworks'
+    items = set(app.rglob('*.dylib'))
+    if frameworks.exists():
+        items.update(frameworks.rglob('*.framework'))
+    return sorted(items, key=lambda path: (-len(path.parts), str(path)))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('app', type=Path)
@@ -58,12 +67,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix='mugshot-motionqa-sign-') as directory:
         path = Path(directory) / 'entitlements.plist'
         path.write_bytes(plistlib.dumps(entitlements))
-        frameworks = app / 'Frameworks'
-        if frameworks.exists():
-            nested = sorted([*frameworks.rglob('*.framework'), *frameworks.rglob('*.dylib')],
-                            key=lambda p: len(p.parts), reverse=True)
-            for item in nested:
-                subprocess.run(['codesign', '--force', '--sign', identity, '--timestamp=none', str(item)], check=True)
+        nested = nested_code_to_sign(app)
+        for item in nested:
+            subprocess.run(['codesign', '--force', '--sign', identity, '--timestamp=none', str(item)], check=True)
+        for item in nested:
+            subprocess.run(['codesign', '--verify', '--strict', str(item)], check=True)
         subprocess.run(['codesign', '--force', '--sign', identity, '--timestamp=none',
                         '--entitlements', str(path), '--generate-entitlement-der', str(app)], check=True)
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
@@ -83,6 +91,7 @@ def main():
         'fixture_backend_verified': True,
         'production_analytics_disabled': True,
         'signature_verified': True,
+        'verified_nested_code': [str(path.relative_to(app)) for path in nested],
     }
     (app.parent / 'motion-qa-signature.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(receipt, indent=2))

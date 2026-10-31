@@ -33,7 +33,7 @@ struct CompletionChoreographyTests {
         }
         let expressive = MugshotCompletionPlan.beats(expressive: true, reduceMotion: false)
         #expect(expressive.map(\.milliseconds) == [180, 680])
-        #expect(expressive.map(\.haptic) == [.softImpact, .success])
+        #expect(expressive.map(\.haptic) == [.completionPour, .completionLand])
         #expect(MugshotCompletionPlan.duration < 1.5)
     }
 
@@ -62,12 +62,12 @@ struct CompletionChoreographyTests {
         await MugshotCompletionPlan.perform(beats: plan, isCurrent: { true },
             sleep: { waits.append($0) }, emit: { emitted.append($0) })
         #expect(waits == [180, 500])
-        #expect(emitted == [.softImpact, .success])
+        #expect(emitted == [.completionPour, .completionLand])
         var visible = true
         emitted = []
         await MugshotCompletionPlan.perform(beats: plan, isCurrent: { visible },
             sleep: { _ in }, emit: { emitted.append($0); visible = false })
-        #expect(emitted == [.softImpact])
+        #expect(emitted == [.completionPour])
     }
 
     @Test func disabledHapticsAndInactiveSceneNeverPlay() {

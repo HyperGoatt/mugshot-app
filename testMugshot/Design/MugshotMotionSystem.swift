@@ -75,6 +75,8 @@ enum MugshotMotion {
 enum MugshotHaptic: Equatable {
     case selection
     case softImpact
+    case completionPour
+    case completionLand
     case refreshArmed
     case success
     case warning
@@ -85,6 +87,8 @@ enum MugshotHaptic: Equatable {
         static let selection = UISelectionFeedbackGenerator()
         static let soft = UIImpactFeedbackGenerator(style: .soft)
         static let light = UIImpactFeedbackGenerator(style: .light)
+        static let completionPour = UIImpactFeedbackGenerator(style: .medium)
+        static let completionLand = UIImpactFeedbackGenerator(style: .heavy)
         static let notification = UINotificationFeedbackGenerator()
     }
 
@@ -94,6 +98,8 @@ enum MugshotHaptic: Equatable {
         switch self {
         case .selection: Generators.selection.prepare()
         case .softImpact: Generators.soft.prepare()
+        case .completionPour: Generators.completionPour.prepare()
+        case .completionLand: Generators.completionLand.prepare()
         case .refreshArmed: Generators.light.prepare()
         case .success, .warning, .error: Generators.notification.prepare()
         }
@@ -107,6 +113,10 @@ enum MugshotHaptic: Equatable {
             Generators.selection.selectionChanged()
         case .softImpact:
             Generators.soft.impactOccurred()
+        case .completionPour:
+            Generators.completionPour.impactOccurred(intensity: 0.85)
+        case .completionLand:
+            Generators.completionLand.impactOccurred(intensity: 1)
         case .refreshArmed:
             Generators.light.impactOccurred(intensity: 0.72)
         case .success:

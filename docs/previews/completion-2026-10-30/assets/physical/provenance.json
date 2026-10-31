@@ -1,0 +1,49 @@
+{
+  "source_files_identical": [
+    {
+      "path": "testMugshot/Design/MugshotCompletionPlan.swift",
+      "sha256": "d77806ceaba2587a18b7aa0efb94bfd83577e5030a8da1fbb39ab59b43830950"
+    },
+    {
+      "path": "testMugshot/Design/MugshotMotionSystem.swift",
+      "sha256": "7dee62ba0cae81a4fb977ebde965307dca9d281ac2305ceeebc9536f49f8a195"
+    },
+    {
+      "path": "testMugshot/Design/MugshotPolishPresentation.swift",
+      "sha256": "adeeba5370ba4d0cdff0621ffc4d54b43701dbd605cb4b5fdd4d1346a8efb2f6"
+    },
+    {
+      "path": "testMugshot/Views/Components/MugshotSaveReceiptView.swift",
+      "sha256": "f16c4f3820498559aeaec7e80f4902ec8bc5780625129a5faa518c38d6b4efe8"
+    },
+    {
+      "path": "testMugshot/Views/Components/MugsyModelView.swift",
+      "sha256": "e616375e449c4ce10c58967ee620c3ba3104955314280e91bd5296d7319aeac3"
+    },
+    {
+      "path": "testMugshot/Views/Components/MugsyAnimatedView.swift",
+      "sha256": "e1c511ebdc77f3c23ddba4a3a6e242cd8f07ecbde1e366ba2e0c109c3f4ad2ea"
+    },
+    {
+      "path": "testMugshot/Models/JournalReflection.swift",
+      "sha256": "aff1719ebdbfec5e06b1bb32b3957aa1d66331d9b1020a8261487ca7900adcef"
+    },
+    {
+      "path": "testMugshot/Views/Profile/JournalReflectionViews.swift",
+      "sha256": "3015d6d095ab3153e3531a092988b4fe83f1e1764a7d20b700eda5cd71aed747"
+    },
+    {
+      "path": "testMugshot/Views/Developer/MugshotCompletionPreviewHost.swift",
+      "sha256": "2ba672efb2d20c51fc905ed23e71bac595de7f7bb05081b0d79862b0fc8e1811"
+    },
+    {
+      "path": "testMugshot/Views/Add/SipComposerView.swift",
+      "sha256": "870a1386ad36580c902e264ba64970f2bf6b4c0d12746dfd73572ea89f46db09"
+    }
+  ],
+  "signed_debug_library_sha256": "eb7846e492000bd4b0bed1b423b7eebdc20e04ae80ea2490128bf08c1833ca61",
+  "binary_sha256": "a87fd14e8b9ebbfc02994a1c12cdd97e05a14e5af056fa6f4ec4b6803794c500",
+  "isolation": "separate QA bundle/keychain; synthetic backend; analytics disabled; URL schemes/extensions/App Groups excluded",
+  "version": "0.5.3 (8)",
+  "device": "iPhone 16 Pro / iOS 27.0.1"
+}

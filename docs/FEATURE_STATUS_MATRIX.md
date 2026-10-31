@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-10-31
 ---
 
 ## Publishing and completion refinement — 2026-10-30
@@ -21,8 +21,12 @@ published attempts are excluded. Unknown ratings remain unknown. Month/year
 remain in the same view. Final scoped batches pass 96 distinct unit tests and
 four native journeys, zero failures/skips. Corrected accessibility5/Reduce Motion
 captures and editable previews are retained. Native behavior is locally and
-Simulator verified; the signed isolated iPhone fixture is installed and initially
-blocked by auto-lock. Interaction/tactile/spoken accessibility,
+Simulator verified. October 31 signed iPhone fixture playback passed default and
+largest-text/Reduce Motion sequences, three fresh account-scoped receipts and
+wrong-owner denial. Physical stills are retained; touch routing remains Simulator
+evidence. The owner's original haptic feedback was too weak; a stronger medium/
+heavy completion revision is installed and played, awaiting subjective acceptance.
+VoiceOver is restored off; first-use setup prevented spoken acceptance. Wider interaction,
 exact original protected-draft acceptance and the existing parent PR holds remain
 open. No TestFlight work occurred. See the
 [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).

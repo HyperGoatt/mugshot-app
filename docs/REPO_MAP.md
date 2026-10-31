@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-10-31
 ---
 
 ## Completion and reflection authoring
@@ -26,6 +26,11 @@ prepare and sign an isolated connected-iPhone fixture using an existing local
 profile. They protect account-bearing app identities, backend/analytics settings,
 keychain/routing boundaries and current profile/device eligibility. See the
 [QA workflow](IOS_QA_EFFICIENCY_FRAMEWORK.md#isolated-connected-iphone-motion-fixture).
+The signer explicitly handles root Debug/preview dylibs. The two Python package
+regressions live in `scripts/tests/test_device_motion_qa_signing.py`.
+`scripts/capture-device-motion-qa.sh` captures the DEBUG host's cancellable native
+state sequence and validates fresh account/operation consumption, with timed
+physical screenshots when device screen recording is unsupported.
 
 # Repository map
 

@@ -31,8 +31,8 @@ enum MugshotCompletionPlan {
         guard expressive && !reduceMotion else {
             return [.init(milliseconds: 0, haptic: .success)]
         }
-        return [.init(milliseconds: 180, haptic: .softImpact),
-                .init(milliseconds: 680, haptic: .success)]
+        return [.init(milliseconds: 180, haptic: .completionPour),
+                .init(milliseconds: 680, haptic: .completionLand)]
     }
 
     @MainActor

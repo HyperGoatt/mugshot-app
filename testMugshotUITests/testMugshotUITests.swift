@@ -25,6 +25,28 @@ final class testMugshotUITests: XCTestCase {
     }
 
     @MainActor
+    func testPhysicalMotionPlaybackFinishesAndManualNavigationCancelsIt() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-completion-motion-design-qa", "--ui-testing-motion-playback"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Playback complete"].waitForExistence(timeout: 35))
+        XCTAssertTrue(app.staticTexts["Saved privately"].exists)
+        attachScreenshot(named: "Native authoring playback completed")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Week in review"].waitForExistence(timeout: 5))
+        app.buttons["Week in review"].tap()
+        XCTAssertTrue(app.navigationBars["Week in review"].waitForExistence(timeout: 3))
+        app.buttons["journal.reflection.done"].tap()
+        let oldPlayback = expectation(for: NSPredicate(format: "exists == true"),
+            evaluatedWith: app.staticTexts["New completed social operation"])
+        oldPlayback.isInverted = true
+        wait(for: [oldPlayback], timeout: 8)
+        XCTAssertTrue(app.staticTexts["Waiting for recording"].exists)
+        XCTAssertFalse(app.staticTexts["Playback complete"].exists)
+    }
+
+    @MainActor
     func testQuietWeekAndCompletionAtAccessibleTextWithReducedMotion() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-completion-motion-design-qa",

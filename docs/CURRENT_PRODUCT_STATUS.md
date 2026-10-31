@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-10-31
 ---
 
 ## Publishing and completion candidate — 2026-10-30
@@ -32,11 +32,18 @@ presentation callbacks cannot update a newer interaction.
 [Captured previews and editable local sources](previews/completion-2026-10-30/README.md)
 include the native rig, capture script and a strict-checked free local HyperFrames
 review. No preview media or new dependency enters the app bundle. Native changes
-are implemented, locally verified and Simulator verified. Joe's paired iPhone is
-now connected and an isolated signed fixture is installed; its first launch
-reached the phone unlock gate. Current read-only outboxes are empty. Physical
-interaction, tactile/spoken VoiceOver and exact original-draft acceptance remain
-open until observed. No native production install or TestFlight change is claimed. The [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
+are implemented, locally verified and Simulator verified. On October 31 the
+isolated signed fixture completed native state playback on Joe's iPhone 16 Pro /
+iOS 27.0.1, including private/social distinction, same-operation suppression,
+wrong-owner hiding and actual/quiet weeks. Largest-text/Reduce Motion playback
+also passed. Timed physical screenshots and account/operation receipts are
+retained; touch routing remains Simulator evidence. The owner found the original
+haptics too weak; dedicated stronger completion impacts are installed and played,
+with subjective acceptance pending. VoiceOver is restored off; its first-use
+prompt leaves spoken acceptance open. Current read-only outboxes are empty.
+Exact original-draft acceptance, wider physical interaction and the inherited
+parent PR holds remain open. No native production install or TestFlight change
+is claimed. The [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
 records evidence and the existing stacked-PR merge holds.
 
 ## National Coffee Day alpha notification — 2026-09-29

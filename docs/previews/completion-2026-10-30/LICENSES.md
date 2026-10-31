@@ -13,6 +13,8 @@ These captures contain synthetic local fixtures only.
 | Inter 400 | `assets/fonts/Inter-400.woff2` | SIL OFL 1.1, retained in `licenses/Inter-OFL.txt` |
 | EB Garamond 700 | `assets/fonts/EBGaramond-700.woff2` | SIL OFL 1.1, retained in `licenses/EBGaramond-OFL.txt` |
 | FFmpeg | Local Homebrew executable, no binary redistributed | Open-source local encoding; no added credits/export fee |
+| Physical capture and packaging | Retained Python/shell scripts, Python standard library, Apple CoreDevice/codesign | Existing free local tooling; no hosted device or signing service |
+| Screenshot crop | Locally installed Pillow, used only to remove the status bar | HPND; no runtime dependency or redistributed binary |
 
 No cloud render, generation service, paid credits, new subscription, royalty,
 watermark or vendor splash is used. No HyperFrames/GSAP/fonts/video is added to

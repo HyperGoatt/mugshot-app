@@ -1,8 +1,29 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-10-31
 ---
+
+## 2026-10-31 — Physical completion verification and tactile refinement
+
+- Fix QA signing of root Debug/preview dylibs after reproducing dyld rejection;
+  two package-boundary regressions pass and every nested code object is verified.
+- Add cancellable DEBUG authoring playback and a fail-closed physical capture
+  script. It validates fresh completed-operation receipts, same-operation reuse
+  and wrong-owner denial; it falls back to timed native screenshots when the
+  phone does not support screen recording.
+- Default and accessibility5/Reduce Motion sequences complete on iPhone 16 Pro /
+  iOS 27.0.1 using synthetic fixtures, with original account apps preserved.
+  Retain reviewed screenshots and source/package provenance. VoiceOver is restored
+  off; its first-use prompt leaves spoken acceptance open.
+- Respond to the owner's "too weak" tactile feedback with dedicated medium
+  opening/heavy landing completion impacts at the existing 180/680 ms beats.
+  Quick/reduced and frequent social feedback remain unchanged. The stronger
+  version is built, signed and played; owner acceptance remains pending.
+- The new authoring completion/manual-cancellation UI journey passes with two
+  existing journeys (3/3). Revised completion boundaries pass 13/13; packaging
+  regressions pass 2/2. Reuse earlier publishing/backend evidence. No TestFlight,
+  account-bearing app replacement, version change or removal of parent merge holds.
 
 ## 2026-10-30 — Connected-iPhone fixture continuation
 

@@ -262,7 +262,11 @@ The existing receipt owns a single 1.32-second native sequence. Result copy and
 navigation are immediately usable. Coffee fills only inside the open rim,
 gaze anticipates the pour, eyelids blink once, knees absorb weight over planted
 feet, the hand waves independently, and the rig settles without a loop. The
-shared clock places restrained pour/delight haptics at 180 and 680 ms. The
+shared clock places pour/delight haptics at 180 and 680 ms. Following the owner's
+October 31 physical feedback that the first version was too weak, expressive
+completion uses a medium UIKit impact at 0.85 intensity and a heavy impact at
+full intensity. These dedicated completion cues leave frequent interactions
+unchanged; quick/reduced acknowledgment retains the standard success cue. The
 renderer samples retained Swift numeric curves; no raster/video asset or
 replacement artwork enters interactive iOS playback.
 

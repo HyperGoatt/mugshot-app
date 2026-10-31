@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-10-31
 ---
 
 # MugShot iOS QA Efficiency Framework
@@ -208,6 +208,11 @@ It is a normal DEBUG application, not an XCTest runner. The app compiles with
 signing deferred, then receives a real developer signature and strict verification
 before installation. This avoids requiring an Apple account to create another
 identifier; it never installs an unsigned app or replaces account data.
+Sign and individually verify every nested dylib, including root-level Debug and
+preview libraries, before signing the app. App-level deep verification alone did
+not catch those unsigned loose libraries on the first hardware attempt. Run
+`python3 -m unittest discover -s scripts/tests -p 'test_device_motion_qa_signing.py'`
+for the two package-boundary regressions.
 
 ```sh
 git worktree add --detach /tmp/mugshot-motionqa HEAD
@@ -229,8 +234,24 @@ python3 scripts/sign-device-motion-qa.py \
 ```
 
 Codex selects the actual paired device/profile, checks that the fixture identity
-is unused before first install, installs/launches it through CoreDevice and
-operates it through Device Hub. No owner editor/export/setup step is required.
+is unused before first install, and installs/launches it through CoreDevice.
+Use native device control when available. If the installed tools expose only
+Simulator taps, the DEBUG inspection host's `--ui-testing-motion-playback` flag
+exercises the real state-driven components on hardware. It creates fresh local
+completion IDs, reopens the same ID, changes owner, and presents actual/quiet
+fixture weeks. Manual controls or scene inactivity cancel the sequence; returning
+never restarts it. The first six seconds remain available for recording setup.
+This is hardware state/playback evidence; Simulator journeys establish touch
+routing. No owner editor/export/setup step is required.
+
+After signing, `scripts/capture-device-motion-qa.sh <device> <app-path> <output>`
+validates isolation/signatures, installs only the QA identity, captures the native
+sequence and verifies fresh completed-operation receipts and wrong-owner denial.
+`MUGSHOT_QA_REDUCED=1` and `MUGSHOT_QA_ACCESSIBLE=1` select fallbacks. If CoreDevice
+reports that this device lacks screen recording, it captures timed native stills;
+it never presents these as an animation recording. Raw device captures/preferences
+are private local artifacts. Inspect and retain only synthetic QA frames. An
+interrupted sequence fails acceptance even if a previous run completed.
 Record installed, launched, interaction-verified and owner tactile/spoken
 acceptance separately. A device being paired or an app being signed/installed
 never substitutes for an unlocked, observed runtime. App Groups, extensions,

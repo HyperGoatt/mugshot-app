@@ -1,0 +1,19 @@
+{
+  "playback": "complete",
+  "operation_count": 3,
+  "consumed_once_per_operation": [
+    1,
+    1,
+    1
+  ],
+  "wrong_owner_consumptions": 0,
+  "backend": "synthetic",
+  "capture": "physical iPhone",
+  "control": "native DEBUG state sequence; touch routing separately verified in Simulator",
+  "capture_mode": "timed-stills",
+  "fresh_operations_verified": true,
+  "status_bar_crop_pixels": 170,
+  "reduce_motion": true,
+  "dynamic_type": "accessibility5",
+  "voiceover": "enabled during run; first-use prompt interrupted spoken acceptance; restored off"
+}

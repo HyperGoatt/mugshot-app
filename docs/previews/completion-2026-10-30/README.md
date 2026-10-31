@@ -2,8 +2,36 @@
 
 All captures use the production SwiftUI receipt/rig/reflection components with
 explicit local fixtures, a synthetic `.invalid` backend and disabled production
-analytics. They are Simulator evidence, not physical haptic or TestFlight
-acceptance. No production account content is included.
+analytics. Simulator videos and physical screenshots are distinguished below;
+neither establishes TestFlight acceptance. No production account content is included.
+
+October 31 connected-iPhone evidence uses the same native components on an
+iPhone 16 Pro / iOS 27.0.1 in the separate signed **Mugshot Motion QA** app:
+
+- [Social completion](assets/physical/social-completion.png),
+  [private save](assets/physical/private-save.png) and
+  [other-owner result hidden](assets/physical/wrong-owner-hidden.png).
+- [Actual fixture week](assets/physical/week.png) and
+  [quiet week](assets/physical/quiet-week.png).
+- [Largest-text reduced-motion quiet week](assets/physical/quiet-week-accessible-reduced.png)
+  and [concise receipt](assets/physical/receipt-accessible-reduced.png).
+- Sanitized [default acceptance](assets/physical/acceptance.json),
+  [accessible acceptance](assets/physical/accessible-acceptance.json), and
+  [source/package provenance](assets/physical/provenance.json).
+- [Background return](assets/physical/background-return.png) and
+  [lifecycle acceptance](assets/physical/lifecycle-acceptance.json): same-process
+  reopening leaves playback cancelled, with no later receipts after returning.
+
+These are timed native screenshots, not a physical animation recording; this
+device rejects CoreDevice screen recording. Only the top 170 status-bar pixels
+are cropped to remove the originating-app breadcrumb; app content is unchanged.
+The DEBUG state sequence completed, validated three fresh account-scoped
+receipts, rejected another owner and exercised actual/quiet weeks. Simulator UI
+journeys establish touch routing because current tools expose no physical taps.
+VoiceOver was enabled and restored off; its first-use prompt prevented spoken
+acceptance. The owner judged the original haptics too weak. The stronger medium/
+heavy revision is installed and played; its subjective acceptance remains open.
+Reproduce physical capture with the [isolated hardware workflow](../../IOS_QA_EFFICIENCY_FRAMEWORK.md#isolated-connected-iphone-motion-fixture).
 
 Review the implemented behavior:
 
