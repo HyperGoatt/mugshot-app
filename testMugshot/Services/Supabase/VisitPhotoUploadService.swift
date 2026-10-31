@@ -30,6 +30,21 @@ struct UploadedVisitPhotos: Equatable {
 struct VisitPhotoUploadPlan {
     static let maxPhotoCount = 10
 
+    static func validate(
+        userID: UUID, visitID: UUID, imageCount: Int,
+        paths: [String], completedPaths: [String]
+    ) throws {
+        let prefix = "\(userID.uuidString.lowercased())/\(visitID.uuidString.lowercased())/"
+        guard imageCount <= maxPhotoCount, paths.count == imageCount,
+              Set(paths).count == paths.count,
+              Set(completedPaths).isSubset(of: Set(paths)),
+              paths.allSatisfy({ path in
+                  path.hasPrefix(prefix) && !path.dropFirst(prefix.count).isEmpty
+                      && !path.dropFirst(prefix.count).contains("/")
+                      && !path.contains("..")
+              }) else { throw VisitPhotoUploadError.invalidUploadPlan }
+    }
+
     static func objectPath(
         userId: UUID,
         visitId: UUID,
@@ -74,6 +89,30 @@ final class VisitPhotoUploadService {
         completedObjectPaths: [String] = [],
         onPhotoUploaded: ((String) throws -> Void)? = nil
     ) async throws -> UploadedVisitPhotos {
+        try await uploadPlannedPhotos(
+            userId: userId, visitId: visitId, images: images.map(Optional.some),
+            posterPhotoIndex: posterPhotoIndex, plannedObjectPaths: plannedObjectPaths,
+            replacingExisting: replacingExisting, completedObjectPaths: completedObjectPaths,
+            onPhotoUploaded: onPhotoUploaded
+        )
+    }
+
+    /// Acknowledged photos need no local bytes. Nil is accepted only for an
+    /// exact durable acknowledgement in the account/visit-scoped frozen plan.
+    func uploadPlannedPhotos(
+        userId: UUID, visitId: UUID, images: [UIImage?], posterPhotoIndex: Int,
+        plannedObjectPaths: [String]? = nil, replacingExisting: Bool = false,
+        completedObjectPaths: [String] = [],
+        onPhotoUploaded: ((String) throws -> Void)? = nil
+    ) async throws -> UploadedVisitPhotos {
+        try Task.checkCancellation()
+        let paths = plannedObjectPaths ?? VisitPhotoUploadPlan.objectPaths(
+            userId: userId, visitId: visitId, objectIds: images.map { _ in UUID() }
+        )
+        try VisitPhotoUploadPlan.validate(
+            userID: userId, visitID: visitId, imageCount: images.count,
+            paths: paths, completedPaths: completedObjectPaths
+        )
         guard !images.isEmpty else {
             return UploadedVisitPhotos(
                 attachmentReferences: [],
@@ -85,15 +124,7 @@ final class VisitPhotoUploadService {
         let storage = client.storage.from(bucketName)
         var attachmentReferences: [String] = []
         var objectPaths: [String] = []
-        let uploadImages = Array(images.prefix(VisitPhotoUploadPlan.maxPhotoCount))
-        let paths = plannedObjectPaths ?? VisitPhotoUploadPlan.objectPaths(
-            userId: userId,
-            visitId: visitId,
-            objectIds: uploadImages.map { _ in UUID() }
-        )
-        guard paths.count == uploadImages.count else {
-            throw VisitPhotoUploadError.invalidUploadPlan
-        }
+        let uploadImages = images
         let completed = Set(completedObjectPaths)
         guard completed.isSubset(of: Set(paths)),
               completed.isEmpty || (plannedObjectPaths != nil && onPhotoUploaded != nil) else {
@@ -115,6 +146,9 @@ final class VisitPhotoUploadService {
                     throw VisitPhotoUploadError.invalidUploadPlan
                 }
                 if !completed.contains(path) {
+                    guard let image else {
+                        throw PendingVisitSubmissionStoreError.missingLocalPhoto
+                    }
                     let data = try jpegData(for: image)
                     try await storage.upload(
                         path,
@@ -143,6 +177,7 @@ final class VisitPhotoUploadService {
             throw error
         }
 
+        try Task.checkCancellation()
         let safePosterIndex = attachmentReferences.indices.contains(posterPhotoIndex)
             ? posterPhotoIndex
             : 0

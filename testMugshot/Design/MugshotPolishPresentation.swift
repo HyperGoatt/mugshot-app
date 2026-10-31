@@ -136,8 +136,30 @@ struct MugshotReceiptLedger {
 @MainActor
 final class MugshotCompletionFeedback {
     static let shared = MugshotCompletionFeedback()
-    private var ledger = MugshotReceiptLedger()
-    func consume(_ receipt: MugshotSaveReceipt) -> Bool { ledger.consume(receipt) }
+    private let defaults: UserDefaults
+    private let prefix = "MugshotCompletionFeedback.v2."
+
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+    /// Mark before playback so navigation and interruption cannot replay it.
+    func consume(_ receipt: MugshotSaveReceipt, activeOwnerID: UUID?) -> Bool {
+        guard receipt.ownerID == activeOwnerID else { return false }
+        let operation = receipt.audience == nil ? "private-save" : "publication"
+        let key = ownerPrefix(receipt.ownerID) + "\(operation).\(receipt.id)"
+        guard !defaults.bool(forKey: key) else { return false }
+        defaults.set(true, forKey: key)
+        return true
+    }
+
+    func removeAll(ownerID: UUID) {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(ownerPrefix(ownerID)) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private func ownerPrefix(_ ownerID: UUID?) -> String {
+        prefix + (ownerID?.uuidString.lowercased() ?? "guest") + "."
+    }
 }
 
 /// Visual feedback never owns a haptic or changes the hit target.

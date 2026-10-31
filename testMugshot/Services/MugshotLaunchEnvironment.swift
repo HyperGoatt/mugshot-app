@@ -22,6 +22,7 @@ enum MugshotLaunchEnvironment {
     static let shouldShowFeedRefreshDesignQA = arguments.contains("--ui-testing-feed-refresh-design-qa")
     static let shouldShowRecoveryBannerDesignQA = arguments.contains("--ui-testing-recovery-banner-design-qa")
     static let shouldShowMugsySceneDesignQA = arguments.contains("--ui-testing-mugsy-scenes-design-qa")
+    static let shouldShowCompletionMotionDesignQA = arguments.contains("--ui-testing-completion-motion-design-qa")
     static let shouldShowHomeWorkbenchDesignQA = arguments.contains("--ui-testing-home-workbench-design-qa")
     static let shouldShowEditorialProfileDesignQA = arguments.contains("--ui-testing-editorial-profile-design-qa")
     static let shouldShowEditorialOwnerProfileDesignQA = arguments.contains("--ui-testing-editorial-owner-profile-design-qa")

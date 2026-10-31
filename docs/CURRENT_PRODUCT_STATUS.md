@@ -1,8 +1,93 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-26
+last_verified: 2026-10-30
 ---
+
+## Publishing and completion candidate — 2026-10-30
+
+The publishing candidate now incorporates main's cafe-verification repair.
+Read-only current production evidence shows version 17 serving a successful app
+request and a completed Friends post with five distinct photo references. The
+confirmed parser defect rejected valid CR/LF postal separators; this supersedes
+older provider-configuration uncertainty below. Existing original UX failures
+remain reliability defects despite eventual recovery.
+
+After synchronization, publishing passed 53/53 before celebration integration
+and 12/12 backend/static checks. Final focused batches establish 96 distinct
+unit tests and four native UI journeys, with zero failures/skips. They cover
+publication/upload retry, ownership, durable event consumption, social rollback,
+comment draft preservation, Sunday/DST boundaries and private Home inclusion.
+The initial largest-text sheet preview was corrected after a failing layout
+assertion; the actual accessibility5 screenshot and passing journey are retained.
+
+The shared receipt uses a finite 1.32-second native coffee/articulation sequence,
+durable account/operation consumption, shared haptic preferences and concise
+quick/accessible alternatives. Week in review extends the existing month/year
+reflection with actual canonical and completed private Home activity; drafts,
+published duplicates and unrecorded ratings do not inflate it. Social requests
+use originating-account credentials; changed account generations and stale share
+presentation callbacks cannot update a newer interaction.
+
+[Captured previews and editable local sources](previews/completion-2026-10-30/README.md)
+include the native rig, capture script and a strict-checked free local HyperFrames
+review. No preview media or new dependency enters the app bundle. Native changes
+are implemented, locally verified and Simulator verified. Joe's paired iPhone is
+now connected and an isolated signed fixture is installed; its first launch
+reached the phone unlock gate. Current read-only outboxes are empty. Physical
+interaction, tactile/spoken VoiceOver and exact original-draft acceptance remain
+open until observed. No native production install or TestFlight change is claimed. The [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
+records evidence and the existing stacked-PR merge holds.
+
+## National Coffee Day alpha notification — 2026-09-29
+
+The owner-approved one-time greeting was submitted to all six active production
+iOS installations whose accounts had push enabled. APNs accepted all six alert
+requests (HTTP 200). The owner's lock-screen screenshot physically confirms
+display on one production iPhone; display on the other five and notification
+taps were not observed. The approved message asked people to open Mugshot and
+publish a Sip. The generic notification contains no composer route. It expires
+at midnight Eastern on September 29. The temporary server function and its two
+temporary secrets were deleted and verified absent after the send. No TestFlight
+build or database schema changed. See the [notification record](NOTIFICATION_SYSTEM.md#one-time-national-coffee-day-alpha-nudge--2026-09-29).
+
+## Backend trust gate accepted — 2026-09-25
+
+Production and this repository are aligned at 182 migrations. The deletion
+acknowledgement repair (`20260925200700`) passed a focused hermetic check, all
+66 hosted SQL contracts, and a completed disposable QA deletion with repeated
+acknowledgement. Data-less QA also passed Auth, Data API, Storage, People,
+publication, export and access checks. Both paid QA branches were deleted. A
+completed physical backup and exact one-migration dry run preceded production
+deployment; protected user, cafe, visit and Storage counts and fingerprints
+were unchanged.
+
+Read-only production checks found one later completed Friends cafe post for
+the previously affected account, with linked media and friend-authorized
+post, profile and media access. The owner said they believe this was the
+protected Retry. The backend gate is accepted with that provenance uncertainty
+recorded: telemetry did not capture the Retry, and an affected-device reopen
+was not observed. iPhone and TestFlight launch gates remain separate.
+
+
+## Sip publication reliability candidate — 2026-10-30
+
+Current source defers scene-scoped keyboard dismissal to avoid a reproduced
+iOS 27 Continue hang, shares validation between button state and tap handling, permits
+frozen retries after local photo loss, serializes foreground/background saves,
+and binds remote requests to their originating account. Edit saves lock before
+starting async work; cached local profiles cannot masquerade as remote success
+when Auth is unavailable. Uploaded photos remain protected through cancellation
+and recovery. Numbered verification tiers are retired in favor of the
+[ECC-aligned workflow](VERIFICATION_POLICY.md).
+
+Read-only production/device evidence identifies a protected five-photo draft
+blocked by `verify-cafe` HTTP 503 before any visit or photo upload. The provider's
+underlying failure remains unverified; no production data or service deployment
+was changed. Local verification passed 51 focused tests and two Simulator publishing journeys
+with synthetic backend configuration and disabled production analytics. The [evidence report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md)
+separates implementation, test/runtime results, and remaining acceptance gates.
+
 
 ## Signature Polish Sprint candidate — 2026-10-23
 

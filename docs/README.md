@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-30
 ---
 
 # Mugshot documentation
@@ -12,6 +12,10 @@ implementation evidence; living documents explain that evidence and must change
 with it.
 
 ## Current design planning
+
+The [publishing and completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
+tracks the current audit, ECC specifications, native implementation, free local
+preview sources, verification and delivery boundaries.
 
 The [October 23 polish audit and prioritized plan](audits/polish-2026-10-23/README.md)
 reviews the existing Home V4, Cafe, Feed, Map, Saved, Journal, and supporting
@@ -36,7 +40,7 @@ evidence only; no polish implementation or release acceptance is claimed.
 | [Post reaction contract](POST_REACTION_CONTRACT.md) | Expressive post-reaction ownership, compatibility, Activity, and verification contract |
 | [Mugsy asset status](MUGSY_ASSET_STATUS.md) | Production artwork authority and review-only vector handoff state |
 | [Supabase release workflow](SUPABASE_RELEASE_WORKFLOW.md) | Backend release, QA, safety, and drift policy |
-| [Verification policy](VERIFICATION_POLICY.md) | Risk-tiered validation requirements |
+| [Verification policy](VERIFICATION_POLICY.md) | ECC-aligned behavior and risk verification |
 | [PostHog analytics plan](POSTHOG_ANALYTICS_PLAN.md) | Privacy-safe event and measurement contract |
 | [TestFlight upload handoff](TESTFLIGHT_UPLOAD_HANDOFF.md) | Manual distribution gate and tester copy format |
 | [Documentation policy](DOCUMENTATION_POLICY.md) | Freshness, classification, and change requirements |

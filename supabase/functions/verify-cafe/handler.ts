@@ -1,5 +1,22 @@
-import { type Place, placeID, type Provider } from "./provider.ts";
+import {
+  type Place,
+  placeID,
+  type Provider,
+  ProviderFailure,
+} from "./provider.ts";
+type FailureStage =
+  | "authentication"
+  | "reservation"
+  | "provider"
+  | "persistence";
+export type FailureReport = {
+  stage: FailureStage;
+  reason: string;
+  operation?: string;
+  status?: number;
+};
 export type Dependencies = {
+  reportFailure?(report: FailureReport): void;
   authenticate(authorization: string): Promise<string | null>;
   reserve(actor: string): Promise<boolean>;
   verify(provider: Provider, id: string): Promise<Place>;
@@ -40,6 +57,7 @@ export async function handle(
   if (!/^Bearer .{1,8192}$/.test(authorization)) {
     return json({ error: "authentication_required" }, 401);
   }
+  let stage: FailureStage = "authentication";
   try {
     const actor = await deps.authenticate(authorization);
     if (!actor) return json({ error: "authentication_required" }, 401);
@@ -73,15 +91,41 @@ export async function handle(
       !placeID(input.place_id) ||
       Object.keys(input).some((k) => !["provider", "place_id"].includes(k))
     ) return json({ error: "invalid_request" }, 400);
+    stage = "reservation";
     if (!await deps.reserve(actor)) {
       return json({ error: "try_again_later" }, 429);
     }
+    stage = "provider";
     const place = await deps.verify(input.provider, input.place_id);
+    stage = "persistence";
     return json(
       await deps.save(actor, input.provider, input.place_id, place),
       200,
     );
-  } catch {
+  } catch (error) {
+    const known = [
+      "configuration",
+      "provider_unavailable",
+      "invalid_place",
+      "reservation_unavailable",
+      "save_unavailable",
+    ];
+    const report: FailureReport = error instanceof ProviderFailure
+      ? {
+        stage,
+        reason: error.reason,
+        operation: error.operation,
+        ...(error.status === undefined ? {} : { status: error.status }),
+      }
+      : {
+        stage,
+        reason: error instanceof Error && known.includes(error.message)
+          ? error.message
+          : "unexpected",
+      };
+    try {
+      deps.reportFailure?.(report);
+    } catch { /* Diagnostics cannot replace the safe failure response. */ }
     // Never return provider URLs, keys, submitted identifiers or raw exceptions.
     return json({
       error: "Cafe verification is temporarily unavailable. Please try again.",

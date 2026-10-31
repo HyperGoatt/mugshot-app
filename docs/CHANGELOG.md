@@ -1,8 +1,131 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-26
+last_verified: 2026-10-30
 ---
+
+## 2026-10-30 — Connected-iPhone fixture continuation
+
+- Preserve read-only backups of both installed Mugshot containers and verify
+  their current pending publication queues are empty. The retained completed
+  Friends post still has five distinct photos; no test publication is created.
+- Add reproducible, fail-closed preparation/signing for a third physical fixture
+  app with a synthetic backend, disabled analytics and an isolated keychain.
+  Existing accounts, App Groups, deep links and installed app data are preserved.
+- The signed 0.5.3 (8) fixture is installed on the paired iPhone 16 Pro / iOS
+  27.0.1. Initial launch is blocked by the phone auto-locking; owner unlock,
+  interactive/tactile/spoken acceptance and the existing merge holds remain open.
+  No TestFlight or marketing/build-number change. See the
+  [continuation ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md#connected-iphone-continuation--october-30-evening--october-31-utc).
+
+## 2026-10-30 — Coordinated completion and weekly reflection candidate
+
+- Extend the existing save receipt with finite native coffee-fill, gaze/blink,
+  planted-foot knee bend, articulated wave and settle. Success copy/navigation
+  are immediate; haptic beats accompany pour and delight at 180/680 ms.
+- Persist feedback consumption by operation and account, distinguish private
+  saves from publication, reject another account and stop delayed feedback on
+  disappearance, inactive scene or Reduce Motion changes. Quick/reduced moments
+  use one immediate acknowledgment. Existing haptic preferences now cover all
+  shared feedback, including social error/confirmation cues.
+- Restore optimistic cafe-save state on failure and preserve a committed comment
+  when only its follow-up read fails. Scope delayed social results to the account,
+  retain failed or newly edited comment drafts, and remove rollback-triggered
+  icon bounce. A late successful send clears only its matching submitted draft.
+- Include completed private Home saves in reflections, using actual save dates,
+  excluding drafts and published counterparts, and keeping unknown ratings out
+  of averages. Share copy explains visible totals/names and preserves private notes.
+- Extend the current Journal reflection destination with Week in review, using
+  the existing Sunday 6 PM endpoint, UTC 168-hour window and exclusive end boundaries; retain month,
+  year, actual data and warm quiet-week copy. No new gamification or backend
+  contract. Account generations fence feed state; system-share completion is
+  consumed by presentation and owner. Final scoped verification passes 96 unit
+  tests plus four native journeys; previews/editable sources and $0 additional
+  tooling records are retained. Physical acceptance and the inherited PR holds
+  remain open. Runtime/delivery evidence is tracked in the
+  [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
+
+## 2026-10-30 — Cafe verification 503 diagnosis and recovery
+
+- Fixed rejection of valid Apple Maps postal addresses containing line breaks
+  inside a `formattedAddressLines` entry. Normalize CR/LF boundaries to comma
+  separators while retaining raw length, unsafe-character, place-ID and
+  coordinate validation. The live provider-only check reproduced this exact
+  response shape without creating a cafe or sip or touching photos.
+- Added privacy-safe failure-stage diagnostics to `verify-cafe`. Provider HTTP
+  failures retain only the operation and numeric status; no credentials, actor
+  identifiers, place IDs, provider bodies or raw exceptions enter logs/responses.
+- The existing authentication, live-account check, rate limit and verified-only
+  catalog write remain unchanged. No schema, Storage or app build change.
+- Nine focused Deno tests pass, including RED/GREEN reproduction of the address
+  rejection and unsafe-character boundaries. Production version 17 passes the
+  live provider-only check; original-draft recovery is blocked by the unavailable
+  iPhone connection. Deployment and acceptance are tracked in
+  the [service incident record](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
+
+## 2026-09-29 — One-time National Coffee Day alpha push
+
+- Sent the approved Mugsy greeting once to each of six active production iOS
+  devices with push enabled; APNs accepted all six requests. The alert expires
+  at midnight Eastern and carries no composer route. The owner's later
+  lock-screen screenshot confirms display on one production iPhone; display on
+  the other five devices and tap behavior were not observed.
+- Used a guarded, temporary Edge sender with exact copy, date and recipient
+  checks. Its source is archived under `supabase/one-off/`; the live function
+  and two temporary secrets were deleted after the send. No app build, migration,
+  Activity event, or durable campaign channel was introduced.
+
+## 2026-09-28 — Shared profile with an unlocated cafe
+
+- Diagnosed a profile load failure after KatMet published a Mugshot. The v4
+  profile and sip RPCs returned HTTP 200, and the account and post passed
+  screening. Her top cafe had null coordinates, which the shipped iOS model
+  could not decode, causing the whole profile screen to show an error.
+- Added a forward v4 projection compatibility migration that omits only
+  coordinate-free entries from the optional `top_cafes` summary for existing
+  clients. The cafe, post, stats, and dedicated profile cafe list remain
+  available. Updated the iOS model to accept missing coordinates and added
+  focused backend and decoding regressions.
+- The focused hermetic database regression, native profile decoder test on the
+  iOS 27 Simulator, isolated generic Debug compile, SQL parse, and
+  documentation check pass. Two older profile-share copy assertions and the
+  existing weekly-reminder contract fail in broader suites. The data-less QA
+  branch passed 66/66 hosted SQL contracts with no active schedules and was
+  deleted. After a completed physical backup and an exact one-migration dry
+  run, the migration was deployed to production (183 migrations). KatMet's
+  authenticated profile now returns one public Mugshot and one cafe in stats,
+  with the unlocated optional top-cafe summary omitted. Auth, profile, cafe,
+  visit, and Storage counts and ID fingerprints matched the predeploy baseline.
+  No TestFlight build was uploaded or physically accepted.
+
+
+## 2026-10-30 — Sip publication reliability and ECC verification workflow
+
+- Fixed a reproduced iOS 27 Continue hang by deferring scene-scoped keyboard
+  dismissal until after the gesture/step update.
+- Unified publish enablement, visible validation and submission checks. Frozen
+  retries finish the original payload without requiring local photo previews or
+  a new sharing-policy preflight; invalid scores/notes/captions remain explained.
+- Added per-visit publication serialization, account-bound request credentials,
+  cancellation/generation checks and synchronous edit-save locking. Production
+  publishing no longer falls back to a cached local profile after Auth is lost.
+- Preserve acknowledged photo objects when their local files are missing. Edit
+  retries now keep scoped receipts and stable photo IDs instead of deleting
+  successfully uploaded photos after a later failure. Reject
+  empty, duplicate, foreign-account and malformed upload plans; cancellation
+  cannot report an empty successful upload or downgrade a completed visit.
+- Retired numbered verification tiers in AGENTS.md and the current policy in
+  favor of ECC RED/GREEN, focused regression/security review, and risk-based
+  runtime evidence. Production-data, physical-device and TestFlight gates remain.
+- Read-only evidence confirms a five-photo protected draft blocked by cafe
+  verification HTTP 503 before visit creation. This is distinct from an upload
+  failure or eventual recovery. Provider configuration remains unverified.
+- Local verification passed 51 focused tests, two Simulator publishing journeys,
+  all 12 backend/static checks, documentation checks and signature validation.
+  Exact verification and delivery results are tracked in the
+  [reliability evidence report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md).
+
 
 ## 2026-10-26 — Signature polish hardware acceptance resumed
 

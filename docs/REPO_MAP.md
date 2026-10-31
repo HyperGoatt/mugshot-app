@@ -1,8 +1,31 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-10-30
 ---
+
+## Completion and reflection authoring
+
+`Design/MugshotCompletionPlan.swift` owns the numeric rig curves, shared 1.32 s
+clock, haptic beats and feedback-owner environment. `MugshotMotionSystem.swift`
+owns the UIKit haptic/preference/lifecycle boundary. `MugshotPolishPresentation`
+owns durable completed-operation consumption. `MugshotSaveReceiptView` samples
+the approved `MugsyModelView` rig directly and owns cancellable playback.
+`MugshotCompletionPreviewHost` is a DEBUG-only local inspection route.
+`JournalReflectionEngine` and `JournalReflectionDetailView` share the existing
+week/month/year destination and actual journal/private-Home projections.
+`MugshotSocialFeedback` owns optimistic rollback and committed-write/read
+boundaries; `SocialFeedbackTests` covers both. Focused completion tests live
+in `CompletionChoreographyTests`. `scripts/capture-completion-preview.sh` and
+`docs/previews/completion-2026-10-30` retain the native capture and free local
+HyperFrames review workflow; preview and delivery evidence is indexed in
+[audit ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
+
+`scripts/prepare-device-motion-qa.py` and `scripts/sign-device-motion-qa.py`
+prepare and sign an isolated connected-iPhone fixture using an existing local
+profile. They protect account-bearing app identities, backend/analytics settings,
+keychain/routing boundaries and current profile/device eligibility. See the
+[QA workflow](IOS_QA_EFFICIENCY_FRAMEWORK.md#isolated-connected-iphone-motion-fixture).
 
 # Repository map
 
@@ -18,6 +41,17 @@ Focused coverage lives in `testMugshotTests/HomeRecipeWorkspaceTests.swift`,
 `testMugshotTests/HomeRecipeHostedIntegrationTests.swift`,
 `testMugshotUITests/HomeRecipesJourneyUITests.swift`, and the `qa/pglite/home-*`
 harnesses. [Ownership, acceptance, and rollout state](HOME_RECIPES_IMPLEMENTATION.md).
+
+## Sip publication reliability
+
+`SipPublicationValidation` is the shared button/tap/feedback contract.
+`SipPublicationGate` serializes account/visit work across composer, edit and
+recovery. `SupabaseClientProvider.publicationClient` binds request credentials to
+the originating account. `PendingVisitSubmissionStore` owns frozen new-sip photo
+acknowledgements; `VisitEditMediaProgressStore` separately owns stable edit-photo
+receipts and is purged by account deletion. Neither store infers server success
+from a local request completing. See
+[REAL_DATA_FLOW_STATUS.md](REAL_DATA_FLOW_STATUS.md) for reconciliation and cleanup.
 
 ## Repository and targets
 

@@ -1,8 +1,109 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-10-30
 ---
+
+## Completion feedback ownership — 2026-10-30
+
+Social detail cafe writes use an account-bound client and a scoped optimistic
+completion/rollback gate. A successful comment write is separate from refreshing
+the conversation: failed refresh never reclassifies the posted comment as unsent.
+Following and friendship feedback uses confirmed results; system sharing uses
+its completion callback, without claiming external delivery.
+
+Only a completed private save or confirmed remote publication creates a
+`MugshotSaveReceipt`. `MugshotCompletionFeedback` persists an acknowledgment
+marker by account, operation kind and stable ID before playback. It stores no
+caption, photo, drink name or journal text, rejects another active account, and
+is purged with that account. Audience changes cannot replay a publication.
+View appearance alone never creates a success event. Restoring a completion
+surface renders the saved result without manufacturing a new receipt.
+
+The existing saved-result path remains responsible for journal/feed invalidation;
+visual coffee fill does not create posts, increment invented counters or deliver
+Activity. Failure/cancellation/pending recovery has no completion receipt.
+Delayed haptic work belongs to the view task and is invalidated by scene,
+visibility, account, Reduce Motion and text-size changes.
+
+Week in review reuses canonical `JournalEntryProjection` data and existing
+people-count queries. It uses the latest Sunday at 6 PM in the current device
+timezone and the preceding 168 hours, matching the existing UTC reminder query, with an
+exclusive end boundary.
+No new schedule, push route, fabricated activity or backend write is introduced.
+The same summary includes account-scoped Home attempts with an actual savedAt
+receipt. Drafts are excluded; canonical visit/draft IDs and published status
+prevent double counting. Private attempts use their saved date; unknown ratings
+are excluded from averages and unknown caffeine remains unestimated. The Home
+workspace must match the current account scope before it contributes. No
+private note is included in share artwork; explicit sharing includes visible
+totals and drink names, explained beside the share action.
+
+Social confirmation treats a successful comment write independently of a failed
+refresh. It clears only the matching account/text/reply/mention snapshot; a newer
+comment draft stays intact. Optimistic cafe state rolls back only for the current
+operation/account. Visual press feedback owns no haptic, and confirmed send or
+share callbacks own their single acknowledgment. Feed mutation clients bind
+the originating account, and account changes reset an operation generation so
+returning to the same user cannot revive old work. Detail mutations check account,
+cancellation and visibility after suspension. Sharing invalidates its presentation
+on account change and consumes completion only for its matching ID/owner.
+
+## Cafe verification address repair and diagnostics — 2026-10-30
+
+Apple Maps may return multiple postal lines inside one `formattedAddressLines`
+entry. Verification normalizes CR/LF boundaries to comma separators, rejects
+other ASCII control characters before trimming, and retains per-entry/combined
+length, provider-ID and coordinate checks. This repairs a confirmed pre-creation
+503; a valid provider response previously failed Mugshot's address parser.
+
+The `verify-cafe` endpoint still admits only server-fetched provider fields for an
+authenticated live account. Its generic 503 response now has privacy-safe server
+diagnostics identifying authentication/reservation/provider/persistence stage,
+an allowlisted reason, and (for provider HTTP failures) the fixed provider
+operation plus numeric status. No auth header, key, provider response, place ID,
+actor ID or sip content is logged. Diagnostic sink failure cannot change the
+safe response. Nine focused local Deno tests pass. Production function version
+17 is deployed with an exact source match and a successful provider-only check;
+physical original-draft recovery remains blocked by the unavailable iPhone.
+Full production status is recorded
+in the [incident evidence](audits/CAFE_VERIFICATION_503_2026-10-30.md).
+
+
+
+## Sip publication isolation and retry contract — 2026-10-30
+
+The composer owns mutable input until it creates an account/visit-scoped frozen
+outbox entry. Button state, displayed validation and submission share one policy.
+A frozen retry uses the stored payload; local preview availability does not grant
+or deny permission to finish already uploaded or finalized work. Missing bytes
+are required only for photos without an exact durable upload acknowledgement.
+Invalid/foreign/duplicate media plans fail before Storage mutation.
+
+A per-visit gate serializes composer, edit and automatic-recovery work in-process.
+Recovery rechecks the owner-bound server state before retrying; the stable visit
+ID and finalization receipts remain the cross-process duplicate safeguards.
+Publishing clients obtain tokens only for the original account. A changed/missing
+account fails closed, including the pinned SDK's swallowed token-provider-error
+case. Cancellation and composer generations prevent stale UI completion. Local
+canonical sip saving is limited to DEBUG UI fixtures; guest Home private-journal
+behavior remains owned by its existing workspace flow.
+
+Edit uploads use a separate owner/visit-scoped media receipt store keyed by
+stable added-photo IDs. A later upload or edit-RPC failure keeps acknowledged
+objects; retry skips them. This receipt store does not create a new visit or join
+the new-sip recovery queue. Confirmed canonical edits enqueue abandoned objects
+for existing cleanup and clear receipts. Account deletion purges only that
+account's receipts. Dismissing an unsuccessful edit can leave unreferenced
+objects protected until a later confirmed edit or account deletion; preserving
+an ambiguous committed photo takes precedence over immediate cleanup.
+
+Read-only October 28 evidence confirms cafe verification HTTP 503 before creation
+for a protected five-photo draft. Retained completed rows do not prove that the
+original experience succeeded. The
+[reliability report](audits/SIP_PUBLICATION_RELIABILITY_2026-10-30.md) records the
+production configuration boundary; no schema/RLS/Storage deployment was made.
+
 
 ## Interrupted photo publication — 2026-10-23
 
@@ -12,7 +113,9 @@ each success before advancing, retain successfully uploaded objects after a
 later failure, and upload only unfinished paths. Stale worker saves merge
 receipts only for the exact media plan. Photo replacement or authoritative
 remote absence resets receipts; legacy outboxes decode without the new field
-and safely retry stable paths. One-shot edit uploads retain rollback cleanup.
+and safely retry stable paths. As of October 30, edit uploads also retain scoped
+acknowledgements and stable photo IDs for retries; unreferenced edit objects are
+queued for cleanup only after a confirmed canonical edit.
 
 Supabase HTTP transport now uses a 30-second idle request timeout and a
 90-second resource limit, without waiting indefinitely for connectivity.
@@ -305,7 +408,7 @@ must not overrule an authoritative remote result.
 | Authentication | Supabase Auth | Callback queue and last-known presentation | Fail closed for account-bound operations |
 | Profile and social identity | `public.users`, sealed `profile_favorite_spots` / `profile_tagged_post_hides` / `profile_visibility_preferences`, and v4 profile projection/list RPCs | Account-scoped rendering cache plus DEBUG-only design fixture | Default to Friends plus Everyone only when the owner preference permits it; preference-off is Everyone-only and Private always fails closed |
 | Visits, drinks, ratings and captions | Supabase visit schema/RPCs | Guest records, drafts and pending publication | Preserve draft/outbox until remote completion is proven |
-| Visit and profile media | Supabase Storage plus metadata rows | Preview/cache and upload recovery | Resolve HTTP and durable `mugshot-storage://` values through the viewer-authorized remote pipeline, including Profile-share artwork; checkpoint protected photo uploads and retain one-shot edit rollback cleanup |
+| Visit and profile media | Supabase Storage plus metadata rows | Preview/cache and upload recovery | Resolve HTTP and durable `mugshot-storage://` values through the viewer-authorized remote pipeline, including Profile-share artwork; checkpoint protected photo and edit uploads; retain ambiguous edit media until canonical reconciliation |
 | Home recipes and coffee library | Home Workbench tables/RPC projections | Draft/template cache | Remote owner projection wins after save |
 | Feed, Journal and profiles | Viewer-specific Supabase projections | Rendering cache | Keep the last valid view and show an actionable error |
 | Cafe identity and detail visit cards | `public.cafes` provider rows plus viewer-scoped Supabase visit queries and RLS | Conservative read-time stitch projection and local visit fallback only when no visible remote visit is returned | Query all equivalent cafe IDs, then render only self, friend, and Everyone visits the backend permits; never mutate cafe rows or synthesize remote visibility from local history |

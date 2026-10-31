@@ -829,6 +829,7 @@ struct PublicProfileView: View {
             case .self: break
             }
             guard authModel.authenticatedUser?.id == expectedAccountID else { return }
+            MugshotHaptic.selection.play()
             await onRelationshipChanged()
             guard authModel.authenticatedUser?.id == expectedAccountID else { return }
             await load()

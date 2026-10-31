@@ -31,7 +31,7 @@ struct MugshotPassportCard: View {
                 withAnimation(reduceMotion ? nil : DesignSystem.Motion.base) {
                     showsStats.toggle()
                 }
-                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                MugshotHaptic.softImpact.play()
             } label: {
                 passportSurface
                     .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))

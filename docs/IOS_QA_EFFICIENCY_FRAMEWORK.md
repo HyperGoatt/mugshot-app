@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-13
+last_verified: 2026-10-30
 ---
 
 # MugShot iOS QA Efficiency Framework
@@ -10,14 +10,14 @@ Date: 2026-07-22
 
 ## Outcome
 
-MugShot uses a no-Simulator-first verification loop. Deterministic checks find most defects cheaply; one prepared Simulator or human-QA session validates the small set of behaviors that require a live iOS runtime. The intended cadence is:
+MugShot uses an ECC-aligned verification loop selected by behavior and risk. Numbered tiers are retired; see [VERIFICATION_POLICY.md](VERIFICATION_POLICY.md). Deterministic checks find most defects cheaply; one prepared Simulator or human-QA session validates the small set of behaviors that require a live iOS runtime. The intended cadence is:
 
 ```text
 inspect -> static/pure/backend checks -> generic compile -> integration review
         -> one final runtime acceptance session -> batch any follow-up fixes
 ```
 
-Simulator is an acceptance environment, not the default debugger.
+Prefer deterministic checks for logic. Focused Simulator TDD is permitted when iOS-hosted tests or runtime behavior require it; consolidate broader journey acceptance after the fix.
 
 ## Repository commands
 
@@ -67,7 +67,7 @@ The generic destination uses the Simulator SDK only. It is not a runtime test an
 - Run SQL contract and RLS tests only in a disposable local PostgreSQL/Supabase environment or a transactionally isolated ephemeral harness.
 - Cover the success path and the highest-risk denial, retry, duplicate, stale-state, and cleanup paths.
 
-The current app unit target is Simulator-hosted because it imports the iOS app module. Queue that suite for the consolidated runtime checkpoint. As code is naturally refactored, moving pure domain logic into a host-testable Swift package would move more coverage below the runtime line; that is an optimization, not a prerequisite for using this framework now.
+The current app unit target is Simulator-hosted because it imports the iOS app module. Run focused hosted regressions when needed for RED/GREEN, then reuse that evidence during consolidated acceptance. As code is naturally refactored, moving pure domain logic into a host-testable Swift package would move more coverage below the runtime line; that is an optimization, not a prerequisite for using this framework now.
 
 The focused repository-owned PGlite harness in `qa/pglite` exercises account deletion, collaborative-list consent and expiry, device-registration limits, and delivery leases against a new in-memory database per process. Install its exact pinned PGlite and Deno dependencies once with `npm ci --prefix qa/pglite --ignore-scripts`; the normal backend command then runs the database suite and offline Edge Function checks automatically. PGlite does not emulate every Supabase service or extension, so the broader SQL/RLS files in `supabase/tests` still require a disposable local Supabase stack before deployment. Never substitute the linked project.
 
@@ -162,7 +162,7 @@ The default verification contract is:
 
 Report concise, exact evidence:
 
-- verification tier and mode;
+- verification scope, risks, and command mode;
 - commands that passed;
 - checks skipped and the missing tool or safe harness;
 - whether Simulator or a physical device was intentionally not used;
@@ -188,3 +188,51 @@ signature and environment before installation. Do not patch a signed Info.plist
 afterward, and do not alter production signing or account data to repair QA.
 Reuse the resulting signed candidate until source or configuration changes
 justify another build. This does not change the compile-only fast path.
+
+
+## Isolated connected-iPhone motion fixture
+
+When testing synthetic publication or completion on an account-bearing iPhone,
+preserve the regular/development apps and use a detached fixture checkout.
+`scripts/prepare-device-motion-qa.py` refuses the active checkout, isolates its
+identity/capabilities/routing/shared-import defaults, and retains a manifest.
+`scripts/sign-device-motion-qa.py` refuses account-bearing identities, production
+backends, unexpected keys and enabled analytics before signing. It accepts only
+an existing current development profile authorizing the exact fixture identity
+and device, with a matching local signing identity. The signed app has its own
+keychain group and no APNs, associated domains, App Groups or embedded extensions.
+
+The October 30 continuation uses the already provisioned, unused
+`co.mugshot.app.testMugshotUITests` identity with the name **Mugshot Motion QA**.
+It is a normal DEBUG application, not an XCTest runner. The app compiles with
+signing deferred, then receives a real developer signature and strict verification
+before installation. This avoids requiring an Apple account to create another
+identifier; it never installs an unsigned app or replaces account data.
+
+```sh
+git worktree add --detach /tmp/mugshot-motionqa HEAD
+python3 scripts/prepare-device-motion-qa.py /tmp/mugshot-motionqa \
+  --bundle-id co.mugshot.app.testMugshotUITests
+xcodebuild -project /tmp/mugshot-motionqa/testMugshot.xcodeproj \
+  -scheme MugshotTests -configuration Debug \
+  -destination 'platform=iOS,id=<device-udid>' \
+  -derivedDataPath /tmp/mugshot-motionqa-derived \
+  -disableAutomaticPackageResolution -skipPackageUpdates \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+  MUGSHOT_SUPABASE_URL=https://publication-fixture.invalid \
+  MUGSHOT_SUPABASE_PUBLISHABLE_KEY=synthetic-key \
+  MUGSHOT_POSTHOG_PROJECT_TOKEN= build
+python3 scripts/sign-device-motion-qa.py \
+  /tmp/mugshot-motionqa-derived/Build/Products/Debug-iphoneos/testMugshot.app \
+  --profile '<existing-local-development.mobileprovision>' \
+  --device-udid '<device-udid>'
+```
+
+Codex selects the actual paired device/profile, checks that the fixture identity
+is unused before first install, installs/launches it through CoreDevice and
+operates it through Device Hub. No owner editor/export/setup step is required.
+Record installed, launched, interaction-verified and owner tactile/spoken
+acceptance separately. A device being paired or an app being signed/installed
+never substitutes for an unlocked, observed runtime. App Groups, extensions,
+production authentication and TestFlight require their own appropriate gates.
+See the [physical continuation ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md#connected-iphone-continuation--october-30-evening--october-31-utc).

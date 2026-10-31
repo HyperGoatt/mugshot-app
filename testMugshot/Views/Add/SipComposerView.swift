@@ -36,6 +36,9 @@ struct LogVisitView: View {
     @State private var showDiscardPendingConfirmation = false
     @State private var confirmedTextOnlyEveryone = false
     @State private var isSaving = false
+    @State private var publicationTask: Task<Void, Never>?
+    @State private var publicationGeneration: UUID?
+    @State private var sharingPolicyGeneration: UUID?
     @State private var checkingPublicationPolicy = false
     @State private var showPublicationNotice = false
     @State private var noticeProfileEnabled = true
@@ -112,6 +115,13 @@ struct LogVisitView: View {
 
     private var tastingLensUserID: UUID? {
         draft.ownerUserID ?? authModel.authenticatedUser?.id ?? dataManager.appData.currentUser?.id
+    }
+
+    private var localFixtureUserID: UUID? {
+#if DEBUG
+        if MugshotLaunchEnvironment.isUITesting { return dataManager.appData.currentUser?.id }
+#endif
+        return nil
     }
 
     private var localAccountScope: LocalAccountScope {
@@ -491,6 +501,13 @@ struct LogVisitView: View {
                 if let location { updateSearchRegion(for: location) }
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, userID in
+                publicationTask?.cancel()
+                publicationTask = nil
+                publicationGeneration = nil
+                sharingPolicyGeneration = nil
+                checkingPublicationPolicy = false
+                isSaving = false
+                showPublicationNotice = false
                 guard let userID else {
                     activateLocalState(scope: .guest)
                     pendingSubmission = nil
@@ -533,9 +550,10 @@ struct LogVisitView: View {
             draft: $composerModel.draft,
             photoImages: $photoImages,
             step: $v3Step,
-            isSaving: isSaving,
+            isSaving: isSaving || checkingPublicationPolicy,
+            publicationValidationMessage: validationMessage,
             resumeDraftCount: resumableDrafts.count,
-            isRecoveryLocked: pendingSubmission != nil || isSaving,
+            isRecoveryLocked: pendingSubmission != nil || isSaving || checkingPublicationPolicy,
             statusMessage: errorMessage ?? uploadRecoveryMessage,
             isOpeningPublishedMugshot: isLoadingPublishedVisit,
             completionStatusMessage: completionStatusMessage,
@@ -1789,6 +1807,9 @@ struct LogVisitView: View {
         ].compactMap { $0 }
 
         return VStack(spacing: 12) {
+            if let publicationReceipt {
+                MugshotSaveReceiptView(receipt: publicationReceipt, detail: "Kept in your journal")
+            }
             MugshotCompletionCard(
                 mugsyConfiguration: MugsyModelConfiguration(
                     expression: .delighted,
@@ -2388,7 +2409,7 @@ struct LogVisitView: View {
         guard SipRemoteRecoveryPlanner.requiresLocalPhotosForRecovery(pending) else {
             return false
         }
-        return (try? PendingVisitSubmissionStore.shared.loadImages(for: pending).count)
+        return (try? PendingVisitSubmissionStore.shared.loadUploadImages(for: pending).count)
             != pending.localPhotoNames.count
     }
 
@@ -2427,7 +2448,7 @@ struct LogVisitView: View {
         }
         if pending.phase < .photosUploaded,
            !pending.localPhotoNames.isEmpty,
-           (try? PendingVisitSubmissionStore.shared.loadImages(for: pending).count)
+           (try? PendingVisitSubmissionStore.shared.loadUploadImages(for: pending).count)
             != pending.localPhotoNames.count {
             return nil
         }
@@ -2940,6 +2961,7 @@ struct LogVisitView: View {
     }
 
     private func cancelComposer() {
+        guard !isSaving, !checkingPublicationPolicy else { return }
         if draft.hasDraftWorthyUserContent || !photoImages.isEmpty {
             MugshotAnalytics.shared.capture(
                 .sipDraftSaved(
@@ -2967,35 +2989,59 @@ struct LogVisitView: View {
 
     private func preparePublication() {
         guard !isSaving, !checkingPublicationPolicy else { return }
+        if pendingSubmission != nil || validationMessage != nil || draft.visibility == .private {
+            saveSip()
+            return
+        }
         guard let owner = authModel.authenticatedUser?.id else { saveSip(); return }
+        let requestID = UUID()
+        sharingPolicyGeneration = requestID
         checkingPublicationPolicy = true
         Task { @MainActor in
-            defer { checkingPublicationPolicy = false }
+            defer {
+                if sharingPolicyGeneration == requestID { checkingPublicationPolicy = false }
+            }
             do {
-                let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
+                let service = SharedProfileService(client: try await SupabaseClientProvider.shared.publicationClient(userID: owner))
                 let policy = try await service.publicationPolicy()
-                guard authModel.authenticatedUser?.id == owner else { return }
+                guard sharingPolicyGeneration == requestID,
+                      authModel.authenticatedUser?.id == owner else { return }
                 if policy.acknowledged == true { saveSip() }
                 else {
                     noticeProfileEnabled = policy.show_friends
                     showPublicationNotice = true
                 }
-            } catch { errorMessage = "Couldn’t check your sharing preferences. Your draft is saved; try again when connected." }
+            } catch {
+                guard sharingPolicyGeneration == requestID else { return }
+                errorMessage = "Couldn’t check your sharing preferences. Your draft is saved; try again when connected."
+                MugshotAnalytics.shared.capture(.sipPublishFailed(
+                    analyticsSnapshot, errorCode: MugshotAnalyticsErrorCode(error: error),
+                    recoveryState: .localDraft
+                ))
+            }
         }
     }
 
     private func acknowledgePublication() {
         guard !checkingPublicationPolicy, let owner = authModel.authenticatedUser?.id else { return }
+        let requestID = UUID()
+        sharingPolicyGeneration = requestID
         checkingPublicationPolicy = true
         Task { @MainActor in
-            defer { checkingPublicationPolicy = false }
+            defer {
+                if sharingPolicyGeneration == requestID { checkingPublicationPolicy = false }
+            }
             do {
-                let service = SharedProfileService(client: try SupabaseClientProvider.shared.client())
+                let service = SharedProfileService(client: try await SupabaseClientProvider.shared.publicationClient(userID: owner))
                 try await service.acknowledgePublication(includeHistorical: false)
-                guard authModel.authenticatedUser?.id == owner else { return }
+                guard sharingPolicyGeneration == requestID,
+                      authModel.authenticatedUser?.id == owner else { return }
                 showPublicationNotice = false
                 saveSip()
-            } catch { errorMessage = "Your sharing preference wasn’t saved. Please try again." }
+            } catch {
+                guard sharingPolicyGeneration == requestID else { return }
+                errorMessage = "Your sharing preference wasn’t saved. Please try again."
+            }
         }
     }
 
@@ -3044,7 +3090,7 @@ struct LogVisitView: View {
             return
         }
 
-        if SipPublicationPolicy.requirement(
+        if pendingSubmission == nil, SipPublicationPolicy.requirement(
             visibility: draft.visibility,
             photoCount: publicationVisualCount,
             socialCaption: draft.socialCaption,
@@ -3090,8 +3136,7 @@ struct LogVisitView: View {
         }
 #endif
 
-        guard authModel.authenticatedUser != nil
-                || dataManager.appData.currentUser != nil else {
+        guard authModel.authenticatedUser != nil || localFixtureUserID != nil else {
             persistDraft()
             MugshotAnalytics.shared.capture(
                 .sipPublishBlocked(
@@ -3112,9 +3157,26 @@ struct LogVisitView: View {
 
         isSaving = true
         if let authenticatedUser = authModel.authenticatedUser {
-            Task {
+            guard let token = SipPublicationGate.shared.begin(
+                userID: authenticatedUser.id, visitID: draft.id
+            ) else {
+                isSaving = false
+                uploadRecoveryMessage = "This sip is already being saved. Wait for it to finish, then retry if needed."
+                return
+            }
+            let generation = UUID()
+            publicationGeneration = generation
+            publicationTask = Task { @MainActor in
+                defer {
+                    SipPublicationGate.shared.finish(token: token)
+                    if publicationGeneration == generation {
+                        publicationGeneration = nil
+                        publicationTask = nil
+                        isSaving = false
+                    }
+                }
                 try? await SipPublicationBackgroundExecution.run {
-                    await saveRemote(authenticatedUser: authenticatedUser)
+                    await saveRemote(authenticatedUser: authenticatedUser, generation: generation)
                 }
             }
         } else {
@@ -3123,67 +3185,10 @@ struct LogVisitView: View {
     }
 
     private var validationMessage: String? {
-        if let ownerUserID = draft.ownerUserID,
-           let authenticatedUserID = authModel.authenticatedUser?.id,
-           ownerUserID != authenticatedUserID {
-            return "This draft belongs to the account that started it. Sign back into that account to save it."
-        }
-        if draft.context == .cafe && draft.cafe == nil {
-            return "Choose a cafe before saving this sip."
-        }
-        if draft.context != .cafe && draft.locationName.remoteTrimmedNonEmpty == nil {
-            return draft.context == .elsewhere
-                ? "Name this setting before saving."
-                : "Name this home context before saving."
-        }
-        if draft.drinkName.remoteTrimmedNonEmpty == nil {
-            return "Add the drink you want to remember."
-        }
-        if photoImages.isEmpty, draft.photoFallback == nil {
-            return "Add a photo, or deliberately choose I missed the photo."
-        }
-        if let captionError = SipCaptionPolicy.validationError(for: draft.socialCaption) {
-            return captionError.localizedDescription
-        }
-        if draft.privateNotes.v3DatabaseCharacterCount
-            > V3VisitReflection.rawNoteCharacterLimit {
-            return "Keep your sip journal note to 10,000 characters or fewer."
-        }
-        if draft.contextNotes.v3DatabaseCharacterCount
-            > V3VisitReflection.rawNoteCharacterLimit {
-            return "Keep your context journal note to 10,000 characters or fewer."
-        }
-        if draft.captureMode == .addDetails && draft.sensorySnapshot == nil {
-            return "Finish or switch from Tasting Lens before saving this sip."
-        }
-        if draft.resolvedOverallScore < 0.5 || draft.resolvedOverallScore > 5 {
-            return "Add your personal How was it? rating."
-        }
-        if draft.context == .cafe,
-           !(1...5).contains(draft.contextScore ?? 0) {
-            return "Add your cafe score before publishing this Mugshot."
-        }
-        switch draft.recipePublicationRequirement {
-        case .ready:
-            break
-        case .needsImmutableSource:
-            return "This adapted recipe needs its exact Mugshot source before it can publish."
-        case .sourceCannotBePublic:
-            return "Purchased and external recipes cannot share instructions with Everyone."
-        case .needsRedistributionPermission:
-            return "Confirm that people may save and adapt this recipe before sharing it with Everyone."
-        case .needsPublicReuseAcknowledgment:
-            return "Acknowledge public recipe reuse before sharing these instructions with Everyone."
-        }
-        if SipPublicationPolicy.requirement(
-            visibility: draft.visibility,
-            photoCount: publicationVisualCount,
-            socialCaption: draft.socialCaption,
-            confirmedTextOnlyEveryone: confirmedTextOnlyEveryone
-        ) == .needsTextOrPhoto {
-            return "Add a one-line thought or photo before sharing this sip with Everyone."
-        }
-        return nil
+        SipPublicationValidation.message(
+            for: draft, photoCount: photoImages.count, pending: pendingSubmission,
+            authenticatedUserID: authModel.authenticatedUser?.id ?? localFixtureUserID
+        )
     }
 
     private func analyticsBlockReason(
@@ -3198,7 +3203,7 @@ struct LogVisitView: View {
         }
         if message.hasPrefix("Add the drink") { return .drinkNameRequired }
         if message.hasPrefix("Add a photo") { return .visualRequired }
-        if message.hasPrefix("Write the caption") { return .captionRequired }
+        if message.hasPrefix("Write the caption") || message.hasPrefix("Add a caption") { return .captionRequired }
         if message.hasPrefix("Keep the caption") { return .captionTooLong }
         if message.hasPrefix("Keep your sip journal") { return .privateNoteTooLong }
         if message.hasPrefix("Keep your context journal") { return .contextNoteTooLong }
@@ -3233,7 +3238,11 @@ struct LogVisitView: View {
     }
 
     private func saveLocal() {
-        guard let userID = dataManager.appData.currentUser?.id else { return }
+        guard let userID = localFixtureUserID else {
+            isSaving = false
+            errorMessage = "Sign in to save. Your draft is still here."
+            return
+        }
         isSaving = true
         SipSaveDiagnostics.record(.localSaveStarted, draftID: draft.id)
         let cafeSessionLink = makePendingCafeSessionLink(userID: userID)
@@ -3307,7 +3316,9 @@ struct LogVisitView: View {
     }
 
     @MainActor
-    private func saveRemote(authenticatedUser: AuthenticatedUser) async {
+    private func saveRemote(authenticatedUser: AuthenticatedUser, generation: UUID) async {
+        guard publicationGeneration == generation, !Task.isCancelled,
+              authModel.authenticatedUser?.id == authenticatedUser.id else { return }
         isSaving = true
         errorMessage = nil
         if let homeAttemptID = draft.launchContext.homeAttemptID,
@@ -3319,8 +3330,8 @@ struct LogVisitView: View {
         SipSaveDiagnostics.record(.remoteSaveStarted, draftID: draft.id, visitID: pendingSubmission?.id)
 
         do {
-            let normalizedCaption = try SipCaptionPolicy.validateAndNormalize(draft.socialCaption)
-            let client = try SupabaseClientProvider.shared.client()
+            let client = try await SupabaseClientProvider.shared.publicationClient(userID: authenticatedUser.id)
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             let service = VisitService(client: client)
             let cafeSessionService = CafeSessionService(client: client)
             let pendingStore = PendingVisitSubmissionStore.shared
@@ -3330,6 +3341,8 @@ struct LogVisitView: View {
                 visitId: draft.id,
                 userId: authenticatedUser.id
             )
+            let normalizedCaption = try storedPending?.caption
+                ?? SipCaptionPolicy.validateAndNormalize(draft.socialCaption)
 
             if storedPending == nil {
                 try await synchronizeSelectedHomeCoffeeBag(
@@ -3371,6 +3384,7 @@ struct LogVisitView: View {
                 self.pendingSubmission = storedPending
                 conflictingPendingSubmission = nil
             } else {
+                try checkPublicationAccount(authenticatedUser.id, generation: generation)
                 self.pendingSubmission = nil
                 submission = try pendingStore.prepare(
                     visitId: draft.id,
@@ -3405,40 +3419,29 @@ struct LogVisitView: View {
                     images: photoImages,
                     posterPhotoIndex: draft.posterPhotoIndex
                 )
-                self.pendingSubmission = submission
+                updatePendingPublication(submission, generation: generation)
                 SipSaveDiagnostics.record(.submissionPrepared, draftID: draft.id, visitID: submission.id)
             }
 
             // A prior finalization request may have committed even when its
             // response or the following local receipt write was interrupted.
             // Reconcile the owner row before performing any other remote work.
-            if submission.hasAmbiguousRemoteFinalization {
+            if storedPending != nil {
+                try checkPublicationAccount(authenticatedUser.id, generation: generation)
                 saveOperation = .finalizing
                 let remoteState = try await service.fetchOwnedVisitUploadState(
-                    visitId: submission.id,
-                    userId: submission.userId
+                    visitId: submission.id, userId: submission.userId
                 )
                 if remoteState == .complete {
                     capturePublicationDeduplicationIfNeeded()
                     canonicalPublicationCommitted = true
-                    submission.remoteFinalizedAt = .now
-                    self.pendingSubmission = submission
-                    try pendingStore.save(submission)
-                    submission = pendingStore.load(
-                        visitId: submission.id,
-                        userId: submission.userId
-                    ) ?? submission
-                    self.pendingSubmission = submission
-                } else if remoteState == nil {
-                    // The owner query authoritatively confirmed there is no
-                    // remote row. Recreate the same stable visit ID and frozen
-                    // payload; the ambiguity marker remains fail-closed.
-                    submission.phase = .prepared
-                    submission.uploadedPhotoURLs = nil
-                    submission.completedPhotoObjectPaths = nil
-                    try pendingStore.save(submission)
-                    self.pendingSubmission = submission
                 }
+                submission = PendingVisitPublicationReconciliation.reconcile(
+                    submission, remoteState: remoteState
+                )
+                try pendingStore.save(submission)
+                submission = pendingStore.load(visitId: submission.id, userId: submission.userId) ?? submission
+                updatePendingPublication(submission, generation: generation)
             }
 
             if submission.isRemoteFinalized {
@@ -3449,7 +3452,7 @@ struct LogVisitView: View {
                     client: client
                 ).finish(submission: submission)
                 submission = postPublicationSetup.submission
-                self.pendingSubmission = submission
+                updatePendingPublication(submission, generation: generation)
                 let finalizedVisit = try await service.fetchOwnedVisitSummary(
                     visitId: submission.id,
                     userId: submission.userId
@@ -3466,6 +3469,7 @@ struct LogVisitView: View {
                 let ownerSipCount = try? await service.fetchOwnerSipCount(
                     userId: submission.userId
                 )
+                try checkPublicationAccount(authenticatedUser.id, generation: generation)
                 try completeSuccessfulSave(
                     visitID: submission.id,
                     remoteVisit: finalizedVisit,
@@ -3481,6 +3485,7 @@ struct LogVisitView: View {
                 return
             }
 
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             if submission.phase == .prepared {
                 saveOperation = .creatingVisit
                 savedVisit = try await service.createVisit(
@@ -3506,10 +3511,11 @@ struct LogVisitView: View {
                 )
                 submission.phase = .visitCreated
                 try pendingStore.save(submission)
-                self.pendingSubmission = submission
+                updatePendingPublication(submission, generation: generation)
                 SipSaveDiagnostics.record(.visitCreated, draftID: draft.id, visitID: submission.id)
             }
 
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             if submission.phase >= .visitCreated,
                let session = submission.cafeSession {
                 let visit: RemoteVisitSummary
@@ -3559,6 +3565,7 @@ struct LogVisitView: View {
             // photo publication. Keep this retry-safe block outside the prepared
             // branch so an interrupted save always repairs or verifies it before
             // the visit can be finalized for an audience.
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             if submission.phase >= .visitCreated,
                let sensorySnapshot = submission.sensorySnapshot {
                 saveOperation = .savingTastingLens
@@ -3579,6 +3586,7 @@ struct LogVisitView: View {
                 )
             }
 
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             if submission.phase < .photosUploaded {
                 saveOperation = .uploadingPhotos
                 SipSaveDiagnostics.record(
@@ -3592,9 +3600,9 @@ struct LogVisitView: View {
                     throw URLError(.networkConnectionLost)
                 }
 #endif
-                let images = try pendingStore.loadImages(for: submission)
+                let images = try pendingStore.loadUploadImages(for: submission)
                 let uploadPlan = submission
-                let result = try await VisitPhotoUploadService(client: client).uploadPhotos(
+                let result = try await VisitPhotoUploadService(client: client).uploadPlannedPhotos(
                     userId: submission.userId,
                     visitId: submission.id,
                     images: images,
@@ -3614,10 +3622,11 @@ struct LogVisitView: View {
                 submission.uploadedPhotoURLs = result.publicURLs
                 submission.phase = .photosUploaded
                 try pendingStore.save(submission)
-                self.pendingSubmission = submission
+                updatePendingPublication(submission, generation: generation)
                 SipSaveDiagnostics.record(.photosUploaded, draftID: draft.id, visitID: submission.id)
             }
 
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             saveOperation = .finalizing
             SipSaveDiagnostics.record(
                 .finalizationStarted,
@@ -3637,9 +3646,10 @@ struct LogVisitView: View {
             if submission.finalizationRequestedAt == nil {
                 submission.finalizationRequestedAt = .now
                 try pendingStore.save(submission)
-                self.pendingSubmission = submission
+                updatePendingPublication(submission, generation: generation)
             }
 
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             if let session = submission.cafeSession {
                 try await cafeSessionService.finalizeSipUpload(
                     sessionID: session.sessionID,
@@ -3660,13 +3670,13 @@ struct LogVisitView: View {
             await DiscoveryInteractionService(client: client)
                 .consumeAttributionAndCapture(visitID: submission.id)
             submission.remoteFinalizedAt = .now
-            self.pendingSubmission = submission
+            updatePendingPublication(submission, generation: generation)
             try pendingStore.save(submission)
             submission = pendingStore.load(
                 visitId: submission.id,
                 userId: submission.userId
             ) ?? submission
-            self.pendingSubmission = submission
+            updatePendingPublication(submission, generation: generation)
             SipSaveDiagnostics.record(.visitFinalized, draftID: draft.id, visitID: submission.id)
 
             let completionRecord = V3PublishedCompletionRecord(
@@ -3682,7 +3692,7 @@ struct LogVisitView: View {
                 client: client
             ).finish(submission: submission)
             submission = postPublicationSetup.submission
-            self.pendingSubmission = submission
+            updatePendingPublication(submission, generation: generation)
 
             let finalizedVisit = try await service.fetchOwnedVisitSummary(
                 visitId: submission.id,
@@ -3712,6 +3722,7 @@ struct LogVisitView: View {
             let ownerSipCount = try? await service.fetchOwnerSipCount(
                 userId: submission.userId
             )
+            try checkPublicationAccount(authenticatedUser.id, generation: generation)
             try completeSuccessfulSave(
                 visitID: submission.id,
                 remoteVisit: finalizedVisit,
@@ -3729,7 +3740,14 @@ struct LogVisitView: View {
             conflictingPendingSubmission = nil
             uploadRecoveryMessage = nil
         } catch {
+            guard publicationGeneration == generation,
+                  authModel.authenticatedUser?.id == authenticatedUser.id else { return }
             isSaving = false
+            if Task.isCancelled {
+                uploadRecoveryMessage = "Saving was interrupted. Your protected draft and uploaded photos are kept. Retry continues the same sip."
+                errorMessage = nil
+                return
+            }
             if let homeAttemptID = draft.launchContext.homeAttemptID,
                HomeRecipeWorkspaceStore.shared.scope == .user(authenticatedUser.id) {
                 let status: HomePublicationStatus = canonicalPublicationCommitted
@@ -3750,7 +3768,8 @@ struct LogVisitView: View {
                 .sipPublishFailed(
                     analyticsSnapshot,
                     errorCode: MugshotAnalyticsErrorCode(error: error),
-                    recoveryState: analyticsRecoveryState
+                    recoveryState: analyticsRecoveryState,
+                    operation: saveOperation
                 )
             )
             if canonicalPublicationCommitted
@@ -3769,13 +3788,14 @@ struct LogVisitView: View {
             draft.uploadState = .failed
             persistDraft()
             if let pendingSubmission {
-                let client = try? SupabaseClientProvider.shared.client()
+                let client = try? await SupabaseClientProvider.shared.publicationClient(userID: authenticatedUser.id)
                 if let client, pendingSubmission.phase >= .visitCreated {
                     try? await VisitService(client: client).markVisitUploadFailed(
                         visitId: pendingSubmission.id,
                         userId: pendingSubmission.userId
                     )
                 }
+                guard publicationGeneration == generation, !Task.isCancelled else { return }
                 uploadRecoveryMessage = saveOperation.recoveryMessage
                 if let frozenDraft = reconstructDraft(
                     from: pendingSubmission,
@@ -3794,6 +3814,22 @@ struct LogVisitView: View {
                 for: error,
                 context: saveOperation.errorContext
             )
+        }
+    }
+
+    @MainActor
+    private func updatePendingPublication(_ submission: PendingVisitSubmissionRecord, generation: UUID) {
+        guard publicationGeneration == generation, !Task.isCancelled else { return }
+        pendingSubmission = submission
+    }
+
+    @MainActor
+    private func checkPublicationAccount(_ expectedUserID: UUID, generation: UUID) throws {
+        try Task.checkCancellation()
+        guard publicationGeneration == generation,
+              authModel.authenticatedUser?.id == expectedUserID,
+              draft.ownerUserID == nil || draft.ownerUserID == expectedUserID else {
+            throw AutomaticSipRecoveryError.accountMismatch
         }
     }
 
@@ -4649,7 +4685,7 @@ struct LogVisitView: View {
             return
         }
         draft.tags.append(tag)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        MugshotHaptic.selection.play()
     }
 
     private func commitCustomTag() {
@@ -5220,7 +5256,7 @@ private struct SipPhotoOrganizer: View {
                             HStack(spacing: 8) {
                                 Button {
                                     posterPhotoIndex = index
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    MugshotHaptic.selection.play()
                                 } label: {
                                     Image(systemName: index == safePosterIndex ? "checkmark.circle.fill" : "circle")
                                         .font(.system(size: 22, weight: .semibold))

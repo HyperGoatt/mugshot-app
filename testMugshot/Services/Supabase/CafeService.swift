@@ -124,16 +124,6 @@ final class CafeService {
             return existingCafe
         }
 
-        // The server reads canonical fields from Apple. A caller-provided ID
-        // alone is not proof of the submitted name, address, or coordinates.
-        if let placeID = cafe.appleMapsPlaceID?.remoteTrimmedNonEmpty {
-            return try await client.functions.invoke(
-                "verify-cafe", options: FunctionInvokeOptions(body: [
-                    "provider": "apple", "place_id": placeID
-                ])
-            )
-        }
-
         let identityKey = CafeIdentity.key(for: cafe)
         if let existingCafe = try await fetchCafe(identityKey: identityKey) {
             return existingCafe
@@ -142,6 +132,26 @@ final class CafeService {
         if let appleMapsPlaceID = cafe.appleMapsPlaceID?.remoteTrimmedNonEmpty,
            let existingCafe = try await fetchCafe(appleMapsPlaceID: appleMapsPlaceID) {
             return existingCafe
+        }
+
+        // Reuse authoritative catalog fields before depending on the external
+        // provider. A provider outage must not block an already-known cafe.
+        // A new place still requires server verification; never admit caller
+        // name/address/coordinates as a fallback when that service fails.
+        if let placeID = cafe.appleMapsPlaceID?.remoteTrimmedNonEmpty {
+            do {
+                return try await client.functions.invoke(
+                    "verify-cafe", options: FunctionInvokeOptions(body: [
+                        "provider": "apple", "place_id": placeID
+                    ])
+                )
+            } catch let error as FunctionsError {
+                switch error {
+                case .httpError(code: 401, data: _): throw CafeVerificationError.authenticationRequired
+                case .httpError(code: 429, data: _): throw CafeVerificationError.rateLimited
+                default: throw CafeVerificationError.unavailable
+                }
+            }
         }
 
         if let applePlaceId = cafe.mapItemURL?.remoteTrimmedNonEmpty,
@@ -265,6 +275,23 @@ final class CafeService {
                 throw error
             }
             return try await operation(legacyCafeColumns)
+        }
+    }
+}
+
+enum CafeVerificationError: LocalizedError, Equatable {
+    case authenticationRequired
+    case rateLimited
+    case unavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .authenticationRequired:
+            "Sign in again to verify this cafe. Your sip and photos are protected."
+        case .rateLimited:
+            "Cafe verification needs a pause. Your sip and photos are protected; retry this same sip later."
+        case .unavailable:
+            "Mugshot couldn’t verify this cafe right now. Your sip and photos are protected. Retry this same sip when cafe verification is available."
         }
     }
 }
