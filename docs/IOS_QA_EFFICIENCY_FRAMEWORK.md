@@ -188,3 +188,51 @@ signature and environment before installation. Do not patch a signed Info.plist
 afterward, and do not alter production signing or account data to repair QA.
 Reuse the resulting signed candidate until source or configuration changes
 justify another build. This does not change the compile-only fast path.
+
+
+## Isolated connected-iPhone motion fixture
+
+When testing synthetic publication or completion on an account-bearing iPhone,
+preserve the regular/development apps and use a detached fixture checkout.
+`scripts/prepare-device-motion-qa.py` refuses the active checkout, isolates its
+identity/capabilities/routing/shared-import defaults, and retains a manifest.
+`scripts/sign-device-motion-qa.py` refuses account-bearing identities, production
+backends, unexpected keys and enabled analytics before signing. It accepts only
+an existing current development profile authorizing the exact fixture identity
+and device, with a matching local signing identity. The signed app has its own
+keychain group and no APNs, associated domains, App Groups or embedded extensions.
+
+The October 30 continuation uses the already provisioned, unused
+`co.mugshot.app.testMugshotUITests` identity with the name **Mugshot Motion QA**.
+It is a normal DEBUG application, not an XCTest runner. The app compiles with
+signing deferred, then receives a real developer signature and strict verification
+before installation. This avoids requiring an Apple account to create another
+identifier; it never installs an unsigned app or replaces account data.
+
+```sh
+git worktree add --detach /tmp/mugshot-motionqa HEAD
+python3 scripts/prepare-device-motion-qa.py /tmp/mugshot-motionqa \
+  --bundle-id co.mugshot.app.testMugshotUITests
+xcodebuild -project /tmp/mugshot-motionqa/testMugshot.xcodeproj \
+  -scheme MugshotTests -configuration Debug \
+  -destination 'platform=iOS,id=<device-udid>' \
+  -derivedDataPath /tmp/mugshot-motionqa-derived \
+  -disableAutomaticPackageResolution -skipPackageUpdates \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+  MUGSHOT_SUPABASE_URL=https://publication-fixture.invalid \
+  MUGSHOT_SUPABASE_PUBLISHABLE_KEY=synthetic-key \
+  MUGSHOT_POSTHOG_PROJECT_TOKEN= build
+python3 scripts/sign-device-motion-qa.py \
+  /tmp/mugshot-motionqa-derived/Build/Products/Debug-iphoneos/testMugshot.app \
+  --profile '<existing-local-development.mobileprovision>' \
+  --device-udid '<device-udid>'
+```
+
+Codex selects the actual paired device/profile, checks that the fixture identity
+is unused before first install, installs/launches it through CoreDevice and
+operates it through Device Hub. No owner editor/export/setup step is required.
+Record installed, launched, interaction-verified and owner tactile/spoken
+acceptance separately. A device being paired or an app being signed/installed
+never substitutes for an unlocked, observed runtime. App Groups, extensions,
+production authentication and TestFlight require their own appropriate gates.
+See the [physical continuation ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md#connected-iphone-continuation--october-30-evening--october-31-utc).

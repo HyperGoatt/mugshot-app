@@ -21,6 +21,12 @@ in `CompletionChoreographyTests`. `scripts/capture-completion-preview.sh` and
 HyperFrames review workflow; preview and delivery evidence is indexed in
 [audit ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).
 
+`scripts/prepare-device-motion-qa.py` and `scripts/sign-device-motion-qa.py`
+prepare and sign an isolated connected-iPhone fixture using an existing local
+profile. They protect account-bearing app identities, backend/analytics settings,
+keychain/routing boundaries and current profile/device eligibility. See the
+[QA workflow](IOS_QA_EFFICIENCY_FRAMEWORK.md#isolated-connected-iphone-motion-fixture).
+
 # Repository map
 
 ## Native Home/Recipes implementation

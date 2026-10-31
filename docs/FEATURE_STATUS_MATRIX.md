@@ -21,7 +21,8 @@ published attempts are excluded. Unknown ratings remain unknown. Month/year
 remain in the same view. Final scoped batches pass 96 distinct unit tests and
 four native journeys, zero failures/skips. Corrected accessibility5/Reduce Motion
 captures and editable previews are retained. Native behavior is locally and
-Simulator verified; unavailable iPhone interaction/tactile/spoken accessibility,
+Simulator verified; the signed isolated iPhone fixture is installed and initially
+blocked by auto-lock. Interaction/tactile/spoken accessibility,
 exact original protected-draft acceptance and the existing parent PR holds remain
 open. No TestFlight work occurred. See the
 [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md).

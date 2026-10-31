@@ -304,3 +304,72 @@ and thumbnails are ignored and excluded from repository delivery.
 This delivery receipt is a documentation-only follow-up to the verified
 implementation commit; it requires documentation/format checks, not another app
 build. Final local and remote branch synchronization is checked after its push.
+
+
+## Connected iPhone continuation — October 30 evening / October 31 UTC
+
+The owner made the iPhone and Mac available after the original delivery. This
+promotes physical technical verification; it does not authorize TestFlight.
+CoreDevice confirms the paired iPhone 16 Pro on iOS 27.0.1 with Developer Mode
+already enabled. Device Hub live viewing/control is available after Mac unlock.
+
+Read-only Library/Documents copies preserve both installed app containers in
+ignored `.codex/device-backups/connected-2026-10-31`. The development backup
+contains 87 files / 32,466,905 bytes; the regular app contains 23 files /
+14,584,528 bytes. A local SHA-256 manifest is retained. Documents is empty in
+both. Current v2 outboxes are readable and have zero pending records; there are
+no pending photo files. This is a current-state observation, not proof of
+historical absence or of the original attempt's uninterrupted experience.
+
+A fresh read-only backend query still finds the completed Friends post from
+22:21:32 UTC with five photo rows and five distinct references; the other recent
+row retains three photos. No new publication, cleanup or synthetic production
+row is created. These observations correlate account/time/state, without
+inventing an exact original-draft identity join.
+
+### Isolated physical fixture
+
+The two account-bearing apps are preserved. A detached checkout of `150079c`
+prepares **Mugshot Motion QA** as a third app using the unused, already provisioned
+`co.mugshot.app.testMugshotUITests` identity. The installed application is a normal
+DEBUG fixture app, not an XCTest runner. Its existing profile explicitly includes
+this iPhone and matches an available developer signing identity.
+
+`prepare-device-motion-qa.py` isolates the bundle, name, keychain, URL schemes,
+extensions and shared-import defaults in the detached worktree. The actual
+interactive implementation is unchanged: ten receipt/rig/motion/reflection/
+composer sources have byte-identical SHA-256 checks against this checkout.
+The isolation intentionally excludes production Auth, APNs, widgets, share
+extension and App Group acceptance. No release settings in the active project
+are changed.
+
+Xcode has no signed-in account for a new QA identity, and generic signing flags
+conflicted with package resource targets. Those are setup failures, not product
+RED evidence. The app therefore compiles locally without packaging signatures,
+then `sign-device-motion-qa.py` embeds the existing development profile and
+applies a real developer signature through the keychain. It verifies identity,
+device eligibility, expiry, synthetic backend, disabled analytics, absence of
+URL schemes/extensions, exact restricted entitlements and strict deep signing
+before installation. No unsigned app is installed; no security check is bypassed.
+
+The signed 0.5.3 (8) QA app is installed. Its binary SHA-256 is
+`981fa09e59016807e9f7358c807666c1d704ce340eb309ecfa191ea5c944caa7`.
+Raw profiles, account backups, app binaries and signing artifacts stay local and
+ignored. Launch reached a Face ID/passcode gate because the phone auto-locked;
+the owner has been asked only to unlock it. Interactive/feel results follow once
+that physical action is complete.
+
+
+Guard validation passes: preparation refuses the active checkout; signing refuses
+an account-bearing app identity, production backend or unexpected key before
+accessing any signing profile. Python compilation, documentation integrity,
+whitespace and all seven fast gates pass. The two original app installation URLs
+and versions are identical before and after QA installation, corroborating that
+neither was replaced. Source/package evidence from the previous checkpoint is
+reused because no production interactive source changed.
+
+The launch failure is explicitly `FBSOpenApplicationErrorDomain` / `Locked`, not
+an app crash or publication failure. CoreDevice reports passcode required;
+VoiceOver is off at the baseline and no accessibility setting has been changed.
+The owner unlock request remains pending. Haptic playback and physical
+interaction are not claimed from a signed install alone.

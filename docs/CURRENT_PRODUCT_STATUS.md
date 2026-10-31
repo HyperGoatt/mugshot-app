@@ -33,9 +33,10 @@ presentation callbacks cannot update a newer interaction.
 include the native rig, capture script and a strict-checked free local HyperFrames
 review. No preview media or new dependency enters the app bundle. Native changes
 are implemented, locally verified and Simulator verified. Joe's paired iPhone is
-unavailable; physical interaction, tactile/spoken VoiceOver and exact original
-protected-draft acceptance remain open. No native production install or TestFlight
-change is claimed. The [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
+now connected and an isolated signed fixture is installed; its first launch
+reached the phone unlock gate. Current read-only outboxes are empty. Physical
+interaction, tactile/spoken VoiceOver and exact original-draft acceptance remain
+open until observed. No native production install or TestFlight change is claimed. The [completion ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md)
 records evidence and the existing stacked-PR merge holds.
 
 ## National Coffee Day alpha notification — 2026-09-29

@@ -4,6 +4,20 @@ status: current
 last_verified: 2026-10-30
 ---
 
+## 2026-10-30 — Connected-iPhone fixture continuation
+
+- Preserve read-only backups of both installed Mugshot containers and verify
+  their current pending publication queues are empty. The retained completed
+  Friends post still has five distinct photos; no test publication is created.
+- Add reproducible, fail-closed preparation/signing for a third physical fixture
+  app with a synthetic backend, disabled analytics and an isolated keychain.
+  Existing accounts, App Groups, deep links and installed app data are preserved.
+- The signed 0.5.3 (8) fixture is installed on the paired iPhone 16 Pro / iOS
+  27.0.1. Initial launch is blocked by the phone auto-locking; owner unlock,
+  interactive/tactile/spoken acceptance and the existing merge holds remain open.
+  No TestFlight or marketing/build-number change. See the
+  [continuation ledger](audits/PUBLISHING_COMPLETION_MOTION_2026-10-30.md#connected-iphone-continuation--october-30-evening--october-31-utc).
+
 ## 2026-10-30 — Coordinated completion and weekly reflection candidate
 
 - Extend the existing save receipt with finite native coffee-fill, gaze/blink,
