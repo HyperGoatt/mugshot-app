@@ -373,3 +373,22 @@ an app crash or publication failure. CoreDevice reports passcode required;
 VoiceOver is off at the baseline and no accessibility setting has been changed.
 The owner unlock request remains pending. Haptic playback and physical
 interaction are not claimed from a signed install alone.
+
+
+## October 31 physical resume — QA signing RED
+
+The owner unlocked the iPhone. CoreDevice confirms passcode is no longer required
+and launch returns a process ID, but the current screen returns to Home. Console
+reproduction identifies dyld refusing `testMugshot.debug.dylib` because its code
+signature is missing. Individual verification also rejects `__preview.dylib`.
+Both are at the app root; the QA helper only signed nested Frameworks code.
+Its app-level strict/deep check did not establish these root library signatures.
+This is a defect in the added QA signing utility, not the publishing/motion source.
+The previous installed state is preserved as history, not promoted to playback.
+
+A two-case package-boundary regression covers root Debug/preview libraries plus
+framework/runtime code and child-before-parent signing order. The import-only
+refactor removes CLI argument parsing on test import. The corrected test harness
+executes two tests and fails on the intentionally missing code-discovery API;
+the initial import/argument-parser harness failure is not counted as product RED.
+Runtime dyld and individual unsigned-library checks are the primary RED evidence.
