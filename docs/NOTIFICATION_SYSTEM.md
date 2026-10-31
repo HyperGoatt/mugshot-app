@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-10-31
 ---
 
 Owner follow-up on 2026-09-14 confirmed reminder settings persist after Save.
@@ -40,6 +40,16 @@ kept in ignored local `.codex/national-coffee-day-2026-receipt.json`. There is n
 standing broadcast endpoint. The existing permission screen describes Activity
 pushes, so future engagement campaigns need a distinct opt-in and durable
 campaign delivery controls before a broader rollout.
+
+## Weekly Pour invitation — October 31 design proposal
+
+The [native design approval package](design/weekly-pour-2026-10-31/DESIGN.md)
+proposes the generic title "Your Weekly Pour is ready." and a warm invitation to
+review with Mugsy. It contains no private drink, cafe, count, caption or photo.
+This is proposed copy only: no worker, payload, preference, schedule, eligibility
+or production setting changed, and no notification was sent. Existing opt-in,
+Sunday 6 PM, account-bound routing and nonempty-week eligibility remain the
+integration contract. The owner must approve the mockup before app integration.
 
 ## Reflection presentation candidate — 2026-10-30
 

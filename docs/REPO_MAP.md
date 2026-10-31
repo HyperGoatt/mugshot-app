@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-10-31
 ---
 
+## Weekly Pour design approval harness
+
+`docs/design/weekly-pour-2026-10-31/source/WeeklyPourPrototype.swift` defines an
+isolated native mockup, not a shipping target. The retained `prepare.sh` copies it
+only into a detached synthetic checkout; `capture.py` validates targeting, awaits
+fresh native readiness and records Simulator states. `index.html` reviews the
+actual native screens/film. [Design scope and approval gate](design/weekly-pour-2026-10-31/README.md).
+No production view, route, backend contract or notification is changed.
+
 ## Completion and reflection authoring
 
 `Design/MugshotCompletionPlan.swift` owns the numeric rig curves, shared 1.32 s
