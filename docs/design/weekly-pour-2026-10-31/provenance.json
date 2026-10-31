@@ -1,0 +1,32 @@
+{
+  "base_candidate_commit": "6162017",
+  "design_source_sha256": "e77f7feb78423be6b72f81ae8ce4af537c030744cc536469a122b50078d07284",
+  "fixture": "fictional native SwiftUI design proposal; no real account activity",
+  "app_integration": "not performed; owner approval required",
+  "dependencies": [
+    {
+      "path": "testMugshot/Views/Components/MugsyModelView.swift",
+      "sha256": "e616375e449c4ce10c58967ee620c3ba3104955314280e91bd5296d7319aeac3"
+    },
+    {
+      "path": "testMugshot/Design/MugsyDesignSystem.swift",
+      "sha256": "b8203038044ed65abb406d4954b0daa533c9019dc543b4b4fc3ab8705707e180"
+    },
+    {
+      "path": "testMugshot/Design/BrandColors.swift",
+      "sha256": "a8a780285baecd7670e10783915948a835a3781a056be60f7602ca6022983c31"
+    },
+    {
+      "path": "testMugshot/Design/MugshotCompletionPlan.swift",
+      "sha256": "d77806ceaba2587a18b7aa0efb94bfd83577e5030a8da1fbb39ab59b43830950"
+    },
+    {
+      "path": "testMugshot/Assets.xcassets/V3CreamyLatte.imageset/v3-creamy-latte.png",
+      "sha256": "0489cde87c12b9430580c37a77520e2a7664776f99f03592ca045baf16a81274"
+    },
+    {
+      "path": "testMugshot/Assets.xcassets/V3QuietCafeCorner.imageset/v3-quiet-cafe-corner.png",
+      "sha256": "3a3e997926099ce801d79a9bdad1cd6081db86fe479b2d0e4f943a0e37ac9822"
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "capture": "actual native Simulator authoring playback",
+  "trim_start_seconds": 2.8,
+  "all_required_scenes_present": true,
+  "exported_video_verified": true,
+  "timestamp_handling": "filter trim, reset timestamps, 30 fps; no input seek",
+  "output_scene_frame_matches": {
+    "invitation": {
+      "mean_color_error": 1.846,
+      "seconds": 0.2
+    },
+    "journal": {
+      "mean_color_error": 1.494,
+      "seconds": 3.9
+    },
+    "cover": {
+      "mean_color_error": 1.589,
+      "seconds": 6.9
+    },
+    "moments": {
+      "mean_color_error": 1.662,
+      "seconds": 9.9
+    },
+    "highlight": {
+      "mean_color_error": 2.593,
+      "seconds": 13.2
+    },
+    "highlight-caption": {
+      "mean_color_error": 2.341,
+      "seconds": 18.1
+    },
+    "places": {
+      "mean_color_error": 1.656,
+      "seconds": 20.5
+    },
+    "usual": {
+      "mean_color_error": 1.91,
+      "seconds": 23.7
+    },
+    "ending": {
+      "mean_color_error": 1.716,
+      "seconds": 26.8
+    },
+    "share": {
+      "mean_color_error": 1.735,
+      "seconds": 29.6
+    },
+    "quiet": {
+      "mean_color_error": 1.443,
+      "seconds": 32.9
+    },
+    "single": {
+      "mean_color_error": 1.743,
+      "seconds": 36.2
+    },
+    "no-photo": {
+      "mean_color_error": 1.772,
+      "seconds": 39.1
+    }
+  },
+  "scene_frame_matches": {
+    "invitation": {
+      "mean_color_error": 1.888,
+      "raw_seconds": 2.9
+    },
+    "journal": {
+      "mean_color_error": 1.501,
+      "raw_seconds": 6.7
+    },
+    "cover": {
+      "mean_color_error": 1.631,
+      "raw_seconds": 10.2
+    },
+    "moments": {
+      "mean_color_error": 1.678,
+      "raw_seconds": 12.8
+    },
+    "highlight": {
+      "mean_color_error": 2.622,
+      "raw_seconds": 16.0
+    },
+    "highlight-caption": {
+      "mean_color_error": 2.358,
+      "raw_seconds": 20.9
+    },
+    "places": {
+      "mean_color_error": 1.645,
+      "raw_seconds": 23.3
+    },
+    "usual": {
+      "mean_color_error": 1.933,
+      "raw_seconds": 26.4
+    },
+    "ending": {
+      "mean_color_error": 1.73,
+      "raw_seconds": 29.6
+    },
+    "share": {
+      "mean_color_error": 1.739,
+      "raw_seconds": 33.2
+    },
+    "quiet": {
+      "mean_color_error": 1.473,
+      "raw_seconds": 35.7
+    },
+    "single": {
+      "mean_color_error": 1.756,
+      "raw_seconds": 38.9
+    },
+    "no-photo": {
+      "mean_color_error": 1.536,
+      "raw_seconds": 42.0
+    }
+  },
+  "automatic_advance": "authoring film only; manual story remains self-paced"
+}

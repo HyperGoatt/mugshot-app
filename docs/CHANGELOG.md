@@ -4,6 +4,20 @@ status: current
 last_verified: 2026-10-31
 ---
 
+## 2026-10-31 — Weekly Pour design approval prototype
+
+- Respond to the owner's rejection of the report-style recap with a separate
+  native SwiftUI design proposal: photo-led chapters, Mugsy hosting, a reversible
+  caption turn, cafe/Home keepsakes, repeat-order recognition and a postcard close.
+- Include Journal/archive entry, generic private push invitation, explicit share
+  preview and one-sip/quiet/photo-free alternatives, using fictional fixtures.
+- Retain editable prototype/capture sources and actual native previews for owner
+  review. Production recap, app-wide navigation, notification delivery and data
+  contracts are unchanged; integration requires explicit design approval.
+- The owner accepted current completion haptics as comfortable and good; the
+  publishing/completion candidate is pushed separately in PR #105. See the
+  [design package](design/weekly-pour-2026-10-31/README.md).
+
 ## 2026-10-31 — Physical completion verification and tactile refinement
 
 - Fix QA signing of root Debug/preview dylibs after reproducing dyld rejection;

@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-10-31
 ---
 
+## Weekly recap redesign — approval prototype
+
+The owner rejected the report-style Week in review and requested a complete
+animated mockup before app integration. [The Weekly Pour design package](design/weekly-pour-2026-10-31/README.md)
+proposes a self-paced native photo story, approved Mugsy rig, remembered moments,
+standout/repeat recognition, cafe/Home keepsakes and a private share preview.
+Journal/push entry and sparse/photo-free alternatives are included with fictional
+fixtures. This is a design approval candidate; current app recap and production
+notification behavior remain unchanged. The current completion haptics have owner
+acceptance as comfortable and good. No recap integration or TestFlight action is
+authorized by creating this mockup.
+
 ## Publishing and completion candidate — 2026-10-30
 
 The publishing candidate now incorporates main's cafe-verification repair.

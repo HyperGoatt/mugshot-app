@@ -1,0 +1,100 @@
+[
+  {
+    "scene": "journal",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "invitation",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "cover",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "moments",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "highlight",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "highlight-caption",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "places",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "usual",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "ending",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "share",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "single",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "quiet",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "quiet-large",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  },
+  {
+    "scene": "no-photo",
+    "native_ready": true,
+    "capture": "Simulator screenshot",
+    "crop_top_points": 62,
+    "crop_bottom_points": 34
+  }
+]

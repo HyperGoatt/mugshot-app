@@ -1,0 +1,14 @@
+{
+  "duration_seconds": 6,
+  "total_tweens": 8,
+  "tween_flags": [],
+  "intentional_hold": [
+    {
+      "start": 2,
+      "end": 5,
+      "duration": 3,
+      "note": "No animation for 3.0s. Intentional hold or missing entrance?"
+    }
+  ],
+  "hold_reason": "Allow reading the native screens; no fake perpetual animation."
+}
