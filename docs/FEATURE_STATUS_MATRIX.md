@@ -25,7 +25,7 @@ Simulator verified. October 31 signed iPhone fixture playback passed default and
 largest-text/Reduce Motion sequences, three fresh account-scoped receipts and
 wrong-owner denial. Physical stills are retained; touch routing remains Simulator
 evidence. The owner's original haptic feedback was too weak; a stronger medium/
-heavy completion revision is installed and played, awaiting subjective acceptance.
+heavy completion revision is installed and played, with owner tactile acceptance.
 VoiceOver is restored off; first-use setup prevented spoken acceptance. Wider interaction,
 exact original protected-draft acceptance and the existing parent PR holds remain
 open. No TestFlight work occurred. See the

@@ -505,3 +505,30 @@ vendor splash.
 Exact original-draft hardware recovery, wider touch/spoken/tactile acceptance and
 the inherited parent-PR holds remain separate. No TestFlight archive, export,
 upload, assignment, marketing-version or build-number change occurred.
+
+
+### October 31 owner acceptance and recap-design hold
+
+After further hands-on review, the owner explicitly corrected the tactile verdict
+to **comfortable and good**. This accepts the current medium/heavy completion
+haptics in `a4e1e12`; no additional haptic change follows the earlier "still too
+weak" reply. Wider physical touch/spoken accessibility, publication provenance
+and parent PR gates remain separate.
+
+A bounded Animation Hitches capture attached to the QA app for 32 seconds and
+saved successfully (33.58 s lifecycle interval). It records six 8.33 ms frame
+hitches and four brief main-thread intervals (123.59, 40.99, 85.85 and 37.32 ms)
+while the authoring sequence presents/dismisses reflection sheets. Time Profiler
+stacks show SwiftUI/AttributeGraph layout and Swift generic metadata work, with
+Mugsy/reflection view construction in callers; this is evidence of Debug render
+cost, not proof of a release root cause or a smoothness pass. Generating the app's
+dSYM locally allowed app symbolication. No network/media-upload operation caused
+these measured intervals. Raw trace/symbol files stay private and ignored; no
+Release or energy benchmark is claimed.
+
+Before any speculative optimization or new recap integration, the owner rejected
+the existing report-style weekly UI and requested a complete, engaging animated
+mockup for explicit design approval. That approval is now required before moving
+a redesigned recap into the app. The accepted publishing/completion candidate
+remains intact. No optimized build, production recap edit or TestFlight action
+was performed during this continuation.

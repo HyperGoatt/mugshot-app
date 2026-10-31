@@ -39,7 +39,7 @@ wrong-owner hiding and actual/quiet weeks. Largest-text/Reduce Motion playback
 also passed. Timed physical screenshots and account/operation receipts are
 retained; touch routing remains Simulator evidence. The owner found the original
 haptics too weak; dedicated stronger completion impacts are installed and played,
-with subjective acceptance pending. VoiceOver is restored off; its first-use
+accepted by the owner as comfortable and good. VoiceOver is restored off; its first-use
 prompt leaves spoken acceptance open. Current read-only outboxes are empty.
 Exact original-draft acceptance, wider physical interaction and the inherited
 parent PR holds remain open. No native production install or TestFlight change

@@ -19,7 +19,7 @@ last_verified: 2026-10-31
 - Respond to the owner's "too weak" tactile feedback with dedicated medium
   opening/heavy landing completion impacts at the existing 180/680 ms beats.
   Quick/reduced and frequent social feedback remain unchanged. The stronger
-  version is built, signed and played; owner acceptance remains pending.
+  version is built, signed and played; the owner accepted it as comfortable and good.
 - The new authoring completion/manual-cancellation UI journey passes with two
   existing journeys (3/3). Revised completion boundaries pass 13/13; packaging
   regressions pass 2/2. Reuse earlier publishing/backend evidence. No TestFlight,

@@ -30,7 +30,7 @@ receipts, rejected another owner and exercised actual/quiet weeks. Simulator UI
 journeys establish touch routing because current tools expose no physical taps.
 VoiceOver was enabled and restored off; its first-use prompt prevented spoken
 acceptance. The owner judged the original haptics too weak. The stronger medium/
-heavy revision is installed and played; its subjective acceptance remains open.
+heavy revision is installed and played; the owner accepted it as comfortable and good.
 Reproduce physical capture with the [isolated hardware workflow](../../IOS_QA_EFFICIENCY_FRAMEWORK.md#isolated-connected-iphone-motion-fixture).
 
 Review the implemented behavior:
