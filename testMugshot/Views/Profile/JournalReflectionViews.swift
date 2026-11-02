@@ -137,6 +137,8 @@ struct JournalReflectionDetailView: View {
     let savedHomeAttempts: [HomeAttemptRecord]
     let peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]]
     let referenceDate: Date
+    let assistanceOwnerID: UUID?
+    let assistanceHomeScope: LocalAccountScope
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPeriod: JournalReflectionPeriod
     @State private var shareItems: [Any] = []
@@ -145,13 +147,15 @@ struct JournalReflectionDetailView: View {
     init(reflection: JournalReflectionSummary, entries: [JournalEntryProjection],
          milestones: [JournalMilestone], savedHomeAttempts: [HomeAttemptRecord] = [],
          peopleByPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:],
-         referenceDate: Date = .now) {
+         referenceDate: Date = .now, assistanceOwnerID: UUID? = nil, assistanceHomeScope: LocalAccountScope = .guest) {
         initialReflection = reflection
         self.entries = entries
         self.milestones = milestones
         self.savedHomeAttempts = savedHomeAttempts
         self.peopleByPeriod = peopleByPeriod
         self.referenceDate = referenceDate
+        self.assistanceOwnerID = assistanceOwnerID
+        self.assistanceHomeScope = assistanceHomeScope
         _selectedPeriod = State(initialValue: reflection.period)
     }
 
@@ -206,6 +210,16 @@ struct JournalReflectionDetailView: View {
                     }
                     rhythmPanel
                     memoryHighlights
+                    if selectedPeriod == .week, let ownerID = assistanceOwnerID {
+                        CoffeeAssistanceButton(ownerID: ownerID, task: .weeklyReflection,
+                            evidence: [CoffeeAssistanceContext.week(reflection)]
+                                + CoffeeAssistanceContext.journal(periodEntries, ownerID: ownerID)
+                                + CoffeeAssistanceContext.home(savedHomeAttempts.filter {
+                                    guard let savedAt = $0.savedAt else { return false }
+                                    return savedAt >= reflection.startDate && savedAt < reflection.endDate
+                                }, scope: assistanceHomeScope, ownerID: ownerID, canonicalIDs: Set(entries.map(\.id))),
+                            query: "Reflect briefly on this recorded week. The period facts are authoritative; the listed moments are a selection, not the full count.")
+                    }
                     if !reflection.people.isEmpty {
                         peoplePanel
                     }

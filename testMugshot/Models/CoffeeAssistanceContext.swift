@@ -17,9 +17,10 @@ enum CoffeeAssistanceContext {
             }
     }
 
-    static func home(_ attempts: [HomeAttemptRecord], canonicalIDs: Set<UUID>,
+    static func home(_ attempts: [HomeAttemptRecord], scope: LocalAccountScope, ownerID: UUID, canonicalIDs: Set<UUID>,
                      includePrivateNotes: Bool = false) -> [CoffeeAssistanceEvidence] {
-        attempts.filter { $0.savedAt != nil && $0.publicationStatus != .published
+        guard scope == .user(ownerID) else { return [] }
+        return attempts.filter { $0.savedAt != nil && $0.publicationStatus != .published
             && !canonicalIDs.contains($0.id)
             && !($0.publicationDraftID.map(canonicalIDs.contains) ?? false) }
             .sorted { ($0.savedAt ?? $0.createdAt) > ($1.savedAt ?? $1.createdAt) }

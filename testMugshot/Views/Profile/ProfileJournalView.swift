@@ -38,6 +38,7 @@ struct JournalTabView: View {
     @State private var selectedHomeAttempt: HomeAttemptRecord?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var journalEntries: [JournalEntryProjection] = []
+    @State private var assistanceJournalOwnerID: UUID?
     @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var lastJournalLoad: Date?
     @State private var loadedJournalRevision: Int?
@@ -319,11 +320,15 @@ struct JournalTabView: View {
                     entries: journalEntries,
                     milestones: JournalReflectionEngine.milestones(entries: journalEntries),
                     savedHomeAttempts: reflectionHomeAttempts,
-                    peopleByPeriod: peopleByReflectionPeriod
+                    peopleByPeriod: peopleByReflectionPeriod,
+                    assistanceOwnerID: assistanceJournalOwnerID,
+                    assistanceHomeScope: homeStore.scope
                 )
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
                 selectedReflection = nil
+                showJournalArchive = false
+                assistanceJournalOwnerID = nil
                 journalEntries = []
                 peopleByReflectionPeriod = [:]
             }
@@ -331,7 +336,8 @@ struct JournalTabView: View {
                 JournalArchiveView(
                     entries: journalEntries,
                     privateHomeAttempts: privateHomeAttempts,
-                    currentUserID: authModel.authenticatedUser?.id,
+                    homeScope: homeStore.scope,
+                    currentUserID: assistanceJournalOwnerID,
                     dataManager: dataManager,
                     onComposeDraft: onComposeDraft,
                     onShareHomeAttempt: shareHomeAttempt,
@@ -478,6 +484,15 @@ struct JournalTabView: View {
                     .cardStyle()
                 }
                 .buttonStyle(.plain)
+            }
+
+            if let ownerID = assistanceJournalOwnerID, ownerID == authModel.authenticatedUser?.id {
+                CoffeeAssistanceButton(ownerID: ownerID, task: .tasteInsight,
+                    evidence: CoffeeAssistanceContext.journal(journalEntries, ownerID: ownerID),
+                    query: "Describe one cautious pattern supported by these completed memories. Ratings are personal. A small sample is an early observation.")
+                .disabled(CoffeeAssistanceContext.journal(journalEntries, ownerID: ownerID).count < 3)
+                Text("Optional taste observations become available after three completed memories. Your Taste Passport remains based on recorded evidence.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
             }
 
             if phase2CanonicalJournal, let memory = onThisSipEntries.first {
@@ -950,6 +965,7 @@ struct JournalTabView: View {
             lastJournalLoad = Date()
             loadedJournalRevision = dataManager.journalRevision
             journalEntries = loadedEntries
+            assistanceJournalOwnerID = userID
             cafeExperienceSummaries = loadedCafeSummaries
             peopleByReflectionPeriod = [
                 .week: loadedWeeklyPeople,
@@ -1178,6 +1194,7 @@ private struct ProfileTopCafeCard: View {
 private struct JournalArchiveView: View {
     let entries: [JournalEntryProjection]
     let privateHomeAttempts: [HomeAttemptRecord]
+    let homeScope: LocalAccountScope
     let currentUserID: UUID?
     @ObservedObject var dataManager: DataManager
     let onComposeDraft: (SipDraft) -> Void
@@ -1189,6 +1206,7 @@ private struct JournalArchiveView: View {
 
     @State private var selection: JournalTabView.JournalFilter = .all
     @State private var query = ""
+    @State private var includePrivateNotesInAssistance = false
     @State private var selectedVisit: RemoteVisitSummary?
     @State private var selectedPrivateHomeAttempt: HomeAttemptRecord?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
@@ -1201,6 +1219,7 @@ private struct JournalArchiveView: View {
     init(
         entries: [JournalEntryProjection],
         privateHomeAttempts: [HomeAttemptRecord],
+        homeScope: LocalAccountScope,
         currentUserID: UUID?,
         dataManager: DataManager,
         onComposeDraft: @escaping (SipDraft) -> Void,
@@ -1211,6 +1230,7 @@ private struct JournalArchiveView: View {
     ) {
         self.entries = entries
         self.privateHomeAttempts = privateHomeAttempts
+        self.homeScope = homeScope
         self.currentUserID = currentUserID
         self.dataManager = dataManager
         self.onComposeDraft = onComposeDraft
@@ -1277,6 +1297,31 @@ private struct JournalArchiveView: View {
             ScrollView {
                 LazyVStack(spacing: 14) {
                     JournalFilterBar(selection: $selection)
+
+                    if let ownerID = currentUserID {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Include private notes in optional AI search", isOn: $includePrivateNotesInAssistance)
+                                .font(.caption)
+                            CoffeeAssistanceButton(ownerID: ownerID, task: .memorySearch,
+                                evidence: CoffeeAssistanceContext.candidates(
+                                    CoffeeAssistanceContext.journal(entries, ownerID: ownerID,
+                                        includePrivateNotes: includePrivateNotesInAssistance)
+                                    + CoffeeAssistanceContext.home(privateHomeAttempts,
+                                        scope: homeScope, ownerID: ownerID,
+                                        canonicalIDs: Set(entries.map(\.id)), includePrivateNotes: includePrivateNotesInAssistance),
+                                    query: query),
+                                query: query, onOpenEvidence: { id in
+                                    if id.hasPrefix("home-"), let uuid = UUID(uuidString: String(id.dropFirst(5))) {
+                                        selectedPrivateHomeAttempt = privateHomeAttempts.first { $0.id == uuid }
+                                    } else if let uuid = UUID(uuidString: id) {
+                                        selectedVisit = entries.first { $0.id == uuid && $0.summary.visit.userId == ownerID }?.summary
+                                    }
+                                })
+                                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            Text("Search normally, or ask Mugsy to help with a phrase you remember. You review the selected memories before sending.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
 
                     if !coffeeBagOptions.isEmpty,
                        selection == .all || selection == .home {

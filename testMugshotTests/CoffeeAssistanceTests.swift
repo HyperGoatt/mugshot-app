@@ -137,11 +137,11 @@ struct CoffeeAssistanceTests {
         var saved = HomeAttemptRecord(name: "Home test", preparation: .starting(.coffee), reaction: "Too sweet", savedAt: now)
         saved.preparation?.targets.dose = 999
         saved.preparation?.coffee = CoffeeBag(roaster: "Fixture", name: "Bag", tastingNotes: "Fictional roaster note").safeSnapshot
-        let evidence = CoffeeAssistanceContext.home([saved, HomeAttemptRecord(name: "Draft")], canonicalIDs: [])
+        let evidence = CoffeeAssistanceContext.home([saved, HomeAttemptRecord(name: "Draft")], scope: .user(owner), ownerID: owner, canonicalIDs: [])
         #expect(evidence.count == 1)
         #expect(!evidence[0].detail.contains("999"))
         #expect(!evidence[0].detail.contains("Fictional roaster note"))
-        #expect(CoffeeAssistanceContext.home([saved], canonicalIDs: [saved.id]).isEmpty)
+        #expect(CoffeeAssistanceContext.home([saved], scope: .user(owner), ownerID: owner, canonicalIDs: [saved.id]).isEmpty)
         saved.privateNote = "A private detail"
         #expect(!CoffeeAssistanceContext.attempt(saved).detail.contains("A private detail"))
         #expect(CoffeeAssistanceContext.attempt(saved, includePrivateNotes: true).detail.contains("A private detail"))
