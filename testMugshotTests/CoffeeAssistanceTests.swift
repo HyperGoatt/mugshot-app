@@ -160,6 +160,13 @@ struct CoffeeAssistanceTests {
         #expect(!evidence.detail.contains("999"))
     }
 
+    @Test func homeEvidenceRejectsAWorkspaceStillBelongingToAnotherAccount() {
+        let attempts = [HomeAttemptRecord(name: "Other account's private latte", savedAt: .now)]
+        #expect(CoffeeAssistanceContext.home(attempts, scope: LocalAccountScope.user(UUID()), ownerID: owner, canonicalIDs: []).isEmpty)
+        #expect(CoffeeAssistanceContext.home(attempts, scope: LocalAccountScope.guest, ownerID: owner, canonicalIDs: []).isEmpty)
+        #expect(CoffeeAssistanceContext.home(attempts, scope: LocalAccountScope.user(owner), ownerID: owner, canonicalIDs: []).count == 1)
+    }
+
     @Test func recipeImportPreservesRightsAttributionAndExistingContent() {
         var content = HomeRecipeContent(name: "My recipe", sourceURL: "https://example.test/original", creatorCredit: "Original creator")
         let fields = [CoffeeAssistanceField(key: "name", value: "Replacement", sourceQuote: "Replacement"),
