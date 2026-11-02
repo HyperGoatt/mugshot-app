@@ -180,6 +180,45 @@ struct CoffeeAssistanceTests {
         #expect(CoffeeAssistanceRecipeImport.source(content).isEmpty)
     }
 
+    @Test func recipeSourcePreservesUnicodeWithoutSilentlyDroppingPrintedText() {
+        var content = HomeRecipeContent(name: "Source")
+        content.sourceText = String(repeating: "👨‍👩‍👧‍👦", count: 300)
+        let chunks = CoffeeAssistanceRecipeImport.source(content)
+        #expect(chunks.map(\.detail).joined() == content.sourceText)
+        #expect(chunks.allSatisfy { $0.detail.utf16.count <= 800 })
+    }
+
+    @Test func localCandidatesPreferRememberedWordsAndQuietWeekHasVerifiedZeroCounts() {
+        let evidence = [CoffeeAssistanceEvidence(id: "one", title: "Espresso", detail: "A recent sip"),
+            CoffeeAssistanceEvidence(id: "two", title: "Iced oat latte", detail: "A saved memory")]
+        #expect(CoffeeAssistanceContext.candidates(evidence, query: "What was that iced oat latte?").first?.id == "two")
+        let reflection = JournalReflectionEngine.summary(for: .week, entries: [], savedHomeAttempts: [HomeAttemptRecord(name: "Unsaved draft")])
+        let facts = CoffeeAssistanceContext.week(reflection)
+        #expect(facts.detail.contains("Verified completed sips: 0"))
+        #expect(facts.detail.contains("Distinct cafes: 0"))
+        #expect(facts.detail.contains("No drafts included"))
+    }
+
+    @Test func reviewedRecipeFieldsCannotInstallUnsafeLinksOrInventMethodTargets() {
+        var content = HomeRecipeContent()
+        content.sourceText = "Original recipe text"
+        content.creatorCredit = "Original author"
+        let source = CoffeeAssistanceRecipeImport.source(content)
+        #expect(source.first?.id == "recipe-credit")
+        #expect(source.map(\.detail).joined().contains("Original recipe text"))
+        CoffeeAssistanceRecipeImport.apply([
+            CoffeeAssistanceField(key: "sourceURL", value: "javascript:alert(1)", sourceQuote: "Printed source"),
+            CoffeeAssistanceField(key: "method", value: "V60", sourceQuote: "V60"),
+            CoffeeAssistanceField(key: "notes", value: "Source note", sourceQuote: "Source note")
+        ], to: &content)
+        #expect(content.sourceURL.isEmpty)
+        #expect(content.method == .pourOver)
+        #expect(content.targets.dose == nil)
+        #expect(content.notes == "Source note")
+        CoffeeAssistanceRecipeImport.apply([CoffeeAssistanceField(key: "sourceURL", value: "https://example.test/recipe", sourceQuote: "Printed source")], to: &content)
+        #expect(content.sourceURL == "https://example.test/recipe")
+    }
+
     @Test func analyticsContainOnlyTaskAndOutcomeEnums() {
         let payload = MugshotAnalyticsEvent.coffeeAssistance(task: .bagScan, action: .requested).payload
         #expect(payload.event == "coffee_assistance")
