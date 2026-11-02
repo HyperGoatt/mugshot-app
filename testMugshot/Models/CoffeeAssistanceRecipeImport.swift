@@ -5,10 +5,20 @@ enum CoffeeAssistanceRecipeImport {
         guard content.sourceReuseAllowed != false else { return [] }
         let text = content.sourceText
         var result: [CoffeeAssistanceEvidence] = []
-        var remaining = text[...]
+        var remaining = text.unicodeScalars[...]
         while !remaining.isEmpty && result.count < 20 {
-            let part = String(remaining.prefix(400))
-            remaining = remaining.dropFirst(part.count)
+            // Match the evidence UTF-16 limit before advancing. Counting visible
+            // characters first can discard the rest of a multi-scalar character.
+            var end = remaining.startIndex
+            var units = 0
+            while end != remaining.endIndex {
+                let nextUnits = remaining[end].value > 0xFFFF ? 2 : 1
+                guard units + nextUnits <= 800 else { break }
+                units += nextUnits
+                end = remaining.index(after: end)
+            }
+            let part = String(remaining[..<end])
+            remaining = remaining[end...]
             result.append(CoffeeAssistanceEvidence(id: "recipe-source-\(result.count)", title: "Recipe source text", detail: part))
         }
         if !content.creatorCredit.isEmpty || !content.sourceURL.isEmpty {
