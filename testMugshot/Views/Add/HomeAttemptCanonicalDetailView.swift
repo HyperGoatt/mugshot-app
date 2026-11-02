@@ -18,6 +18,7 @@ struct HomeAttemptCanonicalDetailView: View {
     @State private var toolbarProgress: CGFloat = 0
     @State private var viewer: SipDetailPhotoViewerPresentation?
     @State private var showsActions = false
+    @State private var assistance: CoffeeAssistancePresentation?
     @FocusState private var commentFocused: Bool
 
     private var attempt: HomeAttemptRecord? {
@@ -89,6 +90,14 @@ struct HomeAttemptCanonicalDetailView: View {
                 }
                 .confirmationDialog("Your Home sip", isPresented: $showsActions) {
                     Button("Make again", action: onMakeAgain)
+                    if let ownerID = store.scope.userID, ownerID == authModel.authenticatedUser?.id {
+                        Button("Explore a next experiment") {
+                            assistance = CoffeeAssistancePresentation(ownerID: ownerID, task: .brewExperiment,
+                                query: "Offer one optional next experiment from this saved attempt and its recorded feedback. Unknown actuals stay unknown.",
+                                evidence: [CoffeeAssistanceContext.attempt(attempt, includePrivateNotes: true)],
+                                image: nil, allowsPhoto: false)
+                        }
+                    }
                     if !attempt.pendingKeptIngredientIDs.isEmpty {
                         Button("Retry keeping recipe changes") {
                             do {
@@ -114,5 +123,8 @@ struct HomeAttemptCanonicalDetailView: View {
         }
         .background(Color.creamWhite)
         .fullScreenCover(item: $viewer) { SipDetailPhotoViewer(presentation: $0) }
+        .sheet(item: $assistance) { item in
+            CoffeeAssistanceReviewSheet(presentation: item)
+        }
     }
 }

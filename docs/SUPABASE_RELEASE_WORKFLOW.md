@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-02
 ---
+
+## Optional assistance release boundary — 2026-11-02 candidate
+
+[AI_ASSISTANCE.md](AI_ASSISTANCE.md) defines the exact additive migration,
+`coffee-assistance` function, server-only secrets and rollback switch. Local
+credentials and synthetic provider validation are not production configuration.
+Native synthetic Simulator journeys and hermetic boundary checks pass; an
+authenticated deployed end-to-end request remains a separate activation check. Keep `MUGSHOT_AI_ENABLED` off until approved; rollback disables only
+optional suggestions. No routine verification deploys this migration or function
+against the linked project. Existing journal, recipe and publishing services are
+unchanged by optional assistance outages.
 
 ## Cafe verification incident handoff — 2026-10-30
 

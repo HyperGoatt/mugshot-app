@@ -1,8 +1,21 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-31
+last_verified: 2026-11-02
 ---
+
+## Optional assistance candidate — 2026-11-02
+
+- `testMugshot/Models/CoffeeAssistance*.swift`: bounded requests, source context,
+  validation and reviewed recipe import.
+- `testMugshot/Services/CoffeeAssistance*.swift`: account-bound proxy transport,
+  cancellation/generation fence and memory-only reuse.
+- `testMugshot/Views/Shared/CoffeeAssistanceViews.swift`: request preview, explicit
+  consent, source review and optional field acceptance.
+- `supabase/functions/coffee-assistance/`: default-off authenticated proxy and
+  isolated handler/provider tests.
+- `20261102160000_optional_coffee_assistance.sql`: service-only atomic quotas.
+- [Current behavior, privacy and activation contract](AI_ASSISTANCE.md).
 
 ## Completion and reflection authoring
 

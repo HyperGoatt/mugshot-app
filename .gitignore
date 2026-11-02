@@ -2,6 +2,7 @@
 xcuserdata/
 DerivedData/
 .codex/
+.env.local
 qa/pglite/node_modules/
 
 # Local Supabase client configuration. This file may contain client-safe

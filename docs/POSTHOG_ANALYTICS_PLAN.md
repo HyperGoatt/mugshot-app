@@ -1,8 +1,26 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-02
 ---
+
+## Optional helper analytics — 2026-11-02 candidate
+
+`coffee_assistance` accepts only two enum properties: `task` (`bag_scan`,
+`recipe_import`, `memory_search`, `taste_insight`, `brew_experiment`,
+`weekly_reflection`) and `action` (`requested`, `succeeded`, `unavailable`,
+`accepted`, `cancelled`). No source IDs, prompts, outputs, queries, notes,
+measurements or images enter analytics. No LLM content tracing is enabled.
+Existing startup/consent and test suppression apply. This source addition does
+not create a dashboard or change remote PostHog settings.
+
+Read-only project 521217 evidence on November 2 (UTC project calendar): October
+3–November 2 had 11 distinct `Application Opened` identities, 9 `sip_published`
+events from 3 identities, and 18 `sip_publish_failed` events. October 26–November
+2 had 5 opening identities, 2 publish events from 2 identities and 5 failure
+events. Internal/test traffic was included; these are observational event counts,
+not registered-account totals, a canonical activation metric or a lost-post
+count. [Optional assistance data boundaries](AI_ASSISTANCE.md).
 
 # Mugshot PostHog analytics plan
 

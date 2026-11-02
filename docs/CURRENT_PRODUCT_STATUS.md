@@ -1,8 +1,22 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-31
+last_verified: 2026-11-02
 ---
+
+## Optional Luna helpers candidate — 2026-11-02
+
+The [optional assistance candidate](AI_ASSISTANCE.md) adds reviewed capture,
+owner-only memory search, cautious taste observations, Home experiments and
+weekly wording using `gpt-6-luna`. All ordinary save/publish/search/recipe/recap
+paths work independently. Per-request disclosure and consent precede cloud
+processing; private-note inclusion is explicit and AI cannot change audiences or
+publish. Native source compiles; backend boundaries, disposable quota, native
+domain tests, five synthetic Simulator UI journeys and eight synthetic provider
+probes pass. No production
+migration, deployed function, hosted secret, iPhone install or TestFlight change
+is claimed. Existing parent PR holds remain; the separate Weekly Pour proposal
+has not been integrated. [Evidence](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).
 
 ## Publishing and completion candidate — 2026-10-30
 

@@ -191,7 +191,8 @@ struct HomeWorkbenchTests {
 
         #expect(restored.homeWorkbenchPhase == .actuals)
         #expect(restored.homeRecipeDecision == .createNewVersion)
-        #expect(restored.homeWorkbenchPhase.progressStep == 2)
+        // V4 keeps actuals in preparation; capture is the second progress step.
+        #expect(restored.homeWorkbenchPhase.progressStep == 1)
     }
 
     @Test func creatingRecipeVersionPreservesTheSourceAndFreezesANewVersion() {

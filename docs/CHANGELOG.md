@@ -1,8 +1,26 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-31
+last_verified: 2026-11-02
 ---
+
+## 2026-11-02 — Optional Luna assistance candidate
+
+- Add reviewed bag/recipe capture, owner-bound journal memory search, cautious
+  taste observations, saved-Home experiments and optional weekly reflection text.
+- Keep all core persistence, publication, scoring, search, recipe and recap paths
+  independent of AI. Consent is per request; extraction changes only reviewed
+  editable draft fields. No automatic saving, audience changes or publishing.
+- Add a default-off authenticated server proxy, strict source validation,
+  metadata-free bounded image inputs, generic failure states, source-sensitive
+  memory-only cache and service-only daily/monthly reservation limits.
+- Use owner-approved `gpt-6-luna`; no automatic model upgrade. Add fixed-enum
+  analytics without prompt/answer content and update privacy disclosures.
+- Backend/provider tests, disposable database quota checks, native domain tests,
+  five synthetic Simulator UI journeys and eight synthetic live provider probes
+  pass. Native compilation passes. No production configuration, migration/deployment,
+  physical install or TestFlight action. See [the contract](AI_ASSISTANCE.md) and
+  [ECC evidence](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).
 
 ## 2026-10-31 — Physical completion verification and tactile refinement
 

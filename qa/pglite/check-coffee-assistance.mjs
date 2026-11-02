@@ -14,9 +14,11 @@ try {
   await db.exec(await fs.readFile(new URL('../../supabase/migrations/20261102160000_optional_coffee_assistance.sql', import.meta.url), 'utf8'))
   await db.exec("set role authenticated; select set_config('request.jwt.claim.role','authenticated',false)")
   await assert.rejects(db.query('select * from public.coffee_assistance_reservations'), /permission denied/)
+  await assert.rejects(db.query('select * from public.coffee_assistance_monthly_budget'), /permission denied/)
   await assert.rejects(db.query('select public.reserve_coffee_assistance_v1($1,$2,$3)', [owner, randomUUID(), 'memory_search']), /permission denied/)
   await db.exec('reset role; set role anon')
   await assert.rejects(db.query('select * from public.coffee_assistance_reservations'), /permission denied/)
+  await assert.rejects(db.query('select * from public.coffee_assistance_monthly_budget'), /permission denied/)
   await db.exec("reset role; set role service_role; select set_config('request.jwt.claim.role','service_role',false)")
   const reserve = async (actor, request, task = 'memory_search') =>
     (await db.query('select public.reserve_coffee_assistance_v1($1,$2,$3) as allowed', [actor, request, task])).rows[0].allowed

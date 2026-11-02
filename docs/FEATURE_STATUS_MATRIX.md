@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-31
+last_verified: 2026-11-02
 ---
+
+## Optional assistance candidate — 2026-11-02
+
+[Capture, memory search, taste observations, Home experiments and weekly wording](AI_ASSISTANCE.md)
+are implemented in the Luna candidate with opt-in reviewed inputs and ordinary
+non-AI paths retained. Native compilation, backend boundaries, disposable quota
+checks, native domain tests, five synthetic Simulator UI journeys and eight
+synthetic provider probes pass. Backend activation and native distribution remain separate gates.
 
 ## Publishing and completion refinement — 2026-10-30
 

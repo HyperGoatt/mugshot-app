@@ -17,7 +17,11 @@ final class CoffeeAssistanceUITests: XCTestCase {
         let consent = app.switches["coffeeAssistance.consent"]
         for _ in 0..<4 where !consent.isHittable { app.swipeUp() }
         XCTAssertTrue(consent.waitForExistence(timeout: 3))
-        consent.tap()
+        // A multiline native Toggle exposes the entire row as its AX frame.
+        // Tap the actual trailing switch rather than the label's midpoint.
+        consent.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        let enabledConsent = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: consent)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabledConsent], timeout: 3), .completed)
         let generate = app.buttons["coffeeAssistance.generate"]
         for _ in 0..<4 where !generate.isHittable { app.swipeUp() }
         XCTAssertTrue(generate.isEnabled)
@@ -46,10 +50,20 @@ final class CoffeeAssistanceUITests: XCTestCase {
         let app = launch()
         allowAndAsk(app)
         let accept = app.buttons["coffeeAssistance.accept"]
-        XCTAssertTrue(accept.waitForExistence(timeout: 4))
         for _ in 0..<5 where !accept.isHittable { app.swipeUp() }
+        XCTAssertTrue(accept.waitForExistence(timeout: 4))
         accept.tap()
         XCTAssertEqual(app.staticTexts["coffeeAssistance.fixture.origin"].label, "Colombia")
+    }
+    @MainActor
+    func testGeneratedSuggestionDoesNotChangeDraftUntilAccepted() {
+        let app = launch()
+        allowAndAsk(app)
+        let accept = app.buttons["coffeeAssistance.accept"]
+        for _ in 0..<5 where !accept.isHittable { app.swipeUp() }
+        XCTAssertTrue(accept.waitForExistence(timeout: 4))
+        app.buttons["Done"].tap()
+        XCTAssertEqual(app.staticTexts["coffeeAssistance.fixture.origin"].label, "Original origin")
     }
     @MainActor
     func testConsentAndFailureRemainReachableWithLargestTextAndReduceMotion() {

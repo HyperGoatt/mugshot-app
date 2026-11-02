@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-30
+last_verified: 2026-11-02
 ---
+
+## Optional Luna assistance candidate — 2026-11-02
+
+The owner requested the [five optional helper groups](AI_ASSISTANCE.md) and
+approved `gpt-6-luna` after model discovery. This is a bounded addition to the
+existing product foundations: reviewed capture, owner memory retrieval, cautious
+evidence-linked wording and optional experiments. Core value remains independent
+of provider availability. Current work is local implementation/verification;
+production backend activation and native distribution follow separate gates.
+Broad inference, autonomous publishing and hidden private-content processing
+remain outside scope.
 
 # Product roadmap
 

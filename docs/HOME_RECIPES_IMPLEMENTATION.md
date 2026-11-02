@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-02
 ---
+
+## Optional reviewed capture and experiments — 2026-11-02 candidate
+
+[Optional Luna assistance](AI_ASSISTANCE.md) adds a bag-photo helper after the
+existing on-device scan, text/screenshot capture in the recipe editor, and a
+read-only next-experiment helper in saved Home sip actions. Users review inputs,
+allow processing, edit/select extracted fields and explicitly accept them into
+an editable draft. Manual entry and ordinary save/publish paths never wait for
+AI. No-copy sources cannot be imported; source credit, recipe rights and audiences
+are preserved. Planned values remain distinct from actual measurements.
 
 # Native Home and Recipes implementation
 

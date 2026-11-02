@@ -42,6 +42,21 @@ struct HomeRecipeEditorView: View {
 
     var body: some View {
         Form {
+            if store.scope == originalScope, originalScope.userID != nil, draft.content.sourceReuseAllowed != false {
+                Section("Bring in a recipe") {
+                    CoffeeAssistanceButton(ownerID: originalScope.userID, task: .recipeImport,
+                        evidence: CoffeeAssistanceRecipeImport.source(draft.content), allowsPhoto: true,
+                        onAccepted: { result in
+                            guard store.scope == originalScope else { return }
+                            CoffeeAssistanceRecipeImport.apply(result.fields, to: &draft.content)
+                            showIngredients = !draft.content.ingredients.isEmpty
+                            showSteps = !draft.content.steps.isEmpty
+                            sourceExpanded = true
+                        })
+                    Text("Paste source text in Inspiration & credit, or choose a screenshot. Review extracted details before adding them to this draft.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Section {
                 TextField("Recipe name", text: $draft.content.name)
                     .accessibilityIdentifier("home.recipe.name")

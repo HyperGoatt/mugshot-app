@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-11-02
 ---
+
+## Additional owner-authorized candidate — 2026-11-02
+
+Locally verified [optional Luna assistance](AI_ASSISTANCE.md) across reviewed
+capture, memory search, taste observations, Home experiments and weekly wording.
+Preserve all core flows without AI, existing parent PR holds, the separate Weekly
+Pour design approval gate, and production/TestFlight boundaries. See the
+[verification ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).
 
 Current source amendment (2026-09-18): Home Sip V3 keeps central Add > Log a Sip
 > Home in the production composer and opens setup-first, with a visible two-
