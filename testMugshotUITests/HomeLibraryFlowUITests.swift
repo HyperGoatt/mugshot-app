@@ -107,6 +107,7 @@ final class HomeLibraryFlowUITests: XCTestCase {
         let guidance = app.buttons["home.makeWithGuidance"]
         if guidance.waitForExistence(timeout: 5) { guidance.tap() }
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Today’s target"].exists, "Instructions without planned measurements must not show an empty target card.")
         capture("Guidance", in: app)
         for _ in 0..<8 where !app.staticTexts["How did it go?"].exists {
             app.buttons["logASipV3.primaryAction"].tap()
