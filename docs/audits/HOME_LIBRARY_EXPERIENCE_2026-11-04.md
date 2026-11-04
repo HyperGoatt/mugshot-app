@@ -1,6 +1,6 @@
 ---
 document_type: historical
-status: verified-installed-launch-pending
+status: installed-physical-navigation-verified
 ---
 
 # Home library and simpler Log a Sip — 2026-11-04
@@ -9,6 +9,12 @@ Current sources: [Home implementation](../HOME_RECIPES_IMPLEMENTATION.md) and
 [optional Luna assistance](../AI_ASSISTANCE.md). This work changes product flow,
 account-owned local defaults and AI permission/disclosure. It does not introduce
 a backend schema or promote TestFlight or held parent PRs.
+
+**Current acceptance:** the owner subsequently unlocked the phone. The installed
+candidate launches and renders Journal with the existing account. Physical taps
+through Device Hub verify Saved → Home library, all four library sections and
+standalone manual-bag entry/cancel. See the physical-navigation addendum below;
+the earlier locked-launch observation is retained as initial delivery history.
 
 ## Current-flow audit and priorities
 
@@ -129,7 +135,7 @@ The final state review also fixes Journal's library presentation to capture the
 originating owner when tapped, matching Saved and Home setup. Account changes
 dismiss that presentation instead of rebinding its in-progress fields.
 
-## Delivery state
+## Initial delivery state
 
 The owner-authorized development app **Mugshot Luna QA 0.5.3 (8)** is installed
 on iPhone 16 Pro / iOS 27.0.1 as the same `co.mugshot.app.dev`. Strict/deep signing,
@@ -143,6 +149,29 @@ corrections are included in the installed package. [Sanitized delivery receipt](
 This stays on `codex/home-library-flow`, stacked on draft #108 and its unresolved
 parent acceptance holds. No merge, migration, server configuration or TestFlight
 action occurred.
+
+## Physical-navigation addendum after owner unlock
+
+- The same signed package launches on the owner's iPhone 16 Pro / iOS 27.0.1.
+  A warm `mugshot://journal` route renders the existing authenticated Journal,
+  entries and draft, and the app stays running during the navigation checks.
+- Device Hub's **View Screen** exposes working physical touch control through
+  CUA even though its accessibility tree does not expose the iPhone's app rows.
+  Coordinate actions were based on fresh live screenshots, with the real iPhone
+  explicitly selected; this evidence is separate from the Simulator captures.
+- Physical taps open Saved and its Home library. Recipes show existing saved
+  recipes; Beans shows the existing bag; Gear shows existing tools; Preferences
+  shows defaults and the unenabled Luna control. Opening Add manually then Cancel
+  returns to the same bag shelf without creating a sip or saving a new bag.
+- No AI permission, defaults, archive state or user content was changed. No real
+  photo was sent to OpenAI. The phone is left on Home library → Beans.
+- Launch, Journal rendering and the named library navigation are physically
+  verified. Real camera/photo fidelity, scan/save, guided preparation through
+  rating/review, spoken VoiceOver and owner satisfaction remain human QA.
+- Raw device screenshots and process/launch receipts stay private under `/tmp`.
+  The sanitized [phone receipt](home-library-2026-11-04/phone-receipt.json) records
+  the checked scope. The 40-file byte comparison remains the pre-launch install
+  preservation result, not a claim that runtime caches never change.
 
 ## Human QA
 

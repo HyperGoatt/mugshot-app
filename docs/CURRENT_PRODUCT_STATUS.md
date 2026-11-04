@@ -14,6 +14,10 @@ fields after one-time account enablement; repeated consent checkboxes are remove
 Manual entry, on-device scan, source rights and account boundaries remain.
 [Current verification and phone state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md)
 are authoritative; implementation is not a TestFlight acceptance claim.
+After owner unlock, the installed candidate physically launches and renders
+Journal. Saved → Home library, all four sections and manual-bag open/cancel are
+verified on the iPhone through Device Hub. Real scan/save and the full Home
+making journey remain owner QA; merge and TestFlight holds remain unchanged.
 
 ## Journal and bean-entry correction — 2026-11-04
 

@@ -35,6 +35,10 @@ makes no AI request. Selecting a bag photo then reads it directly into editable
 fields; invoking another contextual helper requests its result without a second
 Generate step. Recipe idea capture can read selected screenshots/pasted text into
 a draft after source-copying permission. Ordinary Save stays separate.
+The candidate is installed and physically opens Journal and Saved → Home library
+on the owner's iPhone, including all library sections and bag entry/cancel.
+These checks leave Luna permission unchanged and send no real photo; current
+automatic scanning and full Home-flow acceptance remain human QA.
 
 ## Product behavior
 

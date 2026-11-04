@@ -17,6 +17,9 @@ last_verified: 2026-11-04
 - Keep a concise explicit OpenAI enable control and revocable Home preference.
   Source-copy permission, owner fences, bounded data and explicit Save remain.
 - Serialize shelf sync, retry offline edits and invalidate pending work on erasure.
+- After owner unlock, verify physical launch, Journal, Saved/Home library's four
+  sections and standalone manual-bag open/cancel. Real scan/save and full making
+  acceptance remain pending; no content or Luna permission was changed.
 - [Current audit, ECC evidence and delivery state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
 
 ## 2026-11-04 — Journal crash and current Home bean controls

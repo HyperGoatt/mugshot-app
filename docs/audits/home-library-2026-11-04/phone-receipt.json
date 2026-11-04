@@ -21,6 +21,33 @@
     "changedFiles": 0,
     "scope": "Application Support, compared immediately before install and after final install before launch"
   },
-  "launch": "blocked by iOS Locked; no successful Home-candidate launch or physical interaction acceptance",
-  "rawEvidence": "Private local backups and device receipts retained under /tmp; content and user identifiers excluded from repository"
+  "launch": "succeeded after owner unlock; existing authenticated Journal visibly rendered",
+  "rawEvidence": "Private local backups and device receipts retained under /tmp; content and user identifiers excluded from repository",
+  "initialLaunch": "blocked by iOS Locked before owner unlock",
+  "physicalNavigation": {
+    "method": "CUA interaction with the actual iPhone selected in Device Hub View Screen",
+    "passed": [
+      "Journal rendered existing account and entries",
+      "Saved tab opened",
+      "Home library opened independently of logging",
+      "Recipes section rendered existing recipes",
+      "Beans section rendered existing bag",
+      "Gear section rendered existing equipment",
+      "Preferences section rendered defaults and Luna control",
+      "Add manually opened actual bag editor; Cancel returned to shelf"
+    ],
+    "savedNewRecords": false,
+    "changedLunaPermission": false,
+    "sentRealPhotoToOpenAI": false,
+    "leftOn": "Home library > Beans",
+    "pending": [
+      "Real bag photo and scan/save acceptance",
+      "Guided Home preparation through rating/review",
+      "Spoken VoiceOver and owner satisfaction"
+    ]
+  },
+  "privateScreenshotSHA256": {
+    "journal": "bbfd6de52fcd8a98842ec37d48727802981efbaca20cba1e5f28e9b1220651b1",
+    "beans": "d981e5ad0d63d2d764c4b4f49338dc998d4a5a1c0132ec7e8252a03b1cdab995"
+  }
 }
