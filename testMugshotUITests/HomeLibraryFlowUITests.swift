@@ -64,7 +64,7 @@ final class HomeLibraryFlowUITests: XCTestCase {
         let source = app.textFields["Paste a website or social link"]
         source.tap(); source.typeText("https://example.org/tea")
         app.buttons["home.recipe.saveIdea"].tap()
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Evening matcha idea")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Add preparation details"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
     }
 
@@ -78,8 +78,6 @@ final class HomeLibraryFlowUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap(); name.typeText("Evening tea idea")
         app.buttons["home.recipe.saveIdea"].tap()
-        let saved = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Evening tea idea")).firstMatch
-        XCTAssertTrue(saved.waitForExistence(timeout: 5)); saved.tap()
         XCTAssertTrue(app.buttons["Add preparation details"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
     }
@@ -91,8 +89,10 @@ final class HomeLibraryFlowUITests: XCTestCase {
         app.buttons["home.library.addRecipe"].tap()
         let name = app.textFields["home.recipe.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Guided tea")
+        app.buttons["home.recipe.caption"].tap()
         let caption = app.textViews["home.recipe.sourceText"].exists ? app.textViews["home.recipe.sourceText"] : app.textFields["home.recipe.sourceText"]
         caption.tap(); caption.typeText("Ingredients:\n2 g tea\n100 ml water\nSteps:\nStir with water.")
+        app.buttons["home.recipe.keyboardDone"].tap()
         let extracted = app.staticTexts["home.recipe.extractedCount"]
         for _ in 0..<3 where !extracted.isHittable { app.swipeUp() }
         XCTAssertTrue(extracted.waitForExistence(timeout: 5), "Pasting recipe instructions must fill the draft without a separate copy prompt.")
@@ -100,10 +100,6 @@ final class HomeLibraryFlowUITests: XCTestCase {
         clearNotificationBanner()
         app.buttons["home.recipe.saveIdea"].tap()
         XCTAssertTrue(app.buttons["home.recipe.saveIdea"].waitForNonExistence(timeout: 6))
-        let search = app.textFields["Search your recipes"]
-        search.tap(); search.typeText("Guided tea")
-        let recipe = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Guided tea")).firstMatch
-        XCTAssertTrue(recipe.waitForExistence(timeout: 4)); recipe.tap()
         let make = app.buttons["home.recipe.make"]
         XCTAssertTrue(make.waitForExistence(timeout: 5)); make.tap()
         let guidance = app.buttons["home.makeWithGuidance"]

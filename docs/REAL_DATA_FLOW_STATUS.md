@@ -4,6 +4,17 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe composition uses existing ownership — November 4 follow-up
+
+Recipe use is a presentation choice over existing templates. New drink recipes
+store exact saved-version references and their own optional ingredient amounts.
+No source recipe is copied, retagged, resized or edited by adding it to a drink.
+The existing workspace validates available references, cycles, numeric inputs,
+attribution and immutable-version conflicts. Builder draft work remains in the
+originating account; source inspection preserves it. Final Save remains explicit.
+No new Supabase contract, provider call, analytics payload or recursive sharing
+behavior is introduced. [Design and acceptance](design/home-recipe-composer-2026-11-04/README.md).
+
 ## Native recipe-source reading — November 4 follow-up
 
 Selected public social captions are read through an unauthenticated ephemeral

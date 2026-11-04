@@ -61,26 +61,39 @@ enum HomeDrinkComposition {
             unit: version.content.method == .milkFoam ? "g" : "ml", recipe: reference))
     }
 
-    static func useBase(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion, in content: inout HomeRecipeContent) {
+    static func useBase(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion, in content: inout HomeRecipeContent, replacing baseID: UUID? = nil) {
         replaceBase(in: &content, with: HomeRecipeIngredient(name: version.content.name, unit: "serving",
-            recipe: HomeRecipeReference(recipeID: recipe.id, versionID: version.id)))
+            recipe: HomeRecipeReference(recipeID: recipe.id, versionID: version.id)), replacing: baseID)
         content.method = version.content.method
         content.targets = version.content.targets
         content.coffee = version.content.coffee
         content.equipment = version.content.equipment
     }
 
-    static func usePreset(_ method: HomeBrewMethod, in content: inout HomeRecipeContent) {
-        replaceBase(in: &content, with: HomeRecipeIngredient(name: method.title, unit: "serving"))
+    static func usePreset(_ method: HomeBrewMethod, in content: inout HomeRecipeContent, replacing baseID: UUID? = nil) {
+        replaceBase(in: &content, with: HomeRecipeIngredient(name: method.title, unit: "serving"), replacing: baseID)
         content.method = method
         content.targets = HomeRecipeContent.defaultTargets(for: method)
         if method.family != .coffee { content.coffee = nil }
     }
 
-    private static func replaceBase(in content: inout HomeRecipeContent, with base: HomeRecipeIngredient) {
-        // The composer owns an ordered mix: its first part is the base. This
-        // changes only the parent draft, never the referenced recipe or version.
-        if !content.ingredients.isEmpty { content.ingredients.removeFirst() }
+    static func baseID(in content: HomeRecipeContent,
+                       resolve: (HomeRecipeReference) -> HomeRecipeContent? = { _ in nil }) -> UUID? {
+        if let linked = content.ingredients.first(where: { ingredient in
+            guard let reference = ingredient.recipe, let recipe = resolve(reference) else { return false }
+            return HomeRecipeUse.suggested(for: recipe) == .base
+        }) { return linked.id }
+        let names = Set(HomeBrewMethod.allCases.filter {
+            [.coffee, .matcha, .hojicha, .tea, .other].contains($0.family)
+        }.map { $0.title.lowercased() })
+        return content.ingredients.first { $0.recipe == nil && names.contains($0.name.lowercased()) }?.id
+    }
+
+    private static func replaceBase(in content: inout HomeRecipeContent, with base: HomeRecipeIngredient, replacing baseID: UUID?) {
+        let oldID = baseID ?? Self.baseID(in: content)
+        if let old = content.ingredients.first(where: { $0.id == oldID }),
+           old.name == base.name, old.recipe == base.recipe { return }
+        content.ingredients.removeAll { $0.id == oldID || (base.recipe != nil && $0.recipe == base.recipe) }
         content.ingredients.insert(base, at: 0)
     }
 }

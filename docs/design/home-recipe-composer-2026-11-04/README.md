@@ -54,6 +54,16 @@ reclassified, edited or used for synthetic saves.
 - The imported-drink boundary then runs as a full 10-case native suite: 9 pass,
   one fails because replacing a guessed first-part base deletes the leading milk
   ingredient. Base replacement must identify the base, preserving unrelated parts.
+- The first UI iteration passes 17/18 checks; its remaining preview assertion
+  expects unnumbered text while the existing detail renders a numbered step.
+  Screenshot review also exposes a real 15 → 1 input issue. The corrected
+  assertion and focused RED run confirm truncated syrup entry and a needless
+  version when reselecting an unchanged base. A separate 150.5 entry case passes.
+- `fdf6f25`: RED checkpoint for those two confirmed failures. The fix retains
+  focused numeric text while editing and leaves an unchanged base intact.
+  `/tmp/mugshot-recipe-composer-green2.xcresult` passes 16/16: 12 native cases
+  and 4 UI cases, including the complete component → latte → linked preview →
+  guidance → shared review journey. Broader delivery checks follow below.
 
 ## Interaction references
 

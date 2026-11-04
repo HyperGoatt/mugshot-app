@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe canvas and drink builder — November 4 follow-up
+
+- `Models/HomeRecipeComposition.swift`: presentation use suggestions and parent-only
+  drink composition with immutable references and safe base replacement.
+- `Views/Add/HomeDrinkBuilderView.swift`: native mix editor, saved-part/base picker,
+  optional amounts, parent-preserving inspection and account-scoped draft Save.
+- [Interview-grounded native package](design/home-recipe-composer-2026-11-04/README.md).
+
 ## Recipe source capture — November 4 follow-up
 
 - `Views/Add/HomeRecipeCaptureView.swift`: link/caption/screenshot/video capture,

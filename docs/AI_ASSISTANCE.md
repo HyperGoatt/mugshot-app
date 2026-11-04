@@ -46,6 +46,12 @@ the Photos picker and optional spoken-step recognition remain separate checks.
 
 ## Product behavior
 
+The [recipe canvas and drink builder](design/home-recipe-composer-2026-11-04/README.md)
+reuse the existing extractor. Selecting a recipe-use label or combining saved
+parts needs no model request. Source caption/image boundaries, remembered Luna
+permission and ordinary Save remain unchanged. Composition links private saved
+versions; it does not copy or publish their instructions automatically.
+
 The [source-capture follow-up](audits/HOME_SOURCE_CAPTURE_2026-11-04.md) adds native
 reads of available public Instagram/TikTok captions and screenshot/video-frame
 OCR before optional Luna structuring. Clear section parsing remains available

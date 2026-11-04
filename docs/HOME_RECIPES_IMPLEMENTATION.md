@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe canvas and drink composition — November 4 follow-up
+
+The Add a recipe page is a native ScrollView with source-first input, compact
+screenshot/video choices, editable preview and a simple recipe-use choice.
+Source extraction and Luna remain independent of the UI redesign. The recipe book
+offers **Build a drink**, and a saved brew/component offers **Use in a drink**.
+Saved recipes open immediately after capture. Existing generic syrup preparations
+are discoverable as components by a presentation suggestion; saved versions are
+never backfilled or reclassified.
+
+The drink builder uses existing immutable recipe references. Milk/additions and
+their optional quantities belong to the parent drink; source batch yield, steps,
+credit and history remain independent. Inspecting a part preserves the parent.
+Changing a base identifies it rather than deleting an arbitrary first ingredient.
+Drafts retain existing account-local persistence and explicit final Save.
+No recipe-composition action automatically creates a sip or child preparation.
+Existing guidance, actuals, rating, review and privacy rules remain authoritative.
+[Interview sources, native package and exact acceptance](design/home-recipe-composer-2026-11-04/README.md).
+
 ## Source capture and recipe-first navigation — November 4 follow-up
 
 Saved recipes open their details before the user chooses Make this or Log a make.

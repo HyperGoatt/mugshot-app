@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Owner-requested recipe UX and component composition — November 4 follow-up
+
+Use the original Home interview and accepted September V4 read-back to improve
+capture and composition. The core journey is save a syrup → use it in a latte →
+inspect the source and return → save the drink → existing guidance/reflection.
+Preserve all owner content and source attribution; synthetic saves use isolated
+fixtures. [Native package and verification](design/home-recipe-composer-2026-11-04/README.md).
+
 ## Owner-promoted complete Home QA and source capture — November 4 follow-up
 
 The caption recipe → library → guidance → shared rating/review journey passes on

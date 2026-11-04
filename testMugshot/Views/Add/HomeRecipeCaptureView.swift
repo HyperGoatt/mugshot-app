@@ -9,6 +9,11 @@ struct HomeQuickRecipeSheet: View {
     @ObservedObject private var permission = CoffeeAssistancePermissionStore.shared
     @StateObject private var assistance = CoffeeAssistanceSession()
     @State private var content = HomeRecipeContent(name: "", template: .preparation, method: .other)
+    @State private var selectedUse: HomeRecipeUse?
+    @State private var showsCaption = false
+    @State private var showsSteps = false
+    @State private var showsDrinkBuilder = false
+    @FocusState private var sourceField: String?
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedVideo: PhotosPickerItem?
     @State private var image: UIImage?
@@ -34,24 +39,33 @@ struct HomeQuickRecipeSheet: View {
         self.store = store; self.onSaved = onSaved; originalScope = store.scope
     }
     private var isCurrentOwner: Bool { !isFinished && store.scope == originalScope && authModel.authenticatedUser?.id == originalScope.userID }
-    private var canRead: Bool { isCurrentOwner && !showsFullEditor }
+    private var canRead: Bool { isCurrentOwner && !showsFullEditor && !showsDrinkBuilder }
     private var hasSource: Bool { image != nil || !content.sourceText.isEmpty }
+    private var recipeUse: HomeRecipeUse { selectedUse ?? HomeRecipeUse.suggested(for: content) }
 
     var body: some View {
         NavigationStack {
             captureForm
-                .scrollContentBackground(.hidden).background(Color.creamWhite)
+                .background(Color.creamWhite).foregroundStyle(Color.espressoBrown)
                 .navigationTitle("Add a recipe").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { stop(); dismiss() } }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save", action: save).disabled(!isCurrentOwner || content.name.remoteTrimmedNonEmpty == nil)
-                            .accessibilityIdentifier("home.recipe.saveIdea")
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") {
+                            sourceField = nil
+                            if !content.ingredients.isEmpty || !content.steps.isEmpty { showsCaption = false }
+                        }.accessibilityIdentifier("home.recipe.keyboardDone")
                     }
                 }
                 .onChange(of: content.sourceText) { _, _ in restartImport() }
+                .onChange(of: content.ingredients.count + content.steps.count) { _, count in
+                    if count > 0, sourceField != "caption" { showsCaption = false }
+                }
                 .onChange(of: permission.revision) { _, _ in restartImport() }
                 .onChange(of: authModel.authenticatedUser?.id) { _, _ in if !isCurrentOwner { stop(); dismiss() } }
+                .safeAreaInset(edge: .bottom) { saveBar }
+                .onChange(of: showsDrinkBuilder) { _, shows in if shows { sourceGeneration = UUID(); isReading = false; assistance.invalidate() } }
                 .onChange(of: showsFullEditor) { _, shows in if shows { sourceGeneration = UUID(); isReading = false; assistance.invalidate() } }
                 .task(id: content.sourceURL + linkRetry.uuidString) { await readLink() }
                 .task(id: selectedPhoto) { await loadPhoto() }
@@ -60,8 +74,11 @@ struct HomeQuickRecipeSheet: View {
                 .task(id: importID) { await readWithLuna() }
                 .onDisappear {
                     sourceGeneration = UUID(); isReading = false; assistance.invalidate()
-                    if !showsFullEditor { stop() }
+                    if !showsFullEditor && !showsDrinkBuilder { stop() }
                 }
+        }
+        .fullScreenCover(isPresented: $showsDrinkBuilder) {
+            HomeDrinkBuilderSheet(store: store) { id in finish(id) }
         }
         .fullScreenCover(isPresented: $showsFullEditor) {
             NavigationStack { HomeRecipeEditorView(store: store, draft: HomeRecipeEditorDraft(content: content)) { id in finish(id) } }
@@ -69,64 +86,162 @@ struct HomeQuickRecipeSheet: View {
     }
 
     private var captureForm: some View {
-        Form {
-            Section {
-                TextField("Recipe name", text: $content.name).accessibilityIdentifier("home.recipe.name")
-                TextField("Paste a website or social link", text: $content.sourceURL)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                    .accessibilityIdentifier("home.recipe.sourceURL")
-                if (try? HomeRecipeSourceURL(content.sourceURL)) != nil {
-                    Button("Read link again", systemImage: "arrow.clockwise") { linkRetry = UUID() }
-                        .accessibilityIdentifier("home.recipe.readLink")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("FROM ANYWHERE, TO YOUR KITCHEN").recipeEyebrow()
+                        Text("Save an idea.").mugshotDisplay(size: 36)
+                        Text("A recipe you found. A favorite you make.")
+                            .font(.subheadline).foregroundStyle(Color.secondaryText)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "book.pages")
+                        .font(.system(size: 39, weight: .light)).foregroundStyle(Color.mugshotSageText)
+                        .frame(width: 70, height: 86).background(Color.mugshotMint.opacity(0.2), in: RoundedRectangle(cornerRadius: 22))
+                        .rotationEffect(.degrees(7)).accessibilityHidden(true)
                 }
-                TextField("Creator credit", text: $content.creatorCredit)
-                TextField("Paste a caption or instructions", text: $content.sourceText, axis: .vertical)
-                    .lineLimit(3...8).accessibilityIdentifier("home.recipe.sourceText")
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label(image == nil ? "Add a recipe screenshot" : "Change screenshot", systemImage: "photo")
-                }.accessibilityIdentifier("home.recipe.screenshot")
-                PhotosPicker(selection: $selectedVideo, matching: .videos) {
-                    Label("Add a saved recipe video", systemImage: "video")
-                }.accessibilityIdentifier("home.recipe.video")
-                if permission.isEnabled(ownerID: originalScope.userID) {
-                    Text("Luna reads selected text and images, including video frames. Audio stays on your iPhone.")
-                        .font(.caption).foregroundStyle(Color.secondaryText)
+                if !hasSource && content.name.isEmpty {
+                    Button { sourceField = nil; showsDrinkBuilder = true } label: {
+                        HStack {
+                            Label("Build a drink instead", systemImage: "mug")
+                            Spacer(); Image(systemName: "arrow.right")
+                        }.font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                    }.accessibilityIdentifier("home.recipe.buildDrink")
                 }
-                if let image { Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 160) }
-                if movieURL != nil {
-                    Toggle("Include spoken steps on this iPhone", isOn: $includesSpeech)
-                    Text("Up to 60 seconds. Video frames and visible text are read first. Spoken steps use on-device speech recognition when available.")
-                        .font(.caption).foregroundStyle(Color.secondaryText)
-                }
-            } header: { Text("From wherever you found it") }
-            if isReading || sourceStatus != nil {
-                Section {
-                    if isReading { ProgressView("Reading your source…") }
-                    if let sourceStatus { Text(sourceStatus).font(.footnote).foregroundStyle(Color.secondaryText).accessibilityIdentifier("home.recipe.sourceStatus") }
-                }
-            }
-            if hasSource {
-                Section {
-                    LunaPermissionControl(ownerID: originalScope.userID)
-                    if assistance.isWorking { ProgressView("Luna is reading your recipe…") }
-                    if let message = assistance.message { Text(message).font(.footnote).foregroundStyle(Color.secondaryText) }
-                    if !content.ingredients.isEmpty || !content.steps.isEmpty {
-                        Label("\(content.ingredients.count) ingredients · \(content.steps.count) steps", systemImage: "checkmark.circle")
-                            .accessibilityIdentifier("home.recipe.extractedCount")
-                        DisclosureGroup("Check the recipe details") {
-                            ForEach(content.ingredients) { Text($0.name) }
-                            ForEach(content.steps) { Text($0.instruction) }
+                sourceInput
+                if isReading || sourceStatus != nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if isReading { ProgressView("Reading your source…").tint(Color.mugshotSageText) }
+                        if let sourceStatus {
+                            Text(sourceStatus).font(.footnote).foregroundStyle(Color.secondaryText)
+                                .accessibilityIdentifier("home.recipe.sourceStatus")
                         }
                     }
                 }
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("YOUR RECIPE").recipeEyebrow()
+                    TextField("Recipe name", text: $content.name, axis: .vertical)
+                        .font(.system(size: 27, weight: .medium, design: .serif)).lineLimit(1...3)
+                        .autocorrectionDisabled().focused($sourceField, equals: "name")
+                        .accessibilityIdentifier("home.recipe.name")
+                    Rectangle().fill(Color.mugshotLine).frame(height: 1)
+                    if hasSource || !content.name.isEmpty {
+                        HomeRecipeUsePicker(selection: Binding(get: { recipeUse }, set: { selectedUse = $0 }))
+                        Text(recipeUse.detail).font(.caption).foregroundStyle(Color.secondaryText)
+                    } else {
+                        Text("A name is enough to save an idea.").font(.caption).foregroundStyle(Color.secondaryText)
+                    }
+                }
+                if hasSource {
+                    VStack(alignment: .leading, spacing: 12) {
+                        LunaPermissionControl(ownerID: originalScope.userID)
+                        if assistance.isWorking { ProgressView("Luna is reading your recipe…").tint(Color.mugshotSageText) }
+                        if let message = assistance.message { Text(message).font(.footnote).foregroundStyle(Color.secondaryText) }
+                    }
+                }
+                recipePreview
+                if hasSource || !content.name.isEmpty || !content.sourceURL.isEmpty {
+                DisclosureGroup("Source & credit") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        TextField("Creator credit", text: $content.creatorCredit)
+                            .focused($sourceField, equals: "credit")
+                        if !content.sourceURL.isEmpty { Text(content.sourceURL).font(.caption).textSelection(.enabled) }
+                        if (try? HomeRecipeSourceURL(content.sourceURL)) != nil {
+                            Button("Read link again", systemImage: "arrow.clockwise") { linkRetry = UUID() }
+                                .accessibilityIdentifier("home.recipe.readLink")
+                        }
+                    }.padding(.top, 10)
+                }.font(.subheadline.weight(.semibold))
+                Button("Fine-tune recipe details", systemImage: "slider.horizontal.3") {
+                    sourceField = nil; recipeUse.apply(to: &content); showsFullEditor = true
+                }
+                    .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                }
+                if let error { Text(error).foregroundStyle(.red).font(.footnote) }
+            }.padding(22)
+        }.scrollDismissesKeyboard(.interactively)
+    }
+
+    private var sourceInput: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("BRING IN A RECIPE").recipeEyebrow()
+            HStack(spacing: 12) {
+                Image(systemName: "link").foregroundStyle(Color.mugshotSageText)
+                TextField("Paste a website or social link", text: $content.sourceURL)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                    .focused($sourceField, equals: "url").accessibilityIdentifier("home.recipe.sourceURL")
             }
-            Section {
-                Button("Edit ingredients, steps & method", systemImage: "slider.horizontal.3") { showsFullEditor = true }
-                Text("A name and link are enough to save an idea. Check amounts and steps before making it.")
-                    .font(.footnote).foregroundStyle(Color.secondaryText)
+            .padding(17).background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.mugshotLine))
+            HStack(spacing: 10) {
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Label(image == nil ? "Screenshot" : "Change image", systemImage: "photo")
+                }.accessibilityIdentifier("home.recipe.screenshot")
+                PhotosPicker(selection: $selectedVideo, matching: .videos) {
+                    Label("Video", systemImage: "video")
+                }.accessibilityIdentifier("home.recipe.video")
+                Spacer(minLength: 0)
+            }.buttonStyle(SecondaryButtonStyle())
+            Button { withAnimation { showsCaption.toggle() } } label: {
+                Label(showsCaption ? "Hide caption" : (content.sourceText.isEmpty ? "Paste a caption" : "Edit caption"), systemImage: "text.alignleft")
+                    .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+            }.accessibilityIdentifier("home.recipe.caption")
+            if showsCaption {
+                TextField("Paste a caption or instructions", text: $content.sourceText, axis: .vertical)
+                    .lineLimit(4...9).autocorrectionDisabled().focused($sourceField, equals: "caption")
+                    .padding(16).background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.mugshotLine))
+                    .accessibilityIdentifier("home.recipe.sourceText")
             }
-            if let error { Text(error).foregroundStyle(.red) }
+            if let image { Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 150).clipShape(RoundedRectangle(cornerRadius: 16)) }
+            if movieURL != nil {
+                Toggle("Include spoken steps on this iPhone", isOn: $includesSpeech).font(.subheadline)
+                Text("Up to 60 seconds. Spoken steps use on-device recognition when available.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            }
         }
+    }
+
+    @ViewBuilder private var recipePreview: some View {
+        if !content.ingredients.isEmpty || !content.steps.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                Label(content.recipeContentsSummary, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
+                    .accessibilityIdentifier("home.recipe.extractedCount")
+                if !content.ingredients.isEmpty {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("What goes in").font(.title3.weight(.semibold))
+                        ForEach($content.ingredients) { $ingredient in
+                            TextField("Ingredient", text: $ingredient.name, axis: .vertical)
+                                .lineLimit(1...4).focused($sourceField, equals: ingredient.id.uuidString)
+                            if ingredient.id != content.ingredients.last?.id { Divider() }
+                        }
+                        Button("Add ingredient", systemImage: "plus") { content.ingredients.append(HomeRecipeIngredient()) }
+                            .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                    }.padding(18).background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 22))
+                }
+                DisclosureGroup("How to make it", isExpanded: $showsSteps) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach($content.steps) { $step in
+                            TextField("Instruction", text: $step.instruction, axis: .vertical)
+                                .lineLimit(2...6).focused($sourceField, equals: step.id.uuidString)
+                        }
+                        Button("Add a step", systemImage: "plus") { content.steps.append(HomePreparationStep()) }
+                    }.font(.body).padding(.top, 14)
+                }.font(.subheadline.weight(.semibold))
+            }
+        }
+    }
+
+    private var saveBar: some View {
+        Button(action: save) {
+            Text(recipeUse == .component ? "Save component" : "Save recipe").frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .disabled(!isCurrentOwner || content.name.remoteTrimmedNonEmpty == nil)
+        .accessibilityIdentifier("home.recipe.saveIdea")
+        .padding(.horizontal, 22).padding(.vertical, 12).background(Color.creamWhite)
     }
 
     private func readLink() async {
@@ -270,7 +385,9 @@ struct HomeQuickRecipeSheet: View {
         guard isCurrentOwner else { return }
         assistance.invalidate(); sourceGeneration = UUID()
         if let normalized = try? HomeRecipeSourceURL(content.sourceURL) { content.sourceURL = normalized.url.absoluteString }
-        do { finish(try store.saveRecipe(HomeRecipeEditorDraft(content: content))) }
+        var saved = content
+        recipeUse.apply(to: &saved)
+        do { finish(try store.saveRecipe(HomeRecipeEditorDraft(content: saved))) }
         catch { self.error = "Couldn’t save that recipe. Your details are still here." }
     }
     private func finish(_ id: UUID) {

@@ -119,7 +119,8 @@ struct HomeRecipeExperienceView: View {
                 case .recipe(let id):
                     HomeRecipeDetailScreen(store: store, recipeID: id, onEdit: { editorSheet = .edit($0) },
                         onLog: { startLog($0) }, onMake: { startMaking($0) },
-                        onAttempt: { path.append(.attempt($0)) })
+                        onAttempt: { path.append(.attempt($0)) },
+                        onCreatedDrink: { path.append(.recipe($0)) })
                 case .attempt(let id):
                     if homeSipV4RouteEnabled {
                         HomeAttemptCanonicalDetailView(

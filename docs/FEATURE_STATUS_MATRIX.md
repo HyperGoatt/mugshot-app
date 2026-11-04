@@ -4,6 +4,13 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe canvas and drink composition — 2026-11-04 follow-up
+
+Native source-first capture and a dedicated drink builder are implemented. The
+recipe book exposes Build a drink; saved components/brews expose Use in a drink.
+Optional parent amounts and exact saved links keep source batches independent.
+Current validation/install evidence is in the [native package](design/home-recipe-composer-2026-11-04/README.md).
+
 ## Recipe source capture and Home journey — 2026-11-04 follow-up
 
 Available public Instagram/TikTok captions and selected screenshots/short clips

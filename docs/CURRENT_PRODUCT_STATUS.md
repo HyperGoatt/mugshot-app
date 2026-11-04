@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe canvas and reusable drink builder — November 4 follow-up
+
+Source implements a cleaner native recipe capture page and a direct recipe-book
+drink builder. Saved components and brews can be combined through immutable links,
+with optional usage amounts and parent-preserving inspection. Existing generic
+syrup records work without rewriting history. The new candidate's validation and
+phone delivery are tracked in the [native design/QA package](design/home-recipe-composer-2026-11-04/README.md);
+the prior source-capture phone receipt below is separate evidence.
+
 ## Recipe-source capture and complete Home QA — November 4 follow-up
 
 The candidate now opens saved recipes before making/logging, reads available

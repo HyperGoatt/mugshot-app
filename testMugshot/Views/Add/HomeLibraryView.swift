@@ -70,6 +70,9 @@ struct HomeLibraryView: View {
     @State private var gearEditor: HomeEquipmentEditorConfiguration?
     @State private var recipe: HomeRecipeRecord?
     @State private var addsRecipe = false
+    @State private var drinkDraft: HomeRecipeEditorDraft?
+    @State private var pendingRecipe: HomeRecipeRecord?
+    @State private var recipeUseFilter: HomeRecipeUse?
     @State private var findsRecipes = false
     @State private var addsAfterDiscovery = false
     @State private var showsArchived = false
@@ -83,6 +86,7 @@ struct HomeLibraryView: View {
         guard workspace.scope == scope else { return [] }
         return workspace.workspace.recipes.filter {
             !$0.isArchived && (query.isEmpty || $0.current?.content.name.localizedCaseInsensitiveContains(query) == true)
+                && (recipeUseFilter == nil || $0.current.map { HomeRecipeUse.suggested(for: $0.content) == recipeUseFilter } == true)
         }.sorted { lhs, rhs in lhs.isPinned != rhs.isPinned ? lhs.isPinned : (lhs.lastUsedAt ?? .distantPast) > (rhs.lastUsedAt ?? .distantPast) }
     }
 
@@ -118,7 +122,10 @@ struct HomeLibraryView: View {
                 await synchronize()
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
-                if !isCurrentOwner { bagEditor = nil; gearEditor = nil; recipe = nil; dismiss() }
+                if !isCurrentOwner {
+                    bagEditor = nil; gearEditor = nil; recipe = nil; pendingRecipe = nil
+                    drinkDraft = nil; addsRecipe = false; dismiss()
+                }
             }
             .sheet(item: $bagEditor) { configuration in
                 HomeCoffeeBagEditorSheet(configuration: configuration, scope: scope, existingBags: library.bags, store: .shared) { _ in reload() }
@@ -128,10 +135,19 @@ struct HomeLibraryView: View {
                 HomeEquipmentEditorSheet(configuration: configuration, scope: scope, store: .shared) { _ in reload() }
                     .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
-            .sheet(isPresented: $addsRecipe) {
+            .sheet(isPresented: $addsRecipe, onDismiss: openPendingRecipe) {
                 HomeQuickRecipeSheet(store: workspace) { saved, version in
                     addsRecipe = false
                     if let onSelectRecipe { onSelectRecipe(saved, version); dismiss() }
+                    else { pendingRecipe = saved }
+                }.environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
+            .sheet(item: $drinkDraft, onDismiss: openPendingRecipe) { draft in
+                HomeDrinkBuilderSheet(store: workspace, draft: draft) { id in
+                    drinkDraft = nil
+                    guard let saved = workspace.workspace.recipes.first(where: { $0.id == id }), let version = saved.current else { return }
+                    if let onSelectRecipe { onSelectRecipe(saved, version); dismiss() }
+                    else { pendingRecipe = saved }
                 }.environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .sheet(item: $recipe) { item in
@@ -197,10 +213,27 @@ struct HomeLibraryView: View {
 
     private var recipeShelf: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Button("Add a recipe", systemImage: "plus") { addsRecipe = true }.buttonStyle(PrimaryButtonStyle())
-                .accessibilityIdentifier("home.library.addRecipe")
-            Button("Find your next recipe", systemImage: "safari") { findsRecipes = true }.buttonStyle(SecondaryButtonStyle())
+            HStack(spacing: 10) {
+                Button { drinkDraft = HomeRecipeEditorDraft(content: HomeDrinkComposition.starting()) } label: {
+                    Label("Build a drink", systemImage: "mug").frame(maxWidth: .infinity)
+                }.buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("home.library.buildDrink")
+                Button { addsRecipe = true } label: { Label("Add a recipe", systemImage: "plus").frame(maxWidth: .infinity) }
+                    .buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.library.addRecipe")
+            }
+            Button("Find your next recipe", systemImage: "safari") { findsRecipes = true }
+                .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+            ForEach(workspace.workspace.recipeDrafts.filter { $0.content.template == .drink && $0.content.name.remoteTrimmedNonEmpty != nil }) { draft in
+                Button { drinkDraft = draft } label: {
+                    shelfRow("Continue \(draft.content.name)", detail: "Your recipe draft", symbol: "pencil")
+                }.buttonStyle(.plain)
+            }
             TextField("Search your recipes", text: $query).textFieldStyle(.roundedBorder)
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    recipeFilter("All", use: nil)
+                    ForEach([HomeRecipeUse.drink, .component, .base]) { use in recipeFilter(use.title, use: use) }
+                }
+            }.scrollIndicators(.hidden)
             if recipes.isEmpty {
                 empty("An idea is enough to start.", detail: "Save a link, paste a caption, scan a screenshot, or build your own. Coffee, tea, matcha and all the good things in between.", symbol: "book.pages")
             }
@@ -210,11 +243,26 @@ struct HomeLibraryView: View {
                         if let onSelectRecipe { onSelectRecipe(item, version); dismiss() }
                         else { recipe = item }
                     } label: {
-                        shelfRow(version.content.name, detail: version.content.summary, symbol: version.content.method.systemImage)
+                        shelfRow(version.content.name,
+                            detail: HomeRecipeUse.suggested(for: version.content).title + " · " + version.content.summary,
+                            symbol: HomeRecipeUse.suggested(for: version.content).symbol)
                     }.buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    private func recipeFilter(_ title: String, use: HomeRecipeUse?) -> some View {
+        Button { recipeUseFilter = use } label: {
+            Text(title).font(.caption.weight(.semibold)).padding(.horizontal, 14).frame(minHeight: 44)
+                .foregroundStyle(recipeUseFilter == use ? Color.foamWhite : Color.espressoBrown)
+                .background(recipeUseFilter == use ? Color.mugshotSageText : Color.foamWhite, in: Capsule())
+        }.buttonStyle(.plain).accessibilityAddTraits(recipeUseFilter == use ? .isSelected : [])
+    }
+
+    private func openPendingRecipe() {
+        guard isCurrentOwner, let saved = pendingRecipe else { pendingRecipe = nil; return }
+        pendingRecipe = nil; recipe = saved
     }
 
     private var beanShelf: some View {

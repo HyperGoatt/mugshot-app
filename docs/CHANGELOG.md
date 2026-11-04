@@ -4,6 +4,19 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## 2026-11-04 — Recipe canvas and reusable drink composition
+
+- Replace the Add a recipe Form with source-first capture, compact media choices,
+  an editable recipe preview and a Brew / Component / Drink choice.
+- Add Build a drink to the recipe book and Use in a drink to saved components
+  and brews, including older generic preparations.
+- Compose a base, milk and saved additions without mandatory amounts, inventory,
+  AI or visible version-selection chores. Inspect a linked recipe without losing
+  the parent mix. Usage amounts never change the component batch.
+- Open a saved recipe directly after capture, keep explicit recipe Save, and
+  reuse existing optional guidance and shared rating/review.
+- [Interview-grounded design and verification](design/home-recipe-composer-2026-11-04/README.md).
+
 ## 2026-11-04 — Social recipe capture and full Home-flow QA candidate
 
 - Open saved recipes for inspection before making/logging a sip.
