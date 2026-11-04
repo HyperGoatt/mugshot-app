@@ -4,6 +4,29 @@ import UIKit
 @testable import testMugshot
 
 struct HomeRecipeSourceTests {
+    @Test func replacingAScreenshotKeepsItsCaptionAndUserTyping() {
+        var sources = HomeRecipeCaptureSources()
+        let caption = sources.update(.caption, text: "Creator caption", currentText: "")
+        let first = sources.update(.screenshot, text: "Old screenshot", currentText: caption)
+        let second = sources.update(.screenshot, text: "New screenshot", currentText: first)
+        #expect(second.contains("Creator caption"))
+        #expect(second.contains("New screenshot"))
+        #expect(!second.contains("Old screenshot"))
+        let edited = "My correction\n" + second
+        #expect(sources.update(.video, text: "Spoken instructions", currentText: edited).contains(edited))
+    }
+
+    @Test func combinedSourcesReserveTheCreditSlotInsideTheServerEvidenceLimit() {
+        var content = HomeRecipeContent(name: "Tea", template: .preparation, method: .westernTea)
+        content.sourceURL = "https://www.instagram.com/p/abc/"
+        content.creatorCredit = "Creator"
+        content.sourceText = String(repeating: "Recipe text 🧋", count: 4_000)
+        let source = CoffeeAssistanceRecipeImport.source(content)
+        #expect(source.count <= 20)
+        #expect(source.allSatisfy { $0.detail.utf16.count <= 800 })
+        #expect(source.first?.id == "recipe-credit")
+    }
+
     @Test func socialLinksAreCanonicalAndNeverAllowPrivateOrCredentialDestinations() throws {
         #expect(try HomeRecipeSourceURL("https://www.instagram.com/reel/ABC_123/?igsh=private-tracking").url.absoluteString == "https://www.instagram.com/reel/ABC_123/")
         #expect(try HomeRecipeSourceURL("https://vm.tiktok.com/ABC123/").provider == .tiktok)
