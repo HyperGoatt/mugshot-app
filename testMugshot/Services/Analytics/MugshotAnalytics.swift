@@ -378,6 +378,8 @@ enum MugshotHomeRecipeAnalyticsAction: String {
 }
 
 enum MugshotAnalyticsEvent: Equatable {
+    /// Fixed enums only: no prompts, answers, photos, record IDs or private notes.
+    case coffeeAssistance(task: CoffeeAssistanceTask, action: CoffeeAssistanceAnalyticsAction)
     /// Deliberately accepts no free text, IDs, source URLs or preparation data.
     case homeRecipe(MugshotHomeRecipeAnalyticsAction, hasRecipe: Bool, durationSeconds: Int)
     case screenViewed(MugshotAnalyticsScreen, source: MugshotAnalyticsScreenSource)
@@ -514,6 +516,8 @@ enum MugshotAnalyticsEvent: Equatable {
 
     var payload: MugshotAnalyticsPayload {
         switch self {
+        case .coffeeAssistance(let task, let action):
+            return payload("coffee_assistance", ["task": .string(task.rawValue), "action": .string(action.rawValue)])
         case .homeRecipe(let action, let hasRecipe, let duration):
             return payload(action.rawValue, ["has_recipe": .boolean(hasRecipe),
                 "duration_seconds": .integer(min(86_400, max(0, duration)))])

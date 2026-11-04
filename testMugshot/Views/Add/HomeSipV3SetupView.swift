@@ -1006,16 +1006,15 @@ private struct HomeTodaySetupSheet: View {
                     }
 
                     DisclosureGroup("Beans, gear, and more") {
-                        let library = HomeLibraryStore.shared.load(in: store.scope)
+                        let library = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID))
                         VStack(alignment: .leading, spacing: 12) {
-                            Menu(draft.brewDetails.coffeeBag?.displayName ?? "Choose beans") {
-                                Button("None") { draft.brewDetails.coffeeBag = nil; updateContent { $0.coffee = nil } }
-                                ForEach(library.bags.filter { $0.status.isCurrent }) { bag in
-                                    Button(bag.displayName) {
-                                        draft.brewDetails.coffeeBag = bag.safeSnapshot
-                                        updateContent { $0.coffee = bag.safeSnapshot }
-                                    }
-                                }
+                            HomeCoffeeBagPicker(
+                                scope: .forUserID(draft.ownerUserID),
+                                selection: draft.brewDetails.coffeeBag
+                            ) { bag in
+                                draft.homeCoffeeBagID = bag?.id
+                                draft.brewDetails.coffeeBag = bag?.safeSnapshot
+                                updateContent { $0.coffee = bag?.safeSnapshot }
                             }
                             ForEach(library.equipment.filter { $0.archivedAt == nil }) { gear in
                                 Toggle(gear.displayName, isOn: Binding(

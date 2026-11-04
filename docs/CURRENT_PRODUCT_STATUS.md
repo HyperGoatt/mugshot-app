@@ -1,8 +1,41 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-31
+last_verified: 2026-11-04
 ---
+
+## Journal and bean-entry correction — 2026-11-04
+
+The owner reported a physical crash when opening Journal. The crash report
+identifies native main-thread stack exhaustion during SwiftUI navigation view
+construction, before any AI request. The installed correction bounds that
+construction and restores bean add/scan controls in current Home setup. Journal opening is physically verified on the
+owner's iPhone with existing entries/drafts, and all 55 pre-install local files
+are preserved. Physical touch navigation, bag-photo quality and real Luna helper
+acceptance remain human QA. [Regression ledger](audits/JOURNAL_AND_BEANS_2026-11-04.md).
+
+## Optional Luna assistance — phone QA ready, 2026-11-04
+
+The optional backend is production-configured and enabled with `gpt-6-luna`.
+**Mugshot Luna QA 0.5.3 (8)** is installed on the owner's iPhone and renders the
+restored account's Feed. Eight authenticated synthetic task/image probes passed
+on the disposable backend; human acceptance of real phone helper responses is
+pending. Existing content is preserved. No TestFlight action or parent-stack
+merge occurred. [Evidence and checklist](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
+
+## Optional Luna helpers candidate — 2026-11-02
+
+The [optional assistance candidate](AI_ASSISTANCE.md) adds reviewed capture,
+owner-only memory search, cautious taste observations, Home experiments and
+weekly wording using `gpt-6-luna`. All ordinary save/publish/search/recipe/recap
+paths work independently. Per-request disclosure and consent precede cloud
+processing; private-note inclusion is explicit and AI cannot change audiences or
+publish. Native source compiles; backend boundaries, disposable quota, native
+domain tests, five synthetic Simulator UI journeys and eight synthetic provider
+probes pass. No production
+migration, deployed function, hosted secret, iPhone install or TestFlight change
+is claimed. Existing parent PR holds remain; the separate Weekly Pour proposal
+has not been integrated. [Evidence](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).
 
 ## Publishing and completion candidate — 2026-10-30
 

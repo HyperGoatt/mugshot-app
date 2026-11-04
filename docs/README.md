@@ -1,8 +1,22 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-04
 ---
+
+## Luna phone QA handoff — 2026-11-04
+
+[Installed build, backend activation and human QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
+records the live optional backend, preserved data, signed development-device
+install and remaining owner acceptance. The November 2 ledger retains the
+original local-only chronology.
+
+## Optional assistance candidate
+
+[Optional Luna assistance](AI_ASSISTANCE.md) documents the five helper groups,
+privacy/ownership boundaries, independent non-AI behavior, quotas and activation
+contract. [Its ECC verification ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md)
+distinguishes source, local/provider checks and unperformed release gates.
 
 # Mugshot documentation
 

@@ -1,8 +1,50 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-31
+last_verified: 2026-11-04
 ---
+
+## 2026-11-04 — Journal crash and current Home bean controls
+
+- Bound Journal's navigation-root view construction after a physical iPhone
+  stack-overflow crash when opening the tab. The installed correction renders
+  the real Journal on iPhone; all 55 pre-install local files are preserved.
+- Add **Add manually** and **Scan bag** beside the current Home setup's saved
+  bean selector, reusing the existing account-scoped library and editable editor.
+  Selecting or clearing beans now keeps the draft's bag identity and safe
+  snapshot together. Ordinary entry, on-device scan and saving remain independent
+  of Luna.
+- [Focused regression and device evidence](audits/JOURNAL_AND_BEANS_2026-11-04.md).
+
+## 2026-11-04 — Luna backend activated and phone QA installed
+
+- Enable the optional `gpt-6-luna` backend after 67 hosted contracts, eight
+  authenticated text/image probes, and deployed ownership/quota denial checks.
+- Apply only the assistance migration. Preserve all 73 existing protected table
+  fingerprints; keep the held Home V4 migration outside this deployment.
+- Install and launch **Mugshot Luna QA 0.5.3 (8)** on the owner's iPhone with
+  existing local data preserved, unchanged entitlements and analytics disabled.
+- Delete the approved temporary paid QA branch. Human helper acceptance remains
+  pending; parent PR holds remain and no TestFlight action occurred.
+- [Deployment evidence and human QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
+
+## 2026-11-02 — Optional Luna assistance candidate
+
+- Add reviewed bag/recipe capture, owner-bound journal memory search, cautious
+  taste observations, saved-Home experiments and optional weekly reflection text.
+- Keep all core persistence, publication, scoring, search, recipe and recap paths
+  independent of AI. Consent is per request; extraction changes only reviewed
+  editable draft fields. No automatic saving, audience changes or publishing.
+- Add a default-off authenticated server proxy, strict source validation,
+  metadata-free bounded image inputs, generic failure states, source-sensitive
+  memory-only cache and service-only daily/monthly reservation limits.
+- Use owner-approved `gpt-6-luna`; no automatic model upgrade. Add fixed-enum
+  analytics without prompt/answer content and update privacy disclosures.
+- Backend/provider tests, disposable database quota checks, native domain tests,
+  five synthetic Simulator UI journeys and eight synthetic live provider probes
+  pass. Native compilation passes. No production configuration, migration/deployment,
+  physical install or TestFlight action. See [the contract](AI_ASSISTANCE.md) and
+  [ECC evidence](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).
 
 ## 2026-10-31 — Physical completion verification and tactile refinement
 

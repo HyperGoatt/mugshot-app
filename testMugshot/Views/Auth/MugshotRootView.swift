@@ -20,7 +20,9 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.shouldShowFirstLaunchOnboardingDesignQA {
+            if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-coffee-assistance") {
+                CoffeeAssistancePreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowFirstLaunchOnboardingDesignQA {
                 firstLaunchEducation
             } else if MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA {
                 MainTabView(dataManager: dataManager)

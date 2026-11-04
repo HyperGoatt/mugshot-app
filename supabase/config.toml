@@ -1,5 +1,9 @@
 project_id = "quskamnfwglctqewwfln"
 
+[functions.coffee-assistance]
+# The handler verifies Auth.getUser, live account, exact owner and consent.
+verify_jwt = false
+
 [functions.delete-account]
 # Auth.getUser protects user actions; recovery and the worker use scoped secrets.
 verify_jwt = false

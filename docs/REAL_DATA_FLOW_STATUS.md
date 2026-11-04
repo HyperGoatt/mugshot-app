@@ -1,8 +1,33 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-04
 ---
+
+## Luna live path and preserved data — 2026-11-04
+
+`coffee-assistance` is active at version 3 with the approved server-only key,
+exact `gpt-6-luna` model and enable switch. The only new tables are service-only
+request receipts and anonymous monthly quota counts. All 73 existing protected
+table counts/whole-row hashes match around deployment. Actual Auth/Edge/RPC/Luna
+requests passed on the disposable branch; live unauthenticated requests are denied.
+The phone package restored its existing account and rendered Feed; human helper
+acceptance is pending. [Evidence](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
+
+## Optional AI data boundary — 2026-11-02 candidate
+
+The [assistance contract](AI_ASSISTANCE.md) defines an additional, default-off
+server path. A user previews selected owner-bound records/image and explicitly
+allows processing for each request. The native client captures the originating
+account's token and rejects changed owners; the proxy verifies Auth/live account,
+owner, consent, bounded inputs and a service-only reservation. No journal or
+recipe data is fetched or mutated by this function. The operational ledger keeps
+only owner/request/task/time and cascades on account deletion. An anonymous
+month/count aggregate survives erasure to preserve the global spending cap.
+Home evidence additionally requires the loaded workspace scope to match its
+originating owner. Responses use
+`store: false` without promising zero provider retention. No production data or
+configuration has been changed for this candidate.
 
 ## Completion feedback ownership — 2026-10-30
 

@@ -1,8 +1,39 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-31
+last_verified: 2026-11-04
 ---
+
+## Journal navigation and current Home beans — 2026-11-04
+
+`Views/Profile/ProfileJournalView.swift` bounds the Journal navigation root
+before its presentation modifiers. `Views/Add/HomeCoffeeBagPicker.swift` connects
+current Home setup to the existing account-scoped `HomeLibraryStore` and shared
+`HomeCoffeeBagEditorSheet` in `HomeWorkbenchView.swift`; it does not create a
+second bean library. `testMugshotUITests/JournalAndBeansUITests.swift` exercises
+Journal tab reopening and manual bag save/selection/scan cancellation.
+[Regression evidence](audits/JOURNAL_AND_BEANS_2026-11-04.md).
+
+## Luna phone QA evidence — 2026-11-04
+
+[The activation and physical-install ledger](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
+indexes the exact server bundle, migration, phone package receipt, hosted checks,
+protected-data preservation, cleanup and human checklist. The later Journal/bean
+correction is indexed above. The QA package label identifies the development app
+without replacing the normal app's identity.
+
+## Optional assistance candidate — 2026-11-02
+
+- `testMugshot/Models/CoffeeAssistance*.swift`: bounded requests, source context,
+  validation and reviewed recipe import.
+- `testMugshot/Services/CoffeeAssistance*.swift`: account-bound proxy transport,
+  cancellation/generation fence and memory-only reuse.
+- `testMugshot/Views/Shared/CoffeeAssistanceViews.swift`: request preview, explicit
+  consent, source review and optional field acceptance.
+- `supabase/functions/coffee-assistance/`: default-off authenticated proxy and
+  isolated handler/provider tests.
+- `20261102160000_optional_coffee_assistance.sql`: service-only atomic quotas.
+- [Current behavior, privacy and activation contract](AI_ASSISTANCE.md).
 
 ## Completion and reflection authoring
 

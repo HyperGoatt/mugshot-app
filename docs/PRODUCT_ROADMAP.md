@@ -1,8 +1,27 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-30
+last_verified: 2026-11-04
 ---
+
+## Luna phone acceptance — 2026-11-04
+
+The optional backend is enabled and the development-device package is installed.
+The next product gate is the owner's human assessment of real helper usefulness,
+source fidelity and perceived speed. Parent native-stack review holds, the Weekly
+Pour design gate and TestFlight authorization remain separate.
+[Human QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
+
+## Optional Luna assistance candidate — 2026-11-02
+
+The owner requested the [five optional helper groups](AI_ASSISTANCE.md) and
+approved `gpt-6-luna` after model discovery. This is a bounded addition to the
+existing product foundations: reviewed capture, owner memory retrieval, cautious
+evidence-linked wording and optional experiments. Core value remains independent
+of provider availability. Current work is local implementation/verification;
+production backend activation and native distribution follow separate gates.
+Broad inference, autonomous publishing and hidden private-content processing
+remain outside scope.
 
 # Product roadmap
 

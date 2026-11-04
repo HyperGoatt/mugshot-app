@@ -1,8 +1,38 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-04
 ---
+
+## Optional Luna activation completed — 2026-11-04
+
+The owner authorized the live Luna phone handoff and the temporary QA branch at
+$0.01344/hour. A fresh data-less branch replayed all 185 candidate migrations with
+inert fixture secrets and inactive schedules; 67 hosted contracts, eight live
+synthetic Auth/Edge/RPC/Luna probes and quota/erasure denials passed. The branch
+was deleted and its absence confirmed.
+
+A completed November 4 physical backup and preserved counts/whole-row hashes
+across 73 original tables preceded/guarded the exact live deployment. Only
+`20261102160000_optional_coffee_assistance.sql` was applied; the held Home V4
+migration was excluded. The exact release bundle is up to date. Function version
+3 is enabled; no-bearer/invalid-bearer requests return 401. Shared secret updates
+advance other Edge version counters; all 14 available prior bundle hashes and
+all 16 prior entrypoints remain unchanged. New service-only tables add only the
+expected no-policy INFO notices, with no new WARN findings. Roll back suggestions
+with `MUGSHOT_AI_ENABLED=false`, preserving user data and quota receipts.
+[Full evidence and remaining phone acceptance](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
+
+## Optional assistance release boundary — 2026-11-02 candidate
+
+[AI_ASSISTANCE.md](AI_ASSISTANCE.md) defines the exact additive migration,
+`coffee-assistance` function, server-only secrets and rollback switch. Local
+credentials and synthetic provider validation are not production configuration.
+Native synthetic Simulator journeys and hermetic boundary checks pass; an
+authenticated deployed end-to-end request remains a separate activation check. Keep `MUGSHOT_AI_ENABLED` off until approved; rollback disables only
+optional suggestions. No routine verification deploys this migration or function
+against the linked project. Existing journal, recipe and publishing services are
+unchanged by optional assistance outages.
 
 ## Cafe verification incident handoff — 2026-10-30
 

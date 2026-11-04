@@ -982,7 +982,7 @@ private enum HomeWorkbenchSheet: Identifiable {
     }
 }
 
-private struct HomeBagEditorConfiguration: Identifiable {
+struct HomeBagEditorConfiguration: Identifiable {
     enum Mode { case scan, manual, edit }
     let id = UUID()
     let mode: Mode
@@ -1244,7 +1244,8 @@ private struct HomeRecipeStepsEditor: View {
     }
 }
 
-private struct HomeCoffeeBagEditorSheet: View {
+struct HomeCoffeeBagEditorSheet: View {
+    @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
 
     let configuration: HomeBagEditorConfiguration
@@ -1278,8 +1279,12 @@ private struct HomeCoffeeBagEditorSheet: View {
         _bag = State(initialValue: configuration.bag ?? CoffeeBag(ownerUserID: scope.userID))
     }
 
+    private var isCurrentOwner: Bool {
+        LocalAccountScope.forUserID(authModel.authenticatedUser?.id) == scope
+    }
+
     private var canSave: Bool {
-        bag.roaster.remoteTrimmedNonEmpty != nil || bag.name.remoteTrimmedNonEmpty != nil
+        isCurrentOwner && (bag.roaster.remoteTrimmedNonEmpty != nil || bag.name.remoteTrimmedNonEmpty != nil)
     }
 
     private var duplicate: CoffeeBag? {
@@ -1296,6 +1301,27 @@ private struct HomeCoffeeBagEditorSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     if configuration.mode == .scan {
                         scanCard
+                        if let image, scope.userID != nil {
+                            CoffeeAssistanceButton(ownerID: scope.userID, task: .bagScan,
+                                evidence: [], image: image, onAccepted: { result in
+                                    for field in result.fields {
+                                        switch field.key {
+                                        case "roaster": bag.roaster = field.value
+                                        case "name": bag.name = field.value
+                                        case "producer": bag.producer = field.value
+                                        case "origin": bag.origin = field.value
+                                        case "process": bag.process = field.value
+                                        case "variety": bag.variety = field.value
+                                        case "roastLevel": bag.roastLevel = field.value
+                                        case "roastDate": bag.roastDate = HomeBagDateParser.date(from: field.value)
+                                        case "tastingNotes": bag.tastingNotes = field.value
+                                        default: break
+                                        }
+                                    }
+                                })
+                            Text("Optional online help. Check printed details before saving; roaster notes are separate from what you taste.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
 
                     if let duplicate {
@@ -1374,6 +1400,9 @@ private struct HomeCoffeeBagEditorSheet: View {
                 .padding(16)
             }
             .background(Color.creamWhite)
+            .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+                if !isCurrentOwner { dismiss() }
+            }
             .navigationTitle(configuration.mode == .edit ? "Edit coffee" : "Add coffee")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1429,7 +1458,9 @@ private struct HomeCoffeeBagEditorSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(isScanning ? "Reading the bag…" : "Scan once. Check before saving.")
                         .font(.system(size: 13, weight: .bold))
-                    Text("Everything is read on this iPhone. Uncertain fields are marked.")
+                    Text(scope.userID == nil
+                        ? "This scan is read on your iPhone. Uncertain fields are marked."
+                        : "This scan is read on your iPhone. Online help is a separate choice below. Uncertain fields are marked.")
                         .font(.system(size: 10))
                         .foregroundStyle(Color.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1519,6 +1550,7 @@ private struct HomeCoffeeBagEditorSheet: View {
     }
 
     private func apply(_ proposal: CoffeeBagScanProposal) {
+        guard isCurrentOwner else { return }
         if let value = proposal[.roaster]?.value { bag.roaster = value }
         if let value = proposal[.name]?.value { bag.name = value }
         if let value = proposal[.producer]?.value { bag.producer = value }

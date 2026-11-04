@@ -1,8 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-11-04
 ---
+
+## Luna phone handoff — 2026-11-04
+
+Backend activation and the owner-authorized development-device install are
+complete. Human QA of response usefulness, source fidelity, consent and reviewed
+acceptance is next. Retain parent PR holds and the separate Weekly Pour approval
+gate. [Phone QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
+
+## Additional owner-authorized candidate — 2026-11-02
+
+Locally verified [optional Luna assistance](AI_ASSISTANCE.md) across reviewed
+capture, memory search, taste observations, Home experiments and weekly wording.
+Preserve all core flows without AI, existing parent PR holds, the separate Weekly
+Pour design approval gate, and production/TestFlight boundaries. See the
+[verification ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).
 
 Current source amendment (2026-09-18): Home Sip V3 keeps central Add > Log a Sip
 > Home in the production composer and opens setup-first, with a visible two-
