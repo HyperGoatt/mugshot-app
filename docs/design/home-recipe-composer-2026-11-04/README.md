@@ -64,6 +64,10 @@ reclassified, edited or used for synthetic saves.
   `/tmp/mugshot-recipe-composer-green2.xcresult` passes 16/16: 12 native cases
   and 4 UI cases, including the complete component → latte → linked preview →
   guidance → shared review journey. Broader delivery checks follow below.
+- The broader 75-case run passes 74, but the lower syrup field again retains 1
+  after typing 15. The earlier focused pass is not sufficient input acceptance.
+  The next fix commits numeric text synchronously and avoids reformatting during
+  editing; repeated journey checks are required for this timing-dependent case.
 
 ## Interaction references
 
