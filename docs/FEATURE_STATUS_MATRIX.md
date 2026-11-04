@@ -4,6 +4,17 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe source capture and Home journey — 2026-11-04 follow-up
+
+Available public Instagram/TikTok captions and selected screenshots/short clips
+can fill editable recipe facts automatically. Native labelled-section parsing
+and OCR work without Luna; blocked links keep manual/attachment fallbacks.
+The caption-to-library-to-guidance-to-rating/review journey passes on an isolated
+iPhone app with fixture data. This does not establish universal social access,
+the Photos picker or optional on-device speech acceptance. Owner content is
+preserved; TestFlight and parent merges remain held.
+[Exact results and limitations](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
 ## Home library candidate — 2026-11-04
 
 Standalone recipe/bean/gear management and account-local defaults are implemented

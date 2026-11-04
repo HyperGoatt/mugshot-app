@@ -5,6 +5,10 @@ status: installed-physical-navigation-verified
 
 # Home library and simpler Log a Sip — 2026-11-04
 
+**Follow-up:** [Home source capture and full-flow QA](HOME_SOURCE_CAPTURE_2026-11-04.md)
+adds automatic factual source capture and the isolated physical guidance/rating/
+review journey. This report retains the original navigation-only chronology.
+
 Current sources: [Home implementation](../HOME_RECIPES_IMPLEMENTATION.md) and
 [optional Luna assistance](../AI_ASSISTANCE.md). This work changes product flow,
 account-owned local defaults and AI permission/disclosure. It does not introduce

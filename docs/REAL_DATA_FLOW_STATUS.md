@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Native recipe-source reading — November 4 follow-up
+
+Selected public social captions are read through an unauthenticated ephemeral
+session with allowlisted hosts, revalidated redirects and body/time bounds.
+Selected screenshots/video frames can be read with Apple Vision; optional speech
+recognition requires on-device support and sends no raw audio to OpenAI. Clips
+stay in private temporary files and are removed when the capture closes. Only
+the user-saved editable recipe/source/credit persist in the existing workspace.
+Luna uses the unchanged authenticated bounded text/image contract. No source URL
+becomes an unrestricted server-side fetch, and no webpage script is executed.
+[Current verification and hardware boundary](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
 ## Home library ownership and Luna permission — 2026-11-04 candidate
 
 The standalone library reuses existing bags/gear and the versioned recipe workspace;

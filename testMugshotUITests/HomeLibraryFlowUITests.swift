@@ -97,7 +97,9 @@ final class HomeLibraryFlowUITests: XCTestCase {
         for _ in 0..<3 where !extracted.isHittable { app.swipeUp() }
         XCTAssertTrue(extracted.waitForExistence(timeout: 5), "Pasting recipe instructions must fill the draft without a separate copy prompt.")
         XCTAssertFalse(app.switches["home.recipe.allowInstructions"].exists)
+        clearNotificationBanner()
         app.buttons["home.recipe.saveIdea"].tap()
+        XCTAssertTrue(app.buttons["home.recipe.saveIdea"].waitForNonExistence(timeout: 6))
         let search = app.textFields["Search your recipes"]
         search.tap(); search.typeText("Guided tea")
         let recipe = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Guided tea")).firstMatch
@@ -131,7 +133,16 @@ final class HomeLibraryFlowUITests: XCTestCase {
 
     @MainActor
     private func capture(_ name: String, in app: XCUIApplication) {
+        clearNotificationBanner()
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Home recipe \(name)"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+
+    @MainActor
+    private func clearNotificationBanner() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let banner = springboard.descendants(matching: .any).matching(identifier: "NotificationShortLookView").firstMatch
+        if banner.exists { banner.swipeUp() }
+        XCTAssertTrue(banner.waitForNonExistence(timeout: 12), "A system notification must clear before a toolbar tap or screenshot.")
     }
 }

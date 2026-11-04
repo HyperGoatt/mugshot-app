@@ -4,6 +4,19 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## 2026-11-04 — Social recipe capture and full Home-flow QA candidate
+
+- Open saved recipes for inspection before making/logging a sip.
+- Read available public Instagram/TikTok captions, screenshots and bounded video
+  sources into editable recipe drafts; keep clear fallbacks for blocked sources.
+- Retain native OCR/labelled-section capture without Luna and optional on-device
+  spoken instructions without uploading audio. Preserve source credit and edits.
+- Keep combined source evidence within the existing server limit, including credit.
+- Hide the empty target card when a guided recipe has no planned measurements;
+  preserve measured targets and exercise selecting a rating before review.
+- Correct the physical Debug unit-test host for the diagnostics app name.
+- [ECC evidence and exact physical acceptance](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
 ## 2026-11-04 — Home library and simpler Home logging candidate
 
 - Add a standalone Home library in Saved and Journal for recipes, bags, gear and

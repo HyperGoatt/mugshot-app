@@ -4,6 +4,23 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Source capture and recipe-first navigation — November 4 follow-up
+
+Saved recipes open their details before the user chooses Make this or Log a make.
+Guidance omits the target card when no planned measurements exist, while measured
+recipes retain their dose/output/time targets.
+The recipe adder reads available public Instagram/TikTok captions after pasting
+a link, on-device screenshot text, and selected/publicly accessible video clips
+up to 60 seconds. Clips use up to six sampled frames; optional spoken instructions
+require on-device speech support/permission. Raw audio is not sent to OpenAI.
+Blocked links stay saveable and can use a pasted caption, screenshot or saved clip.
+Explicitly labelled sections work without Luna. All imported content is editable;
+known no-copy sources stay protected and Save remains explicit. New public-source
+capture fills factual fields without a separate legal checkbox. Link/video access
+can vary by platform and region, so no all-posts or full-video guarantee is made.
+[Current behavior, limits and physical evidence](audits/HOME_SOURCE_CAPTURE_2026-11-04.md)
+supersede the original link-only capture limitation below.
+
 ## Standalone Home library and shorter logging — 2026-11-04 candidate
 
 **Saved → Home library** and **Journal → Keep exploring → Home library** open
@@ -12,7 +29,8 @@ scanned, edited, marked finished/archived and restored. Gear uses the existing
 role-based editor and archive. Recipes keep the existing versioned workspace;
 a link/caption/screenshot can become an idea or editable preparation. Find a
 recipe opens a user-chosen web search, then returns to add the source. It does
-not fetch videos, scrape websites or bypass source restrictions.
+not bypass source restrictions. The follow-up above adds bounded reads of
+available public social captions/media and selected attachments.
 
 Home setup shows latte, espresso, pour-over, matcha, tea and more methods in an
 adaptive grid. **Log this sip** takes the short capture → shared sip reflection

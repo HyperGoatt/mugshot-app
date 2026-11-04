@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe source capture — November 4 follow-up
+
+- `Views/Add/HomeRecipeCaptureView.swift`: link/caption/screenshot/video capture,
+  editable recipe filling, cancellation and ordinary Save.
+- `Services/HomeRecipeSourceReader.swift`: bounded social URL/metadata reading,
+  deterministic labelled sections and ephemeral unauthenticated transport.
+- `Services/HomeRecipeMediaReader.swift`: actual image/video-frame OCR and optional
+  on-device speech, with temporary clip import and explicit media bounds.
+- `Models/HomeRecipeCaptureSources.swift`: distinct source contributions that
+  preserve captions and user typing when another attachment changes.
+- [ECC evidence and physical acceptance](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
 ## Home library and remembered Luna access — 2026-11-04
 
 - `Views/Add/HomeLibraryView.swift`: standalone Recipes/Beans/Gear/Preferences,

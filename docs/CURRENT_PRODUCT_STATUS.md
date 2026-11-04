@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Recipe-source capture and complete Home QA — November 4 follow-up
+
+The candidate now opens saved recipes before making/logging, reads available
+public Instagram/TikTok captions, and supports screenshot/video-frame text with
+optional on-device spoken instructions. Factual fields fill an editable draft
+automatically; known no-copy guards, explicit Save and ordinary non-AI paths stay
+intact. Full Simulator and physical-device evidence, exact source-access limits
+and the installed package state are maintained in the [source-capture audit](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
 ## Home library and Luna simplification — 2026-11-04 candidate
 
 `codex/home-library-flow` builds on the installed Journal fix. Standalone recipe,
@@ -16,8 +25,9 @@ Manual entry, on-device scan, source rights and account boundaries remain.
 are authoritative; implementation is not a TestFlight acceptance claim.
 After owner unlock, the installed candidate physically launches and renders
 Journal. Saved → Home library, all four sections and manual-bag open/cancel are
-verified on the iPhone through Device Hub. Real scan/save and the full Home
-making journey remain owner QA; merge and TestFlight holds remain unchanged.
+verified on the iPhone through Device Hub. The source-capture follow-up above
+adds the complete synthetic making journey on isolated hardware. Real owner
+scan/save acceptance, merge and TestFlight holds remain unchanged.
 
 ## Journal and bean-entry correction — 2026-11-04
 

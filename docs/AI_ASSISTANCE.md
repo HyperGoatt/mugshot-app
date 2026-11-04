@@ -34,13 +34,25 @@ per account/device and revocable in Home preferences. Opening the library itself
 makes no AI request. Selecting a bag photo then reads it directly into editable
 fields; invoking another contextual helper requests its result without a second
 Generate step. Recipe idea capture can read selected screenshots/pasted text into
-a draft after source-copying permission. Ordinary Save stays separate.
+a draft. The source-capture follow-up below removes its separate copy prompt for
+new factual capture from selected public posts/attachments. Ordinary Save stays
+separate; known protected recipe records retain their no-copy guard.
 The candidate is installed and physically opens Journal and Saved → Home library
 on the owner's iPhone, including all library sections and bag entry/cancel.
-These checks leave Luna permission unchanged and send no real photo; current
-automatic scanning and full Home-flow acceptance remain human QA.
+These owner-account checks leave Luna permission unchanged and send no real photo.
+The source-capture follow-up verifies the caption-to-guidance-to-rating/review
+journey in a separate local-only iPhone app. Real owner bag-photo/save acceptance,
+the Photos picker and optional spoken-step recognition remain separate checks.
 
 ## Product behavior
+
+The [source-capture follow-up](audits/HOME_SOURCE_CAPTURE_2026-11-04.md) adds native
+reads of available public Instagram/TikTok captions and screenshot/video-frame
+OCR before optional Luna structuring. Clear section parsing remains available
+without AI. Chosen source facts fill the new capture draft automatically, without
+a per-recipe legal checkbox. Video speech recognition is optional and on-device;
+raw audio is not sent to OpenAI. Combined text reserves the credit slot inside the existing
+20-item/800-UTF-16-unit evidence limit. The server/model/quota are unchanged.
 
 | Helper | Entry | Existing independent behavior |
 | --- | --- | --- |
@@ -59,8 +71,10 @@ names OpenAI and selected photos, recipe text and saved sip details. After expli
 enablement, the user starts work by selecting a scan/import source or invoking a
 contextual tool. Selected evidence stays inspectable. No passive journal-wide
 background processing occurs.
-Recipe extraction also requires the user to confirm source-copying rights.
-Known protected/no-copy recipes cannot use import. Accepted fields update only
+The legacy in-editor copy helper retains its source-copying confirmation. New
+public-link/attachment capture automatically fills factual fields, keeps source
+credit and does not assert or expand a source's reuse permission. Known
+protected/no-copy recipes cannot use import. Accepted fields update only
 the editable draft; ordinary Save remains a separate action. Recipe capture
 preserves attribution and existing fields, appends selected literal ingredient
 and instruction text without inventing numeric amounts, and does not change

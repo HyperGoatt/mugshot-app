@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Owner-promoted complete Home QA and source capture — November 4 follow-up
+
+The caption recipe → library → guidance → shared rating/review journey passes on
+hardware, including a selected four-star rating. Source capture adds available
+public social captions and selected screenshots/short clips, keeping an editable,
+usable non-AI path. Mutable fixtures run in a separate local QA app; the owner's
+library/draft are preserved. Parent merge/TestFlight holds remain.
+[Current evidence and remaining media/accessibility checks](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
 ## Owner-requested Home simplification — 2026-11-04
 
 Work on `codex/home-library-flow` adds standalone Home library management, shorter
