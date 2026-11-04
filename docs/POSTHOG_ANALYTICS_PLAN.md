@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Luna physical QA analytics — 2026-11-04
+
+The phone QA package has an empty PostHog project token. Live AI inputs/results
+remain outside analytics; no remote PostHog setting was changed. The backend
+was enabled after synthetic hosted acceptance, with no customer prompts used in
+those probes. [Activation ledger](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
 
 ## Optional helper analytics — 2026-11-02 candidate
 

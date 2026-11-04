@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Luna phone QA handoff — 2026-11-04
+
+[Installed build, backend activation and human QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
+records the live optional backend, preserved data, signed development-device
+install and remaining owner acceptance. The November 2 ledger retains the
+original local-only chronology.
 
 ## Optional assistance candidate
 

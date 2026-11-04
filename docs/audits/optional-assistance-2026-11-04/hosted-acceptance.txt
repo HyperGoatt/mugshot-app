@@ -1,0 +1,90 @@
+Complete hosted contracts
+PASS deterministic alpha QA seed
+PASS account_data_lifecycle_v2_contract.sql
+PASS account_data_lifecycle_v3_hardening.sql
+PASS account_deletion_live_session_gate.sql
+PASS account_deletion_nonempty_manifest.sql
+PASS account_deletion_worker_schedule.sql
+PASS activation_contract.sql
+PASS activity_delivery_schedule_v3.sql
+PASS alpha_activity_delivery_contract.sql
+PASS alpha_activity_delivery_hardening_contract.sql
+PASS alpha_activity_delivery_hardening_security.sql
+PASS alpha_activity_delivery_security.sql
+PASS alpha_collaborative_cafe_lists_contract.sql
+PASS alpha_collaborative_cafe_lists_security.sql
+PASS alpha_collaborative_list_activity_lifecycle_security.sql
+PASS alpha_enforcement_transparency_contract.sql
+PASS alpha_enforcement_transparency_security.sql
+PASS alpha_moderation_integrity_hardening_contract.sql
+PASS alpha_moderation_integrity_hardening_security.sql
+PASS alpha_passport_visibility_contract.sql
+PASS alpha_projection_and_safety_hardening.sql
+PASS alpha_qa_compatibility_security.sql
+PASS alpha_recipe_collaboration_hardening.sql
+PASS alpha_recipe_payload_confidentiality.sql
+PASS alpha_recipe_visibility_contract.sql
+PASS alpha_social_integrity_contract.sql
+PASS alpha_social_integrity_security.sql
+PASS backend_capabilities_v1_contract.sql
+PASS cafe_sessions_contract.sql
+PASS canonical_journal_contract.sql
+PASS canonical_journal_rls.sql
+PASS delete_owned_visit_contract.sql
+PASS discovery_social_contract.sql
+PASS drink_analysis_contract.sql
+PASS edit_owned_visit_contract.sql
+PASS followup_sprint_contract.sql
+PASS friend_cafe_discovery_contract.sql
+PASS home_v4_public_preparation_contract.sql
+PASS home_workbench_contract.sql
+PASS legacy_notification_insert_security.sql
+PASS migration_integrity.sql
+PASS mugshot_share_links_contract.sql
+PASS owner_data_export_contract.sql
+PASS people_discovery_v1_contract.sql
+PASS phase4_collaboration_contract.sql
+PASS phase4_privacy_contract.sql
+PASS private_visit_photo_storage_contract.sql
+PASS recipe_version_contract.sql
+PASS reflection_preferences_contract.sql
+PASS repair_publication_activity_reactions.sql
+PASS social_rls.sql
+PASS sprint1_analytics_recovery_contract.sql
+PASS sprint1_cafe_catalog_admission.sql
+PASS sprint1_cafe_catalog_grants.sql
+PASS sprint1_canonical_post_screening.sql
+PASS sprint1_existing_revision_visibility.sql
+PASS sprint1_legacy_projection_screening.sql
+PASS sprint1_profile_live_projection.sql
+PASS sprint1_saved_cafe_access.sql
+PASS sprint1_screening_queue_contract.sql
+PASS tag_only_social_edit_v2_contract.sql
+PASS taste_graph_contract.sql
+PASS taste_graph_rls.sql
+PASS tasting_lens_2_contract.sql
+PASS v3_visit_reflections_contract.sql
+PASS visit_caption_length_contract.sql
+PASS visit_insert_contract.sql
+PASS visit_photo_storage_contract.sql
+SUMMARY 67 passed, 0 failed, 67 total
+
+Authenticated synthetic Edge acceptance
+PASS deployed unauthenticated denial HTTP 401
+PASS deployed wrong-owner denial HTTP 403
+PASS deployed missing-consent denial HTTP 400
+PASS deployed authenticated bag_scan text: bounded result and supplied references
+PASS deployed authenticated recipe_import text: bounded result and supplied references
+PASS deployed authenticated memory_search text: bounded result and supplied references
+PASS deployed authenticated taste_insight text: bounded result and supplied references
+PASS deployed authenticated brew_experiment text: bounded result and supplied references
+PASS deployed authenticated weekly_reflection text: bounded result and supplied references
+PASS deployed authenticated bag_scan image: bounded result and supplied references
+PASS deployed authenticated recipe_import image: bounded result and supplied references
+PASS deployed duplicate request HTTP 429
+SUMMARY 8/8 live Luna requests through real Auth, RPC and Edge transport; negative boundaries pass.
+
+Hosted quotas and grants
+PASS hosted client denial on both tables and reserve RPC
+PASS hosted global cap and account erasure: identifiable receipts cascade, anonymous spend retained; transaction rolled back
+PASS hosted daily quota: HTTP 429 before provider access

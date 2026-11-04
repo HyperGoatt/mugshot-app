@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Luna phone QA evidence — 2026-11-04
+
+[The activation and physical-install ledger](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
+indexes the exact server bundle, migration, phone package receipt, hosted checks,
+protected-data preservation, cleanup and human checklist. Feature Swift source is
+unchanged from commit `535d9aa`; the QA package label identifies the development
+app without replacing the normal app's identity.
 
 ## Optional assistance candidate — 2026-11-02
 

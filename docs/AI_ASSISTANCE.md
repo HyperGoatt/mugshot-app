@@ -1,21 +1,25 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
 
 # Optional coffee assistance
 
 ## Delivery state
 
-The `codex/luna-assistance` candidate implements optional helpers on the current
-publishing/Home V4 candidate. Its parent PRs retain their existing acceptance
-holds. This does not integrate the separate Weekly Pour visual proposal.
-Backend handler/provider tests, a disposable PGlite quota contract, native domain
-checks, five synthetic Simulator UI journeys and eight synthetic live provider
-probes pass. The native app and test bundles compile. No production migration,
-function deployment, iPhone install or TestFlight action has occurred for this candidate. The final evidence is recorded in the
-[verification ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).
+The `codex/luna-assistance` candidate is production-configured for optional
+`gpt-6-luna` requests. Function version 3 is enabled after 67 hosted contracts,
+eight authenticated synthetic text/image probes and quota/ownership denial
+checks. Existing data was preserved around the exact additive migration.
+
+**Mugshot Luna QA 0.5.3 (8)** is installed as the development app on the owner's
+iPhone 16 Pro / iOS 27.0.1. It restores the existing account and renders Feed;
+human acceptance of real helper responses remains pending. No TestFlight action
+occurred. Parent PR holds remain, and the separate Weekly Pour visual proposal
+is excluded. [Current activation and phone QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
+contains the package receipt and checklist; the [November 2 ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md)
+retains the original implementation evidence.
 
 ## Product behavior
 
@@ -110,7 +114,8 @@ Required server-only configuration is `OPENAI_API_KEY`,
 Supabase public and secret keys. The enable switch defaults off and is checked
 before provider access. Local credentials are not production configuration.
 
-After review and explicit production authorization, apply only
+The initial authorized activation completed on November 4. For future deployments,
+after review and production authorization, apply only
 `20261102160000_optional_coffee_assistance.sql`, deploy `coffee-assistance`, then
 set its server-only secrets and enable switch. Preserve existing user content and
 all prior backend services. Roll back optional assistance by setting

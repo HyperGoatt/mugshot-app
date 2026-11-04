@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Luna phone acceptance — 2026-11-04
+
+The optional backend is enabled and the development-device package is installed.
+The next product gate is the owner's human assessment of real helper usefulness,
+source fidelity and perceived speed. Parent native-stack review holds, the Weekly
+Pour design gate and TestFlight authorization remain separate.
+[Human QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
 
 ## Optional Luna assistance candidate — 2026-11-02
 

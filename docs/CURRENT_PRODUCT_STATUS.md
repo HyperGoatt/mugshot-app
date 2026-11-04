@@ -1,8 +1,17 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Optional Luna assistance — phone QA ready, 2026-11-04
+
+The optional backend is production-configured and enabled with `gpt-6-luna`.
+**Mugshot Luna QA 0.5.3 (8)** is installed on the owner's iPhone and renders the
+restored account's Feed. Eight authenticated synthetic task/image probes passed
+on the disposable backend; human acceptance of real phone helper responses is
+pending. Existing content is preserved. No TestFlight action or parent-stack
+merge occurred. [Evidence and checklist](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
 
 ## Optional Luna helpers candidate — 2026-11-02
 

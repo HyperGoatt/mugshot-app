@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Luna phone handoff — 2026-11-04
+
+Backend activation and the owner-authorized development-device install are
+complete. Human QA of response usefulness, source fidelity, consent and reviewed
+acceptance is next. Retain parent PR holds and the separate Weekly Pour approval
+gate. [Phone QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
 
 ## Additional owner-authorized candidate — 2026-11-02
 

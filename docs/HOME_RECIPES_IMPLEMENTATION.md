@@ -1,8 +1,17 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Optional Luna helpers available for phone QA — 2026-11-04
+
+The owner-authorized development-device build includes live optional bag/recipe
+capture and saved-Home experiment helpers. Reviewed fields update drafts only;
+normal persistence remains separate. The unrelated held Home V4 public-preparation
+migration is excluded from this backend rollout; private helper QA does not
+promote public-preparation sharing or its parent PR.
+[Phone checklist and evidence](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
 
 ## Optional reviewed capture and experiments — 2026-11-02 candidate
 

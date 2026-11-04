@@ -1,8 +1,20 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## 2026-11-04 — Luna backend activated and phone QA installed
+
+- Enable the optional `gpt-6-luna` backend after 67 hosted contracts, eight
+  authenticated text/image probes, and deployed ownership/quota denial checks.
+- Apply only the assistance migration. Preserve all 73 existing protected table
+  fingerprints; keep the held Home V4 migration outside this deployment.
+- Install and launch **Mugshot Luna QA 0.5.3 (8)** on the owner's iPhone with
+  existing local data preserved, unchanged entitlements and analytics disabled.
+- Delete the approved temporary paid QA branch. Human helper acceptance remains
+  pending; parent PR holds remain and no TestFlight action occurred.
+- [Deployment evidence and human QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
 
 ## 2026-11-02 — Optional Luna assistance candidate
 

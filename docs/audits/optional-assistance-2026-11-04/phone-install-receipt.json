@@ -1,0 +1,15 @@
+{
+  "source_commit": "535d9aa0b0a80a2d57b5da0224f13182c52a19e6",
+  "bundle_id": "co.mugshot.app.dev",
+  "display_name": "Mugshot Luna QA",
+  "version": "0.5.3",
+  "build": "8",
+  "binary_sha256": "b1bba1380b45ec35d8589f4cfab6310485a96136cee2689110f8433e5c4f8018",
+  "deep_signature_verified": true,
+  "entitlements_preserved": true,
+  "analytics_disabled": true,
+  "local_data_preservation": {
+    "original_files": 52,
+    "unchanged": true
+  }
+}

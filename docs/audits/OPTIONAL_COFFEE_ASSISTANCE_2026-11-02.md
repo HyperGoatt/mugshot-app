@@ -7,6 +7,9 @@ status: locally-verified-candidate
 
 Current implementation and rollout contract: [AI assistance](../AI_ASSISTANCE.md).
 
+**Delivery continuation:** the [November 4 activation and phone QA ledger](OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
+supersedes the local-only delivery state below. The dated test chronology is preserved.
+
 ## Scope and user journeys
 
 The owner requested all five optional helper groups using Luna, with no core app

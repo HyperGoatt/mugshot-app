@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-02
+last_verified: 2026-11-04
 ---
+
+## Luna activation and physical install — 2026-11-04
+
+The optional assistance backend is enabled; the signed **Mugshot Luna QA
+0.5.3 (8)** build is installed and launches on the owner's iPhone. Hosted Auth,
+Edge, quota and synthetic Luna boundaries pass. Phone response quality and human
+acceptance remain pending; no TestFlight gate is claimed.
+[Current evidence](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md).
 
 ## Optional assistance candidate — 2026-11-02
 
