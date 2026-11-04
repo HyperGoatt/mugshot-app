@@ -83,4 +83,50 @@ final class HomeLibraryFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add preparation details"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
     }
+
+    @MainActor
+    func testCaptionRecipeCanGoFromLibraryThroughGuidanceToSharedReviewWithoutAI() {
+        let app = launch()
+        app.buttons["mugshot.tab.saved"].tap(); app.buttons["home.library.entry"].tap()
+        app.buttons["home.library.addRecipe"].tap()
+        let name = app.textFields["home.recipe.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Guided tea")
+        let caption = app.textViews["home.recipe.sourceText"].exists ? app.textViews["home.recipe.sourceText"] : app.textFields["home.recipe.sourceText"]
+        caption.tap(); caption.typeText("Ingredients:\n2 g tea\n100 ml water\nSteps:\nStir with water.")
+        let extracted = app.staticTexts["home.recipe.extractedCount"]
+        for _ in 0..<3 where !extracted.isHittable { app.swipeUp() }
+        XCTAssertTrue(extracted.waitForExistence(timeout: 5), "Pasting recipe instructions must fill the draft without a separate copy prompt.")
+        XCTAssertFalse(app.switches["home.recipe.allowInstructions"].exists)
+        app.buttons["home.recipe.saveIdea"].tap()
+        let search = app.textFields["Search your recipes"]
+        search.tap(); search.typeText("Guided tea")
+        let recipe = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Guided tea")).firstMatch
+        XCTAssertTrue(recipe.waitForExistence(timeout: 4)); recipe.tap()
+        let make = app.buttons["home.recipe.make"]
+        XCTAssertTrue(make.waitForExistence(timeout: 5)); make.tap()
+        let guidance = app.buttons["home.makeWithGuidance"]
+        if guidance.waitForExistence(timeout: 5) { guidance.tap() }
+        XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 5))
+        capture("Guidance", in: app)
+        for _ in 0..<8 where !app.staticTexts["How did it go?"].exists {
+            app.buttons["logASipV3.primaryAction"].tap()
+        }
+        XCTAssertTrue(app.staticTexts["How did it go?"].waitForExistence(timeout: 4))
+        app.buttons["logASipV3.primaryAction"].tap()
+        XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
+        app.buttons["logASipV3.primaryAction"].tap()
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
+        if app.sliders.firstMatch.exists { app.sliders.firstMatch.adjust(toNormalizedSliderPosition: 0.7) }
+        capture("Rating", in: app)
+        app.buttons["logASipV3.primaryAction"].tap()
+        XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Save to journal"].exists)
+        capture("Review", in: app)
+    }
+
+    @MainActor
+    private func capture(_ name: String, in app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Home recipe \(name)"; attachment.lifetime = .keepAlways; add(attachment)
+    }
 }
