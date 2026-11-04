@@ -135,6 +135,32 @@ struct HomeRecipeCompositionTests {
         #expect(drink.name == "Unsaved latte" && drink.ingredients[0].amount == -1)
     }
 
+    @Test func choosingTheUnchangedBaseMustNotCreateANewRecipeVersion() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root); store.activate(.guest)
+        var content = HomeDrinkComposition.starting(); content.name = "Morning latte"
+        let id = try store.saveRecipe(HomeRecipeEditorDraft(content: content))
+        let version = try #require(store.workspace.recipes.first?.current)
+        HomeDrinkComposition.usePreset(.espresso, in: &content)
+        _ = try store.saveRecipe(HomeRecipeEditorDraft(recipeID: id, baseVersionID: version.id, content: content))
+        #expect(store.workspace.recipes.first?.versions.count == 1)
+    }
+
+    @Test func replacingALinkedBaseFindsItBehindOtherIngredients() throws {
+        let base = HomeRecipeContent(name: "Saved espresso", template: .preparation, method: .espresso)
+        let reference = HomeRecipeReference(recipeID: UUID(), versionID: UUID())
+        let milk = HomeRecipeIngredient(name: "Oat milk", amount: 100, unit: "ml")
+        let linked = HomeRecipeIngredient(name: base.name, unit: "serving", recipe: reference)
+        var drink = HomeRecipeContent(name: "Imported latte", template: .drink, method: .completeDrink)
+        drink.ingredients = [milk, linked]
+        let oldBaseID = HomeDrinkComposition.baseID(in: drink) { $0 == reference ? base : nil }
+        #expect(oldBaseID == linked.id)
+        HomeDrinkComposition.usePreset(.traditionalMatcha, in: &drink, replacing: oldBaseID)
+        #expect(drink.ingredients.contains(milk))
+        #expect(!drink.ingredients.contains { $0.id == linked.id })
+    }
+
     private func syrup() -> HomeRecipeRecord {
         var content = HomeRecipeContent(name: "Wildberry syrup", template: .preparation, method: .other)
         content.ingredients = [HomeRecipeIngredient(name: "Blueberries", amount: 2, unit: "cups")]

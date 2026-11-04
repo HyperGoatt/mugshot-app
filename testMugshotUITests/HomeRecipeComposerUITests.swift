@@ -30,15 +30,13 @@ final class HomeRecipeComposerUITests: XCTestCase {
         let caption = app.textFields["home.recipe.sourceText"]
         XCTAssertTrue(caption.waitForExistence(timeout: 4)); caption.tap()
         caption.typeText("Ingredients:\n1 cup berries\n1 cup water\nSteps:\nSimmer gently.")
+        app.buttons["home.recipe.keyboardDone"].tap()
         let component = app.buttons["home.recipe.use.component"]
         reveal(component, app); component.tap()
         XCTAssertTrue(app.staticTexts["home.recipe.extractedCount"].waitForExistence(timeout: 5))
         capture("02-component-preview", app)
         clearBanner(); app.buttons["home.recipe.saveIdea"].tap()
         XCTAssertTrue(app.buttons["home.recipe.saveIdea"].waitForNonExistence(timeout: 6))
-        let search = app.textFields["Search your recipes"]; search.tap(); search.typeText("Berry syrup")
-        let saved = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Berry syrup")).firstMatch
-        XCTAssertTrue(saved.waitForExistence(timeout: 5)); saved.tap()
         let use = app.buttons["home.recipe.useInDrink"]
         XCTAssertTrue(use.waitForExistence(timeout: 5)); use.tap()
         let drinkName = app.textFields["home.drink.name"]
@@ -47,11 +45,12 @@ final class HomeRecipeComposerUITests: XCTestCase {
         let amount = app.textFields["Amount of Berry syrup"]
         reveal(amount, app); amount.tap(); amount.typeText("15")
         app.buttons["home.drink.keyboardDone"].tap()
+        XCTAssertEqual(amount.value as? String, "15", "Typing must retain the complete per-drink amount.")
         capture("03-drink-mix", app)
         let preview = app.buttons["Open Berry syrup recipe"]
         reveal(preview, app); preview.tap()
-        XCTAssertTrue(app.staticTexts["Simmer gently."].waitForExistence(timeout: 5))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["1. Simmer gently."].waitForExistence(timeout: 5))
+        app.buttons["home.recipe.linked.done"].tap()
         XCTAssertEqual(drinkName.value as? String, "Berry latte")
         XCTAssertEqual(amount.value as? String, "15")
         clearBanner(); app.buttons["home.drink.save"].tap()
@@ -81,10 +80,18 @@ final class HomeRecipeComposerUITests: XCTestCase {
         app.buttons["home.drink.preset.traditional_matcha"].tap()
         XCTAssertTrue(app.staticTexts["Traditional matcha"].waitForExistence(timeout: 4))
         clearBanner(); app.buttons["home.drink.save"].tap()
-        XCTAssertTrue(app.buttons["home.library.buildDrink"].waitForExistence(timeout: 5))
-        let search = app.textFields["Search your recipes"]; search.tap(); search.typeText("Morning matcha")
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Morning matcha")).firstMatch.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["home.recipe.make"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.staticTexts["Morning matcha"].firstMatch.exists)
         XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
+    }
+
+    @MainActor
+    func testIngredientAmountTypingRetainsAllDigits() {
+        let app = book(); app.buttons["home.library.buildDrink"].tap()
+        let amount = app.textFields["Amount of Milk"]
+        reveal(amount, app); amount.tap(); amount.typeText("150.5")
+        app.buttons["home.drink.keyboardDone"].tap()
+        XCTAssertEqual(amount.value as? String, "150.5")
     }
 
     @MainActor private func reveal(_ element: XCUIElement, _ app: XCUIApplication) {
