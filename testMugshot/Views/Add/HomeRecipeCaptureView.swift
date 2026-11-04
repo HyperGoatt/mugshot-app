@@ -14,7 +14,6 @@ struct HomeQuickRecipeSheet: View {
     @State private var image: UIImage?
     @State private var movieURL: URL?
     @State private var includesSpeech = false
-    @State private var canCopy = false
     @State private var importID = UUID()
     @State private var sourceGeneration = UUID()
     @State private var linkRetry = UUID()
@@ -26,6 +25,8 @@ struct HomeQuickRecipeSheet: View {
     @State private var generatedIngredients: [HomeRecipeIngredient] = []
     @State private var generatedSteps: [HomePreparationStep] = []
     @State private var generatedName: String?
+    @State private var generatedMethod: HomeBrewMethod?
+    @State private var generatedCustomMethod = ""
     @State private var sources = HomeRecipeCaptureSources()
     private let originalScope: LocalAccountScope
 
@@ -49,10 +50,6 @@ struct HomeQuickRecipeSheet: View {
                     }
                 }
                 .onChange(of: content.sourceText) { _, _ in restartImport() }
-                .onChange(of: canCopy) { _, allowed in
-                    if allowed { applyFields(HomeRecipeSourceParser.fields(in: content.sourceText)) }
-                    restartImport()
-                }
                 .onChange(of: permission.revision) { _, _ in restartImport() }
                 .onChange(of: authModel.authenticatedUser?.id) { _, _ in if !isCurrentOwner { stop(); dismiss() } }
                 .onChange(of: showsFullEditor) { _, shows in if shows { sourceGeneration = UUID(); isReading = false; assistance.invalidate() } }
@@ -61,7 +58,10 @@ struct HomeQuickRecipeSheet: View {
                 .task(id: selectedVideo) { await loadVideo() }
                 .task(id: includesSpeech) { if includesSpeech, let movieURL { await readVideo(movieURL, speech: true) } }
                 .task(id: importID) { await readWithLuna() }
-                .onDisappear { sourceGeneration = UUID(); isReading = false; assistance.invalidate() }
+                .onDisappear {
+                    sourceGeneration = UUID(); isReading = false; assistance.invalidate()
+                    if !showsFullEditor { stop() }
+                }
         }
         .fullScreenCover(isPresented: $showsFullEditor) {
             NavigationStack { HomeRecipeEditorView(store: store, draft: HomeRecipeEditorDraft(content: content)) { id in finish(id) } }
@@ -88,6 +88,10 @@ struct HomeQuickRecipeSheet: View {
                 PhotosPicker(selection: $selectedVideo, matching: .videos) {
                     Label("Add a saved recipe video", systemImage: "video")
                 }.accessibilityIdentifier("home.recipe.video")
+                if permission.isEnabled(ownerID: originalScope.userID) {
+                    Text("Luna reads selected text and images, including video frames. Audio stays on your iPhone.")
+                        .font(.caption).foregroundStyle(Color.secondaryText)
+                }
                 if let image { Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 160) }
                 if movieURL != nil {
                     Toggle("Include spoken steps on this iPhone", isOn: $includesSpeech)
@@ -103,8 +107,6 @@ struct HomeQuickRecipeSheet: View {
             }
             if hasSource {
                 Section {
-                    Toggle("I can copy these recipe instructions", isOn: $canCopy)
-                        .accessibilityIdentifier("home.recipe.allowInstructions")
                     LunaPermissionControl(ownerID: originalScope.userID)
                     if assistance.isWorking { ProgressView("Luna is reading your recipe…") }
                     if let message = assistance.message { Text(message).font(.footnote).foregroundStyle(Color.secondaryText) }
@@ -143,7 +145,7 @@ struct HomeQuickRecipeSheet: View {
                 removeGeneratedFields()
                 content.sourceText = sources.update(.caption, text: source.text, currentText: content.sourceText)
                 if content.creatorCredit.isEmpty { content.creatorCredit = source.creator }
-                if canCopy { applyFields(HomeRecipeSourceParser.fields(in: source.text)) }
+                applyFields(HomeRecipeSourceParser.fields(in: source.text))
             }
             sourceStatus = "Caption read from this post. Check the details before saving."
             if let video = source.videoURL {
@@ -212,39 +214,52 @@ struct HomeQuickRecipeSheet: View {
 
     private func addCapturedText(_ text: String, kind: HomeRecipeCaptureSources.Kind) {
         guard !text.isEmpty else { return }
+        removeGeneratedFields()
         content.sourceText = sources.update(kind, text: text, currentText: content.sourceText)
-        if canCopy { applyFields(HomeRecipeSourceParser.fields(in: text)) }
+        applyFields(HomeRecipeSourceParser.fields(in: content.sourceText))
     }
 
     private func readWithLuna() async {
         let operation = importID
-        guard canRead, let owner = originalScope.userID, canCopy, permission.isEnabled(ownerID: owner), hasSource else { return }
+        guard canRead, hasSource, content.sourceReuseAllowed != false else { return }
         do {
             try await Task.sleep(for: .milliseconds(900))
             guard !isReading else { return }
+            removeGeneratedFields()
+            applyFields(HomeRecipeSourceParser.fields(in: content.sourceText))
+            guard let owner = originalScope.userID, permission.isEnabled(ownerID: owner) else { return }
             let encoded = try image.map(CoffeeAssistanceImage.encode)
             let request = CoffeeAssistanceRequest(ownerID: owner, task: .recipeImport,
                 evidence: CoffeeAssistanceRecipeImport.source(content), image: encoded)
             await assistance.run(request, consent: true, currentOwner: { authModel.authenticatedUser?.id })
-            guard !Task.isCancelled, operation == importID, canRead, canCopy, permission.isEnabled(ownerID: owner), let result = assistance.result else { return }
+            guard !Task.isCancelled, operation == importID, canRead, content.sourceReuseAllowed != false,
+                  permission.isEnabled(ownerID: owner), let result = assistance.result else { return }
             applyFields(result.fields)
         } catch is CancellationError { }
         catch { self.error = "Couldn’t read that image. Your recipe idea can still be saved." }
     }
 
     private func applyFields(_ fields: [CoffeeAssistanceField]) {
+        guard content.sourceReuseAllowed != false else { return }
         let previous = content
-        content.sourceReuseAllowed = true
         CoffeeAssistanceRecipeImport.apply(fields, to: &content)
         generatedIngredients += content.ingredients.filter { item in !previous.ingredients.contains(where: { $0.id == item.id }) }
         generatedSteps += content.steps.filter { item in !previous.steps.contains(where: { $0.id == item.id }) }
         if previous.name.isEmpty, !content.name.isEmpty { generatedName = content.name }
+        if previous.method == .other, previous.customMethodName.isEmpty,
+           content.method != .other || !content.customMethodName.isEmpty {
+            generatedMethod = content.method; generatedCustomMethod = content.customMethodName
+        }
     }
     private func removeGeneratedFields() {
         content.ingredients.removeAll { generatedIngredients.contains($0) }
         content.steps.removeAll { generatedSteps.contains($0) }
         if content.name == generatedName { content.name = "" }
+        if content.method == generatedMethod, content.customMethodName == generatedCustomMethod {
+            content.method = .other; content.customMethodName = ""
+        }
         generatedIngredients = []; generatedSteps = []; generatedName = nil
+        generatedMethod = nil; generatedCustomMethod = ""
     }
     private func restartImport() { assistance.invalidate(); importID = UUID() }
     private func stop() {

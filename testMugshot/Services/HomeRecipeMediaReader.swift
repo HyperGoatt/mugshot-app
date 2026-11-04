@@ -105,9 +105,11 @@ private final class HomeRecipeSpeechReader {
     private var task: SFSpeechRecognitionTask?
     private var continuation: CheckedContinuation<String, Error>?
     func read(_ url: URL) async throws -> String {
+        try Task.checkCancellation()
         let authorization = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
         }
+        try Task.checkCancellation()
         guard authorization == .authorized, let recognizer = SFSpeechRecognizer(), recognizer.supportsOnDeviceRecognition else {
             throw HomeRecipeSourceError.unavailable
         }

@@ -333,7 +333,7 @@ private struct HomeRecipeDiscoveryView: View {
                     }
                     Link(destination: searchURL) { Label("Search the web", systemImage: "safari") }.buttonStyle(PrimaryButtonStyle())
                     Button("Save a recipe you found", systemImage: "plus", action: onAdd).buttonStyle(SecondaryButtonStyle())
-                    Text("Paste a link or caption, or choose a screenshot. Links are saved as references; Mugshot doesn’t fetch videos or bypass a source’s restrictions.")
+                    Text("Paste a public Instagram or TikTok link, add a caption, or choose screenshots or a saved video. Keep the creator’s source with your recipe.")
                         .font(.caption).foregroundStyle(Color.secondaryText)
                 }.padding(20)
             }.background(Color.creamWhite).navigationTitle("Find a recipe").navigationBarTitleDisplayMode(.inline)

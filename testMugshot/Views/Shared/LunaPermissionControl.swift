@@ -10,7 +10,7 @@ struct LunaPermissionControl: View {
         if let ownerID, !permission.isEnabled(ownerID: ownerID) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("A little help from Luna").font(.headline)
-                Text("Use OpenAI to read the photos and recipe text you choose, and help with selected saved sips. You control what gets saved. Turn it off anytime in Home preferences.")
+                Text("Use OpenAI to read the recipe text and images you choose, including screenshots and video frames, and help with selected saved sips. You control what gets saved. Turn it off anytime in Home preferences.")
                     .font(.subheadline).foregroundStyle(Color.secondaryText)
                 Button("Enable Luna", systemImage: "sparkles") {
                     permission.setEnabled(true, ownerID: ownerID)

@@ -1,6 +1,6 @@
 import Foundation
 
-enum HomeRecipeSourceError: LocalizedError {
+enum HomeRecipeSourceError: LocalizedError, Equatable {
     case invalidLink, unavailable, tooLarge, invalidMedia, videoTooLong
     var errorDescription: String? {
         switch self {
