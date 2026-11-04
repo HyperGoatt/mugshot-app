@@ -82,6 +82,15 @@ struct HomeRecipeCompositionTests {
         #expect(drink.asBrewDetails().yieldGrams == nil)
     }
 
+    @Test func choosingABaseForAnImportedDrinkMustNotDeleteItsFirstIngredient() {
+        var drink = HomeRecipeContent(name: "Imported drink", template: .drink, method: .other)
+        let milk = HomeRecipeIngredient(name: "Oat milk", amount: 150, unit: "ml")
+        drink.ingredients = [milk, HomeRecipeIngredient(name: "Vanilla syrup", amount: 10, unit: "ml")]
+        HomeDrinkComposition.usePreset(.traditionalMatcha, in: &drink)
+        #expect(drink.ingredients.contains(milk))
+        #expect(drink.ingredients.count == 3)
+    }
+
     @Test func savingADrinkCannotChangeTheComponentBatchOrHistory() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
