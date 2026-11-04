@@ -5,8 +5,9 @@ enum CoffeeAssistanceRecipeImport {
         guard content.sourceReuseAllowed != false else { return [] }
         let text = content.sourceText
         var result: [CoffeeAssistanceEvidence] = []
+        let hasCredit = !content.creatorCredit.isEmpty || !content.sourceURL.isEmpty
         var remaining = text.unicodeScalars[...]
-        while !remaining.isEmpty && result.count < 20 {
+        while !remaining.isEmpty && result.count < (hasCredit ? 19 : 20) {
             // Match the evidence UTF-16 limit before advancing. Counting visible
             // characters first can discard the rest of a multi-scalar character.
             var end = remaining.startIndex
@@ -21,11 +22,21 @@ enum CoffeeAssistanceRecipeImport {
             remaining = remaining[end...]
             result.append(CoffeeAssistanceEvidence(id: "recipe-source-\(result.count)", title: "Recipe source text", detail: part))
         }
-        if !content.creatorCredit.isEmpty || !content.sourceURL.isEmpty {
+        if hasCredit {
             result.insert(CoffeeAssistanceEvidence(id: "recipe-credit", title: "Source and credit",
-                detail: "Creator: \(content.creatorCredit)\nSource: \(content.sourceURL)"), at: 0)
+                detail: bounded("Creator: \(content.creatorCredit)\nSource: \(content.sourceURL)")), at: 0)
         }
         return result
+    }
+
+    private static func bounded(_ text: String) -> String {
+        var output = "", units = 0
+        for scalar in text.unicodeScalars {
+            let count = scalar.value > 0xFFFF ? 2 : 1
+            guard units + count <= 800 else { break }
+            output.unicodeScalars.append(scalar); units += count
+        }
+        return output
     }
 
     /// Fills an editable capture draft; ordinary Save stays separate. Existing content is preserved; import

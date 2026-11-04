@@ -222,7 +222,8 @@ struct HomeRecipeExperienceView: View {
             if !openedInitial, let initialRecipeID,
                let recipe = store.workspace.recipes.first(where: { $0.id == initialRecipeID && !$0.isArchived }) {
                 openedInitial = true
-                startLog(recipe)
+                if initialCollection == "Recipes" { path.append(.recipe(recipe.id)) }
+                else { startLog(recipe) }
             }
             if !openedInitial, let initialAttempt {
                 openedInitial = true
