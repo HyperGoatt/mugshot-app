@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## 2026-11-04 — Journal crash and current Home bean controls
+
+- Bound Journal's navigation-root view construction after a physical iPhone
+  stack-overflow crash when opening the tab. The installed correction renders
+  the real Journal on iPhone; all 55 pre-install local files are preserved.
+- Add **Add manually** and **Scan bag** beside the current Home setup's saved
+  bean selector, reusing the existing account-scoped library and editable editor.
+  Selecting or clearing beans now keeps the draft's bag identity and safe
+  snapshot together. Ordinary entry, on-device scan and saving remain independent
+  of Luna.
+- [Focused regression and device evidence](audits/JOURNAL_AND_BEANS_2026-11-04.md).
+
 ## 2026-11-04 — Luna backend activated and phone QA installed
 
 - Enable the optional `gpt-6-luna` backend after 67 hosted contracts, eight

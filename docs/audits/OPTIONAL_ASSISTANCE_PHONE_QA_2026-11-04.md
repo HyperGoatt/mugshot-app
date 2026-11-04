@@ -5,6 +5,11 @@ status: installed-human-qa-pending
 
 # Luna phone QA and backend activation — 2026-11-04
 
+**Follow-up:** The owner subsequently reported a Journal crash. Its diagnosis,
+correction, current Home bean path and replacement QA-package state are recorded
+in [Journal and beans](JOURNAL_AND_BEANS_2026-11-04.md). The initial Feed launch
+below did not establish Journal acceptance.
+
 Current behavior and rollback: [AI assistance](../AI_ASSISTANCE.md).
 This continuation supersedes the delivery state in the
 [November 2 implementation ledger](OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md).

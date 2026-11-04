@@ -1,0 +1,27 @@
+{
+  "bundleID": "co.mugshot.app.dev",
+  "displayName": "Mugshot Luna QA",
+  "version": "0.5.3",
+  "build": "8",
+  "signature": "deep-strict-pass",
+  "entitlements": "unchanged",
+  "analytics": "disabled",
+  "credentialExclusion": "pass",
+  "debugDylibSHA256": "953573e3efb8abd462bf86dcc6878dca69ce31b16ea11e9e09593247d1527494",
+  "dataPreservation": {
+    "filesBefore": 55,
+    "filesAfter": 55,
+    "allPriorFilesUnchanged": true,
+    "missingFiles": 0,
+    "changedFiles": 0
+  },
+  "device": "iPhone 16 Pro / iOS 27.0.1",
+  "journalOpening": "verified through existing warm journal route and private screenshot",
+  "newCrashReports": 0,
+  "changedSourceSHA256": {
+    "testMugshot/Views/Add/HomeCoffeeBagPicker.swift": "0034405318daf126c9c91dfdf987c8d05be770c3373956e326071dd082027e9f",
+    "testMugshot/Views/Add/HomeSipV3SetupView.swift": "3c4119eca3c759f7612a009e5bc984dfb0b588b300bdd4fdedb41651a4b66f6e",
+    "testMugshot/Views/Add/HomeWorkbenchView.swift": "e0a0476c0d6db1125b3fe5993c35015195fc4a31b47c5d74ac9bf7f6a7a66ee6",
+    "testMugshot/Views/Profile/ProfileJournalView.swift": "b99563d8353e90de25fd0493a43ace9e0a09c456f6d26db45afe181cfa162262"
+  }
+}

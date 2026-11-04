@@ -4,13 +4,23 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Journal navigation and current Home beans — 2026-11-04
+
+`Views/Profile/ProfileJournalView.swift` bounds the Journal navigation root
+before its presentation modifiers. `Views/Add/HomeCoffeeBagPicker.swift` connects
+current Home setup to the existing account-scoped `HomeLibraryStore` and shared
+`HomeCoffeeBagEditorSheet` in `HomeWorkbenchView.swift`; it does not create a
+second bean library. `testMugshotUITests/JournalAndBeansUITests.swift` exercises
+Journal tab reopening and manual bag save/selection/scan cancellation.
+[Regression evidence](audits/JOURNAL_AND_BEANS_2026-11-04.md).
+
 ## Luna phone QA evidence — 2026-11-04
 
 [The activation and physical-install ledger](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
 indexes the exact server bundle, migration, phone package receipt, hosted checks,
-protected-data preservation, cleanup and human checklist. Feature Swift source is
-unchanged from commit `535d9aa`; the QA package label identifies the development
-app without replacing the normal app's identity.
+protected-data preservation, cleanup and human checklist. The later Journal/bean
+correction is indexed above. The QA package label identifies the development app
+without replacing the normal app's identity.
 
 ## Optional assistance candidate — 2026-11-02
 

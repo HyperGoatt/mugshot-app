@@ -4,6 +4,21 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Current Home bean entry — 2026-11-04
+
+Use **Add → Home → choose a method → Adjust today’s setup → Beans, gear, and
+more**. **Add manually** saves a bag and selects it for today's draft; **Scan
+bag** opens the existing camera/photo and on-device text scanner. Optional
+**Improve this scan** appears after choosing a photo for a signed-in account.
+**Choose beans** selects a saved current bag; **None** clears its identity and
+snapshot together. These actions reuse `HomeLibraryStore` and its original
+editor, with account checks before selection and save. They do not edit a saved
+recipe automatically. Previously, this current selector lacked add/scan actions;
+those controls were reachable only in the older Home workbench.
+The controls are installed in Mugshot Luna QA 0.5.3 (8). Real photo quality and
+physical bean-entry acceptance remain human QA.
+[Regression and physical-install evidence](audits/JOURNAL_AND_BEANS_2026-11-04.md).
+
 ## Optional Luna helpers available for phone QA — 2026-11-04
 
 The owner-authorized development-device build includes live optional bag/recipe

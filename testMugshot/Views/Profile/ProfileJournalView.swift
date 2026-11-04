@@ -194,43 +194,9 @@ struct JournalTabView: View {
 
     private var journalBody: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    MugshotScreenHeader("Journal") {
-                        if showsHeaderProfileAction {
-                            Button {
-                                showOwnerProfile = true
-                            } label: {
-                                MugshotAvatar(
-                                    name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
-                                    size: 42,
-                                    imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .frame(width: 44, height: 44)
-                            .accessibilityLabel("Open your profile")
-                        }
-                    }
-
-                    compactProfileRow
-                        .padding(.horizontal, 16)
-                        .padding(.top, 4)
-
-                    if phase2CanonicalJournal, !localDrafts.isEmpty {
-                        draftSection
-                            .padding(.top, 14)
-                    }
-
-                    journalSection
-                        .padding(.top, 16)
-
-                    journalToolsSection
-                        .padding(.horizontal, 16)
-                        .padding(.top, 22)
-                        .padding(.bottom, 124)
-                }
-            }
+            // Bound the generic navigation root before adding destinations. The unbounded
+            // Debug view value exhausted the main-thread stack on iPhone.
+            AnyView(journalContent)
             .background(Color.creamWhite)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $activeProfileSheet) { sheet in
@@ -360,6 +326,46 @@ struct JournalTabView: View {
             }
             .onChange(of: passportRouter.requestID) { _, _ in
                 openRequestedPassport()
+            }
+        }
+    }
+
+    private var journalContent: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                MugshotScreenHeader("Journal") {
+                    if showsHeaderProfileAction {
+                        Button {
+                            showOwnerProfile = true
+                        } label: {
+                            MugshotAvatar(
+                                name: user?.displayNameOrUsername ?? authModel.profile?.displayName ?? "user",
+                                size: 42,
+                                imageURL: authModel.profile?.avatarURL ?? user?.avatarImageName
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 44, height: 44)
+                        .accessibilityLabel("Open your profile")
+                    }
+                }
+
+                compactProfileRow
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+
+                if phase2CanonicalJournal, !localDrafts.isEmpty {
+                    draftSection
+                        .padding(.top, 14)
+                }
+
+                journalSection
+                    .padding(.top, 16)
+
+                journalToolsSection
+                    .padding(.horizontal, 16)
+                    .padding(.top, 22)
+                    .padding(.bottom, 124)
             }
         }
     }

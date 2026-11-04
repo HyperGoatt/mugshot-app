@@ -21,11 +21,16 @@ is excluded. [Current activation and phone QA](audits/OPTIONAL_ASSISTANCE_PHONE_
 contains the package receipt and checklist; the [November 2 ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md)
 retains the original implementation evidence.
 
+The subsequent [Journal/bean correction](audits/JOURNAL_AND_BEANS_2026-11-04.md)
+records the reported physical Journal crash and installed add/scan controls in
+current Home setup. Corrected Journal opening is now physically verified with the
+existing account; touch navigation and real helper acceptance remain human QA.
+
 ## Product behavior
 
 | Helper | Entry | Existing independent behavior |
 | --- | --- | --- |
-| Bag capture | Improve this scan after choosing a bag photo | Apple Vision scan, editable fields and ordinary Save |
+| Bag capture | Add → Home → method → Adjust today’s setup → Beans, gear, and more → Scan bag → photo → Improve this scan | Apple Vision scan, editable fields and ordinary Save |
 | Recipe capture | Bring in a recipe in the recipe editor | Blank/template entry, source text and normal recipe draft/save |
 | Memory search | Find a memory alongside Journal archive search | Ordinary local search, filters and timeline |
 | Taste observations | Notice a taste pattern in Journal tools after three completed memories | Existing evidence-based Taste Passport |

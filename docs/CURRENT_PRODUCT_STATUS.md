@@ -4,6 +4,16 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Journal and bean-entry correction — 2026-11-04
+
+The owner reported a physical crash when opening Journal. The crash report
+identifies native main-thread stack exhaustion during SwiftUI navigation view
+construction, before any AI request. The installed correction bounds that
+construction and restores bean add/scan controls in current Home setup. Journal opening is physically verified on the
+owner's iPhone with existing entries/drafts, and all 55 pre-install local files
+are preserved. Physical touch navigation, bag-photo quality and real Luna helper
+acceptance remain human QA. [Regression ledger](audits/JOURNAL_AND_BEANS_2026-11-04.md).
+
 ## Optional Luna assistance — phone QA ready, 2026-11-04
 
 The optional backend is production-configured and enabled with `gpt-6-luna`.

@@ -1,0 +1,31 @@
+{
+  "nativeUnitTests": {
+    "suite": "HomeWorkbenchTests",
+    "passed": 15,
+    "failed": 0
+  },
+  "uiJourneys": [
+    {
+      "name": "Journal opening and reopening",
+      "passed": 1,
+      "failed": 0,
+      "resultBundle": "/tmp/mugshot-journal-beans-green3.xcresult"
+    },
+    {
+      "name": "Current Home manual beans, scan cancellation, clearing and reselection",
+      "passed": 1,
+      "failed": 0,
+      "resultBundle": "/tmp/mugshot-journal-beans-green4.xcresult"
+    }
+  ],
+  "fastChecks": {
+    "passed": 7,
+    "failed": 0
+  },
+  "simulatorBuild": "passed",
+  "physicalDebugBuild": "passed",
+  "physicalJournalOpening": "verified",
+  "coverage": "not collected for presentation changes; no app-wide claim",
+  "testFlight": "not performed",
+  "backendChanges": false
+}

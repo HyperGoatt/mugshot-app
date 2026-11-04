@@ -982,7 +982,7 @@ private enum HomeWorkbenchSheet: Identifiable {
     }
 }
 
-private struct HomeBagEditorConfiguration: Identifiable {
+struct HomeBagEditorConfiguration: Identifiable {
     enum Mode { case scan, manual, edit }
     let id = UUID()
     let mode: Mode
@@ -1244,7 +1244,8 @@ private struct HomeRecipeStepsEditor: View {
     }
 }
 
-private struct HomeCoffeeBagEditorSheet: View {
+struct HomeCoffeeBagEditorSheet: View {
+    @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
 
     let configuration: HomeBagEditorConfiguration
@@ -1278,8 +1279,12 @@ private struct HomeCoffeeBagEditorSheet: View {
         _bag = State(initialValue: configuration.bag ?? CoffeeBag(ownerUserID: scope.userID))
     }
 
+    private var isCurrentOwner: Bool {
+        LocalAccountScope.forUserID(authModel.authenticatedUser?.id) == scope
+    }
+
     private var canSave: Bool {
-        bag.roaster.remoteTrimmedNonEmpty != nil || bag.name.remoteTrimmedNonEmpty != nil
+        isCurrentOwner && (bag.roaster.remoteTrimmedNonEmpty != nil || bag.name.remoteTrimmedNonEmpty != nil)
     }
 
     private var duplicate: CoffeeBag? {
@@ -1395,6 +1400,9 @@ private struct HomeCoffeeBagEditorSheet: View {
                 .padding(16)
             }
             .background(Color.creamWhite)
+            .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+                if !isCurrentOwner { dismiss() }
+            }
             .navigationTitle(configuration.mode == .edit ? "Edit coffee" : "Add coffee")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1542,6 +1550,7 @@ private struct HomeCoffeeBagEditorSheet: View {
     }
 
     private func apply(_ proposal: CoffeeBagScanProposal) {
+        guard isCurrentOwner else { return }
         if let value = proposal[.roaster]?.value { bag.roaster = value }
         if let value = proposal[.name]?.value { bag.name = value }
         if let value = proposal[.producer]?.value { bag.producer = value }
