@@ -46,6 +46,15 @@ direction. Native captures and focused fixture journeys will make the result
 reviewable before delivery to the owner app. Existing owner recipes are not
 reclassified, edited or used for synthetic saves.
 
+## ECC checkpoints
+
+- `dad56de`: intended missing-API RED for recipe use/composition.
+- `71d967b`: 9/9 native composition tests pass.
+- `e436e03`: native UI RED at the absent source-first capture heading.
+- The imported-drink boundary then runs as a full 10-case native suite: 9 pass,
+  one fails because replacing a guessed first-part base deletes the leading milk
+  ingredient. Base replacement must identify the base, preserving unrelated parts.
+
 ## Interaction references
 
 Apple's [Entering data](https://developer.apple.com/design/human-interface-guidelines/entering-data)
