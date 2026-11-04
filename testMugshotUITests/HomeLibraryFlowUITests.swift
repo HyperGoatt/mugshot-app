@@ -67,4 +67,20 @@ final class HomeLibraryFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Evening matcha idea")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
     }
+
+    @MainActor
+    func testSavedRecipeOpensDetailsBeforeStartingASip() {
+        let app = launch()
+        app.buttons["mugshot.tab.saved"].tap()
+        app.buttons["home.library.entry"].tap()
+        app.buttons["home.library.addRecipe"].tap()
+        let name = app.textFields["home.recipe.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Curious matcha")
+        app.buttons["home.recipe.saveIdea"].tap()
+        let saved = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Curious matcha")).firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 5)); saved.tap()
+        XCTAssertTrue(app.buttons["Add preparation details"].waitForExistence(timeout: 6))
+        XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
+    }
 }
