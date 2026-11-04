@@ -150,6 +150,8 @@ enum HomeRecipeSourceParser {
 /// Ephemeral, unauthenticated reads of the one public source chosen by the user.
 /// Every redirect is revalidated. No cookies, credentials, arbitrary hosts or response logs.
 final class HomeRecipeSourceReader: @unchecked Sendable {
+    private let protocolClasses: [AnyClass]?
+    init(protocolClasses: [AnyClass]? = nil) { self.protocolClasses = protocolClasses }
     func read(_ raw: String) async throws -> HomeRecipeSource {
         let source = try HomeRecipeSourceURL(raw)
         let (data, response) = try await fetch(source.url, limit: 2_000_000, video: false)
@@ -167,7 +169,9 @@ final class HomeRecipeSourceReader: @unchecked Sendable {
     }
 
     private func fetch(_ url: URL, limit: Int, video: Bool) async throws -> (Data, HTTPURLResponse) {
+        try Task.checkCancellation()
         let config = URLSessionConfiguration.ephemeral
+        if let protocolClasses { config.protocolClasses = protocolClasses }
         config.httpCookieStorage = nil; config.httpShouldSetCookies = false
         config.urlCredentialStorage = nil; config.urlCache = nil
         config.timeoutIntervalForRequest = 18; config.timeoutIntervalForResource = 30
