@@ -76,9 +76,9 @@ final class HomeLibraryFlowUITests: XCTestCase {
         app.buttons["home.library.addRecipe"].tap()
         let name = app.textFields["home.recipe.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap(); name.typeText("Curious matcha")
+        name.tap(); name.typeText("Evening tea idea")
         app.buttons["home.recipe.saveIdea"].tap()
-        let saved = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Curious matcha")).firstMatch
+        let saved = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Evening tea idea")).firstMatch
         XCTAssertTrue(saved.waitForExistence(timeout: 5)); saved.tap()
         XCTAssertTrue(app.buttons["Add preparation details"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
