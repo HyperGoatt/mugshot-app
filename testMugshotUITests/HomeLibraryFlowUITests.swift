@@ -117,7 +117,11 @@ final class HomeLibraryFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
         app.buttons["logASipV3.primaryAction"].tap()
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
-        if app.sliders.firstMatch.exists { app.sliders.firstMatch.adjust(toNormalizedSliderPosition: 0.7) }
+        let score = app.descendants(matching: .any).matching(identifier: "logASipV3.sipScore").firstMatch
+        for _ in 0..<3 where !score.isHittable { app.swipeUp() }
+        XCTAssertTrue(score.waitForExistence(timeout: 4))
+        score.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).tap()
+        XCTAssertEqual(score.value as? String, "4.0 out of 5")
         capture("Rating", in: app)
         app.buttons["logASipV3.primaryAction"].tap()
         XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))

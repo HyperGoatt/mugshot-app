@@ -2564,36 +2564,48 @@ private struct LogASipV3HomeRecipeGlance: View {
     let method: HomeBrewMethod
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Today’s target")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color.secondaryText)
-                .padding(.bottom, 10)
-            if let dose = draft.brewDetails.doseGrams {
-                row(method.inputLabel.capitalized, value: format(dose, "g"), icon: "circle.lefthalf.filled")
+        if hasTargets {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Today’s target")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.secondaryText)
+                    .padding(.bottom, 10)
+                if let dose = draft.brewDetails.doseGrams {
+                    row(method.inputLabel.capitalized, value: format(dose, "g"), icon: "circle.lefthalf.filled")
+                }
+                if let outputValue {
+                    row(method.outputLabel, value: outputValue, icon: "drop")
+                }
+                if let grind = draft.brewDetails.grindSetting?.remoteTrimmedNonEmpty {
+                    row("Grind", value: grind, icon: "circle.grid.3x3")
+                }
+                if let temperature = draft.brewDetails.waterTemperatureCelsius {
+                    row("Temperature", value: format(temperature, "°C"), icon: "thermometer.medium")
+                }
+                if let seconds = draft.brewDetails.brewTimeSeconds {
+                    row("Time", value: "\(seconds) s", icon: "clock")
+                } else if let steep = draft.brewDetails.homeMethodDetails?.steepSeconds {
+                    row("Steep", value: HomeRecipeContent.durationSummary(Double(steep)), icon: "clock")
+                }
+                if method.family == .coffee, let ratio = draft.brewDetails.brewRatio {
+                    row("Ratio", value: "1:\(ratio.formatted(.number.precision(.fractionLength(1))))", icon: "viewfinder")
+                }
             }
-            if let outputValue {
-                row(method.outputLabel, value: outputValue, icon: "drop")
-            }
-            if let grind = draft.brewDetails.grindSetting?.remoteTrimmedNonEmpty {
-                row("Grind", value: grind, icon: "circle.grid.3x3")
-            }
-            if let temperature = draft.brewDetails.waterTemperatureCelsius {
-                row("Temperature", value: format(temperature, "°C"), icon: "thermometer.medium")
-            }
-            if let seconds = draft.brewDetails.brewTimeSeconds {
-                row("Time", value: "\(seconds) s", icon: "clock")
-            } else if let steep = draft.brewDetails.homeMethodDetails?.steepSeconds {
-                row("Steep", value: HomeRecipeContent.durationSummary(Double(steep)), icon: "clock")
-            }
-            if method.family == .coffee, let ratio = draft.brewDetails.brewRatio {
-                row("Ratio", value: "1:\(ratio.formatted(.number.precision(.fractionLength(1))))", icon: "viewfinder")
-            }
+            .padding(14)
+            .background(Color.foamWhite)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotLine, lineWidth: 1))
         }
-        .padding(14)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotLine, lineWidth: 1))
+    }
+
+    private var hasTargets: Bool {
+        draft.brewDetails.doseGrams != nil
+            || outputValue != nil
+            || draft.brewDetails.grindSetting?.remoteTrimmedNonEmpty != nil
+            || draft.brewDetails.waterTemperatureCelsius != nil
+            || draft.brewDetails.brewTimeSeconds != nil
+            || draft.brewDetails.homeMethodDetails?.steepSeconds != nil
+            || (method.family == .coffee && draft.brewDetails.brewRatio != nil)
     }
 
     private var outputValue: String? {
