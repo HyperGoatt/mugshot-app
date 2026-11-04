@@ -3,9 +3,9 @@ import XCTest
 final class LogASipV3CentralHomeUITests: XCTestCase {
     private enum Identifier {
         static let homeContext = "logASipV3.context.home"
-        static let homeQuickLog = "logASipV3.home.quickLog"
+        static let homeQuickLog = "logASipV3.primaryAction"
         static let homeChooseRecipe = "logASipV3.home.chooseRecipe"
-        static let homeChooseMethod = "logASipV3.home.chooseMethod"
+        static let homeChooseMethod = "logASipV4.home.starter.other"
         static let homeProgress = "logASipV3.home.progress"
         static let addPhotos = "logASipV3.photos.add"
         static let missedPhoto = "logASipV3.photoFallback.missed"
@@ -115,7 +115,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["What makes this drink"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Espresso"].exists)
         XCTAssertTrue(app.staticTexts["Milk"].exists)
-        tapPrimaryAction(in: app)
+        app.buttons["home.makeWithGuidance"].tap()
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["36 g"].exists)
         tapPrimaryAction(in: app)

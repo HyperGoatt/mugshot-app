@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Home library candidate — 2026-11-04
+
+Standalone recipe/bean/gear management and account-local defaults are implemented
+in Saved → Home library. Home logging keeps the common reflection/review finish
+and makes guidance explicit. Luna bag filling is automatic after one-time,
+revocable account enablement; other contextual helpers reuse that permission.
+All ordinary paths remain independent of AI. [Audit and acceptance](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
+
 ## Luna activation and physical install — 2026-11-04
 
 The optional assistance backend is enabled; the signed **Mugshot Luna QA

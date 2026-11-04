@@ -4,6 +4,21 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Home library and remembered Luna access — 2026-11-04
+
+- `Views/Add/HomeLibraryView.swift`: standalone Recipes/Beans/Gear/Preferences,
+  existing editors, source discovery and saved-sip composer handoff.
+- `Models/HomeLibraryPreferences.swift`: account-safe defaults and scan autofill
+  that preserves edits made during a read.
+- `Services/CoffeeAssistancePermissionStore.swift` and
+  `Views/Shared/LunaPermissionControl.swift`: explicit remembered account choice
+  and a short inline enable control; no repeated consent form.
+- `Services/HomeLibrarySynchronizer.swift`: originating-account transport,
+  serialized latest-edit sync, offline retry and erasure invalidation.
+- `HomeLibraryExperienceTests`, `HomeLibraryFlowUITests`, existing helper and
+  Journal/bean tests: ownership, fallback, persistence and actual native journeys.
+- [Audit, captured before/after and acceptance](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
+
 ## Journal navigation and current Home beans — 2026-11-04
 
 `Views/Profile/ProfileJournalView.swift` bounds the Journal navigation root

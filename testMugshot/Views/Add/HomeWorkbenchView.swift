@@ -19,6 +19,7 @@ private enum HomeWorkbenchStartSource: String, CaseIterable, Identifiable {
 }
 
 struct HomeWorkbenchView: View {
+    @EnvironmentObject private var authModel: AppAuthModel
     @Binding var draft: SipDraft
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -646,28 +647,13 @@ struct HomeWorkbenchView: View {
     }
 
     private func synchronizeLibrary() async {
-        guard let userID = draft.ownerUserID,
-              let client = try? SupabaseClientProvider.shared.client() else { return }
-        let service = HomeLibraryService(client: client)
-        do {
-            let remote = try await service.fetch(userID: userID)
-            library = try store.mergeRemote(
-                bags: remote.bags,
-                equipment: remote.equipment,
-                in: scope
-            )
-
-            for bag in library.bags where bag.ownerUserID == userID {
-                _ = try await service.upsert(bag, userID: userID)
-            }
-            for equipment in library.equipment where equipment.ownerUserID == userID {
-                _ = try await service.upsert(equipment, userID: userID)
-            }
-            syncMessage = nil
-        } catch {
-            syncMessage = "Saved on this device. Mugshot will sync your shelf when it can."
-        }
+        guard let owner = scope.userID, authModel.authenticatedUser?.id == owner else { return }
+        await HomeLibrarySynchronizer.shared.synchronize(scope: scope, currentOwner: { authModel.authenticatedUser?.id })
+        guard authModel.authenticatedUser?.id == owner else { return }
+        library = store.load(in: scope)
+        syncMessage = HomeLibrarySynchronizer.shared.messages[owner]
     }
+
 }
 
 /// Post-brew entry keeps planned values visible, records only what changed,
@@ -993,7 +979,7 @@ struct HomeBagEditorConfiguration: Identifiable {
     static func edit(_ bag: CoffeeBag) -> Self { HomeBagEditorConfiguration(mode: .edit, bag: bag) }
 }
 
-private struct HomeEquipmentEditorConfiguration: Identifiable {
+struct HomeEquipmentEditorConfiguration: Identifiable {
     let id = UUID()
     let equipment: EquipmentProfile?
 
@@ -1253,6 +1239,9 @@ struct HomeCoffeeBagEditorSheet: View {
     let existingBags: [CoffeeBag]
     let store: HomeLibraryStore
     let onSaved: (CoffeeBag) -> Void
+    private let ownerResolver: (() -> UUID?)?
+    private let initialScanImage: UIImage?
+    @State private var startedInitialScan = false
 
     @State private var bag: CoffeeBag
     @State private var image: UIImage?
@@ -1263,12 +1252,21 @@ struct HomeCoffeeBagEditorSheet: View {
     @State private var scanValues: [CoffeeBagScanFieldKey: CoffeeBagScanValue] = [:]
     @State private var errorMessage: String?
     @State private var showsMore = false
+    @ObservedObject private var permission = CoffeeAssistancePermissionStore.shared
+    @StateObject private var assistance: CoffeeAssistanceSession
+    @State private var scanTask: Task<Void, Never>?
+    @State private var scanGeneration = UUID()
+    @State private var scanMessage: String?
+
 
     init(
         configuration: HomeBagEditorConfiguration,
         scope: LocalAccountScope,
         existingBags: [CoffeeBag],
         store: HomeLibraryStore,
+        transport: (any CoffeeAssistanceTransport)? = nil,
+        currentOwner: (() -> UUID?)? = nil,
+        initialScanImage: UIImage? = nil,
         onSaved: @escaping (CoffeeBag) -> Void
     ) {
         self.configuration = configuration
@@ -1276,12 +1274,18 @@ struct HomeCoffeeBagEditorSheet: View {
         self.existingBags = existingBags
         self.store = store
         self.onSaved = onSaved
+        ownerResolver = currentOwner
+        self.initialScanImage = initialScanImage
+        _image = State(initialValue: initialScanImage)
+        _assistance = StateObject(wrappedValue: CoffeeAssistanceSession(transport: transport))
         _bag = State(initialValue: configuration.bag ?? CoffeeBag(ownerUserID: scope.userID))
     }
 
-    private var isCurrentOwner: Bool {
-        LocalAccountScope.forUserID(authModel.authenticatedUser?.id) == scope
+    private var currentOwnerID: UUID? {
+        if let ownerResolver { return ownerResolver() }
+        return authModel.authenticatedUser?.id
     }
+    private var isCurrentOwner: Bool { LocalAccountScope.forUserID(currentOwnerID) == scope }
 
     private var canSave: Bool {
         isCurrentOwner && (bag.roaster.remoteTrimmedNonEmpty != nil || bag.name.remoteTrimmedNonEmpty != nil)
@@ -1299,29 +1303,16 @@ struct HomeCoffeeBagEditorSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if configuration.mode == .scan {
+                    if configuration.mode != .manual {
                         scanCard
-                        if let image, scope.userID != nil {
-                            CoffeeAssistanceButton(ownerID: scope.userID, task: .bagScan,
-                                evidence: [], image: image, onAccepted: { result in
-                                    for field in result.fields {
-                                        switch field.key {
-                                        case "roaster": bag.roaster = field.value
-                                        case "name": bag.name = field.value
-                                        case "producer": bag.producer = field.value
-                                        case "origin": bag.origin = field.value
-                                        case "process": bag.process = field.value
-                                        case "variety": bag.variety = field.value
-                                        case "roastLevel": bag.roastLevel = field.value
-                                        case "roastDate": bag.roastDate = HomeBagDateParser.date(from: field.value)
-                                        case "tastingNotes": bag.tastingNotes = field.value
-                                        default: break
-                                        }
-                                    }
-                                })
-                            Text("Optional online help. Check printed details before saving; roaster notes are separate from what you taste.")
-                                .font(.caption).foregroundStyle(.secondary)
+                        LunaPermissionControl(ownerID: scope.userID) {
+                            if let image { beginScan(image) }
                         }
+                        if let scanMessage {
+                            Text(scanMessage).font(.caption).foregroundStyle(Color.secondaryText)
+                                .accessibilityIdentifier("home.bag.scan.status")
+                        }
+
                     }
 
                     if let duplicate {
@@ -1401,7 +1392,7 @@ struct HomeCoffeeBagEditorSheet: View {
             }
             .background(Color.creamWhite)
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
-                if !isCurrentOwner { dismiss() }
+                if !isCurrentOwner { cancelScan(); dismiss() }
             }
             .navigationTitle(configuration.mode == .edit ? "Edit coffee" : "Add coffee")
             .navigationBarTitleDisplayMode(.inline)
@@ -1412,29 +1403,35 @@ struct HomeCoffeeBagEditorSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
                         .fontWeight(.bold)
-                        .disabled(!canSave || isScanning)
+                        .disabled(!canSave)
                 }
             }
             .fullScreenCover(isPresented: $presentedCamera) {
                 CameraCaptureView(image: $cameraImage, isPresented: $presentedCamera)
             }
-            .onChange(of: cameraImage) { _, image in
-                guard let image else { return }
-                self.image = image
-                Task { await scan(image) }
+            .onChange(of: cameraImage) { _, chosen in
+                guard let chosen, isCurrentOwner else { return }
+                image = chosen
+                beginScan(chosen)
             }
-            .onChange(of: selectedPhotoItem) { _, item in
-                guard let item else { return }
-                Task {
-                    guard let data = try? await item.loadTransferable(type: Data.self),
-                          let image = UIImage(data: data) else {
-                        errorMessage = "Mugshot couldn’t open that image."
-                        return
-                    }
-                    self.image = image
-                    await scan(image)
+            .task(id: selectedPhotoItem) {
+                guard let item = selectedPhotoItem else { return }
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      !Task.isCancelled, isCurrentOwner, let chosen = UIImage(data: data) else { return }
+                image = chosen
+                beginScan(chosen)
+            }
+            .onChange(of: permission.revision) { _, _ in
+                if !permission.isEnabled(ownerID: scope.userID) { cancelScan() }
+            }
+            .onAppear {
+                if !startedInitialScan, let initialScanImage {
+                    startedInitialScan = true
+                    beginScan(initialScanImage)
                 }
             }
+            .onDisappear { cancelScan() }
+
         }
     }
 
@@ -1456,11 +1453,11 @@ struct HomeCoffeeBagEditorSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(isScanning ? "Reading the bag…" : "Scan once. Check before saving.")
+                    Text(isScanning ? "Reading your bag…" : "A photo is all you need.")
                         .font(.system(size: 13, weight: .bold))
-                    Text(scope.userID == nil
-                        ? "This scan is read on your iPhone. Uncertain fields are marked."
-                        : "This scan is read on your iPhone. Online help is a separate choice below. Uncertain fields are marked.")
+                    Text(permission.isEnabled(ownerID: scope.userID)
+                        ? "Luna fills the printed details with OpenAI. Check and edit anything before saving."
+                        : "On-device scanning works offline. You can also enable Luna below.")
                         .font(.system(size: 10))
                         .foregroundStyle(Color.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1531,69 +1528,72 @@ struct HomeCoffeeBagEditorSheet: View {
         }
     }
 
-    private func scan(_ image: UIImage) async {
-        isScanning = true
-        errorMessage = nil
-        do {
-            let proposal = try await CoffeeBagScanService().scan(image)
-            guard !proposal.values.isEmpty else {
-                throw CoffeeBagScanError.noText
-            }
-            scanValues = Dictionary(uniqueKeysWithValues: proposal.values.map { ($0.key, $0) })
-            apply(proposal)
-            MugshotAnalytics.shared.capture(.homeWorkbench(action: .scanSucceeded))
-        } catch {
-            errorMessage = error.localizedDescription
-            MugshotAnalytics.shared.capture(.homeWorkbench(action: .scanFallback))
-        }
+    private func cancelScan() {
+        scanTask?.cancel()
+        scanTask = nil
+        scanGeneration = UUID()
+        assistance.invalidate()
         isScanning = false
     }
 
-    private func apply(_ proposal: CoffeeBagScanProposal) {
-        guard isCurrentOwner else { return }
-        if let value = proposal[.roaster]?.value { bag.roaster = value }
-        if let value = proposal[.name]?.value { bag.name = value }
-        if let value = proposal[.producer]?.value { bag.producer = value }
-        if let value = proposal[.origin]?.value { bag.origin = value }
-        if let value = proposal[.process]?.value { bag.process = value }
-        if let value = proposal[.variety]?.value { bag.variety = value }
-        if let value = proposal[.roastLevel]?.value { bag.roastLevel = value }
-        if let value = proposal[.tastingNotes]?.value { bag.tastingNotes = value }
-        if let rawDate = proposal[.roastDate]?.value {
-            bag.roastDate = HomeBagDateParser.date(from: rawDate)
+    private func beginScan(_ image: UIImage) {
+        cancelScan()
+        let generation = scanGeneration
+        let baseline = bag
+        isScanning = true
+        errorMessage = nil
+        scanMessage = nil
+        scanTask = Task { @MainActor in
+            defer { if scanGeneration == generation { isScanning = false } }
+            if let owner = scope.userID, permission.isEnabled(ownerID: owner) {
+                do {
+                    let encoded = try CoffeeAssistanceImage.encode(image)
+                    let request = CoffeeAssistanceRequest(ownerID: owner, task: .bagScan, evidence: [], image: encoded)
+                    await assistance.run(request, consent: true, currentOwner: { currentOwnerID })
+                    guard !Task.isCancelled, scanGeneration == generation, isCurrentOwner,
+                          permission.isEnabled(ownerID: owner) else { return }
+                    if let result = assistance.result, !result.fields.isEmpty {
+                        CoffeeBagAutofill.apply(result.fields, to: &bag, unchangedSince: baseline)
+                        scanMessage = "Luna read the printed details. Make any corrections, then Save."
+                        return
+                    }
+                } catch { /* Continue with the on-device scanner. */ }
+            }
+            guard !Task.isCancelled, scanGeneration == generation, isCurrentOwner else { return }
+            do {
+                let proposal = try await CoffeeBagScanService().scan(image)
+                guard !Task.isCancelled, scanGeneration == generation, isCurrentOwner else { return }
+                guard !proposal.values.isEmpty else { throw CoffeeBagScanError.noText }
+                scanValues = Dictionary(uniqueKeysWithValues: proposal.values.map { ($0.key, $0) })
+                let fields = proposal.values.map {
+                    CoffeeAssistanceField(key: $0.key.rawValue, value: $0.value, sourceQuote: $0.value)
+                }
+                CoffeeBagAutofill.apply(fields, to: &bag, unchangedSince: baseline)
+                scanMessage = "Read on your iPhone. Check the details before saving."
+                MugshotAnalytics.shared.capture(.homeWorkbench(action: .scanSucceeded))
+            } catch {
+                guard !Task.isCancelled, scanGeneration == generation, isCurrentOwner else { return }
+                errorMessage = "Couldn’t read the bag. Try another photo or add the details below."
+                MugshotAnalytics.shared.capture(.homeWorkbench(action: .scanFallback))
+            }
         }
     }
 
     private func save() {
         guard canSave else { return }
+        cancelScan()
         do {
             bag.ownerUserID = scope.userID
             bag.updatedAt = .now
             if let image {
                 bag.localPhotoPath = try store.saveBagPhoto(image, bagID: bag.id, in: scope)
+                bag.privatePhotoPath = nil
             }
             _ = try store.upsert(bag, in: scope)
             onSaved(bag)
 
-            if let userID = scope.userID,
-               let client = try? SupabaseClientProvider.shared.client() {
-                let savedBag = bag
-                Task {
-                    var remoteBag = savedBag
-                    let service = HomeLibraryService(client: client)
-                    if let image {
-                        remoteBag.privatePhotoPath = try? await service.uploadBagPhoto(
-                            image,
-                            bagID: savedBag.id,
-                            userID: userID
-                        )
-                    }
-                    if let persisted = try? await service.upsert(remoteBag, userID: userID) {
-                        var merged = persisted
-                        merged.localPhotoPath = savedBag.localPhotoPath
-                        _ = try? store.upsert(merged, in: scope)
-                    }
-                }
+            if ownerResolver == nil {
+                Task { await HomeLibrarySynchronizer.shared.synchronize(scope: scope, currentOwner: { authModel.authenticatedUser?.id }) }
             }
             dismiss()
         } catch {
@@ -1602,7 +1602,7 @@ struct HomeCoffeeBagEditorSheet: View {
     }
 }
 
-private enum HomeBagDateParser {
+enum HomeBagDateParser {
     static func date(from raw: String) -> Date? {
         let formats = ["yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy", "MMM d yyyy", "MMMM d yyyy"]
         for format in formats {
@@ -1615,7 +1615,8 @@ private enum HomeBagDateParser {
     }
 }
 
-private struct HomeEquipmentEditorSheet: View {
+struct HomeEquipmentEditorSheet: View {
+    @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
 
     let configuration: HomeEquipmentEditorConfiguration
@@ -1639,10 +1640,10 @@ private struct HomeEquipmentEditorSheet: View {
         _equipment = State(initialValue: configuration.equipment ?? EquipmentProfile(ownerUserID: scope.userID))
     }
 
+    private var isCurrentOwner: Bool { LocalAccountScope.forUserID(authModel.authenticatedUser?.id) == scope }
     private var canSave: Bool {
-        equipment.nickname.remoteTrimmedNonEmpty != nil ||
-            equipment.brand.remoteTrimmedNonEmpty != nil ||
-            equipment.model.remoteTrimmedNonEmpty != nil
+        isCurrentOwner && (equipment.nickname.remoteTrimmedNonEmpty != nil ||
+            equipment.brand.remoteTrimmedNonEmpty != nil || equipment.model.remoteTrimmedNonEmpty != nil)
     }
 
     var body: some View {
@@ -1676,6 +1677,7 @@ private struct HomeEquipmentEditorSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.creamWhite)
+            .onChange(of: authModel.authenticatedUser?.id) { _, _ in if !isCurrentOwner { dismiss() } }
             .navigationTitle(configuration.equipment == nil ? "Add gear" : "Edit gear")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1692,19 +1694,13 @@ private struct HomeEquipmentEditorSheet: View {
     }
 
     private func save() {
+        guard canSave else { return }
         do {
             equipment.ownerUserID = scope.userID
             equipment.updatedAt = .now
             _ = try store.upsert(equipment, in: scope)
             onSaved(equipment)
-            if let userID = scope.userID,
-               let client = try? SupabaseClientProvider.shared.client() {
-                let savedEquipment = equipment
-                Task {
-                    _ = try? await HomeLibraryService(client: client)
-                        .upsert(savedEquipment, userID: userID)
-                }
-            }
+            Task { await HomeLibrarySynchronizer.shared.synchronize(scope: scope, currentOwner: { authModel.authenticatedUser?.id }) }
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

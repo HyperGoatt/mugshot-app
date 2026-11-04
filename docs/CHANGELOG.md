@@ -4,6 +4,21 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## 2026-11-04 — Home library and simpler Home logging candidate
+
+- Add a standalone Home library in Saved and Journal for recipes, bags, gear and
+  device-local account defaults; managing the library never starts a sip draft.
+- Show all Home starter families and separate Log this sip from optional Make
+  with guidance. Keep shared sip reflection/review, recipe attribution, explicit
+  actual measurements and private-first review.
+- Read bag photos into editable fields with Luna after one-time account enablement;
+  preserve typing during reads and retain on-device/manual fallback. Other
+  contextual helpers reuse permission and request their result directly.
+- Keep a concise explicit OpenAI enable control and revocable Home preference.
+  Source-copy permission, owner fences, bounded data and explicit Save remain.
+- Serialize shelf sync, retry offline edits and invalidate pending work on erasure.
+- [Current audit, ECC evidence and delivery state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
+
 ## 2026-11-04 — Journal crash and current Home bean controls
 
 - Bound Journal's navigation-root view construction after a physical iPhone

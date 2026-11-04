@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-04",
+  "device": "Owner-authorized iPhone 16 Pro, iOS 27.0.1",
+  "package": {
+    "bundleID": "co.mugshot.app.dev",
+    "displayName": "Mugshot Luna QA",
+    "version": "0.5.3",
+    "build": "8",
+    "signature": "deep-strict-pass",
+    "entitlements": "unchanged",
+    "analytics": "disabled",
+    "credentialExclusion": "pass",
+    "debugDylibSHA256": "99be18a6c98076fdcd184e05333eab11eb5554a7ac093db80be3b92149f4e820"
+  },
+  "installation": "succeeded",
+  "dataPreservation": {
+    "filesBefore": 40,
+    "filesAfter": 40,
+    "allPriorFilesUnchanged": true,
+    "missingFiles": 0,
+    "changedFiles": 0,
+    "scope": "Application Support, compared immediately before install and after final install before launch"
+  },
+  "launch": "blocked by iOS Locked; no successful Home-candidate launch or physical interaction acceptance",
+  "rawEvidence": "Private local backups and device receipts retained under /tmp; content and user identifiers excluded from repository"
+}

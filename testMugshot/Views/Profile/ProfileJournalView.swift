@@ -32,13 +32,14 @@ struct JournalTabView: View {
     @State private var earlierRecipeVersion: UUID?
     @State private var activeProfileSheet: ProfileSheet?
     @State private var showJournalArchive = false
-    @State private var showRecipeBook = false
+    @State private var homeLibraryPresentation: HomeLibraryPresentation?
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
     @State private var selectedHomeAttempt: HomeAttemptRecord?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var journalEntries: [JournalEntryProjection] = []
     @State private var assistanceJournalOwnerID: UUID?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var lastJournalLoad: Date?
     @State private var loadedJournalRevision: Int?
@@ -246,17 +247,14 @@ struct JournalTabView: View {
                         onShare: { shareHomeAttempt(selectedHomeAttempt) },
                         onMakeAgain: { repeatHomeAttempt(selectedHomeAttempt) },
                         onDone: { self.selectedHomeAttempt = nil },
-                        onHistory: { showRecipeBook = true },
+                        onHistory: openHomeLibrary,
                         onLogServing: { logHomeServing(from: selectedHomeAttempt) }
                     )
                 }
             }
-            .navigationDestination(isPresented: $showRecipeBook) {
-                HomeRecipeExperienceView(
-                    ownerID: authModel.authenticatedUser?.id,
-                    initialCollection: "Recipes",
-                    onShare: onComposeDraft
-                )
+            .sheet(item: $homeLibraryPresentation) { presentation in
+                HomeLibraryView(ownerID: presentation.ownerID, onComposeDraft: onComposeDraft)
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -308,7 +306,7 @@ struct JournalTabView: View {
                     onComposeDraft: onComposeDraft,
                     onShareHomeAttempt: shareHomeAttempt,
                     onRepeatHomeAttempt: repeatHomeAttempt,
-                    onOpenRecipeBook: { showRecipeBook = true },
+                    onOpenRecipeBook: openHomeLibrary,
                     showsPhase2Tools: phase2CanonicalJournal
                 )
             }
@@ -465,6 +463,10 @@ struct JournalTabView: View {
         .accessibilityLabel("Open your profile")
     }
 
+    private func openHomeLibrary() {
+        homeLibraryPresentation = HomeLibraryPresentation(ownerID: authModel.authenticatedUser?.id)
+    }
+
     private var journalToolsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Keep exploring")
@@ -472,14 +474,14 @@ struct JournalTabView: View {
                 .foregroundColor(.espressoBrown)
 
             if homeRecipesEnabled {
-                Button { showRecipeBook = true } label: {
+                Button(action: openHomeLibrary) {
                     HStack(spacing: 12) {
                         Image(systemName: "book.closed")
                             .frame(width: 42, height: 42)
                             .background(Color.mugshotMint.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Recipe Book").font(.headline)
-                            Text("Your drinks, components and preparations")
+                            Text("Home library").font(.headline)
+                            Text("Recipes, beans, gear & preferences")
                                 .font(.caption).foregroundStyle(Color.secondaryText)
                         }
                         Spacer()

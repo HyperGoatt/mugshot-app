@@ -46,8 +46,25 @@ final class HomeLibraryFlowUITests: XCTestCase {
         let name = app.textFields["logASipV3.drinkName"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         app.buttons["logASipV3.primaryAction"].tap()
-        XCTAssertTrue(app.staticTexts["Sip reflection"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 5))
         app.buttons["logASipV3.primaryAction"].tap()
         XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testRecipeDiscoveryCanSaveAnIdeaWithoutStartingASip() {
+        let app = launch()
+        app.buttons["mugshot.tab.saved"].tap()
+        app.buttons["home.library.entry"].tap()
+        app.buttons["Find your next recipe"].tap()
+        app.buttons["Save a recipe you found"].tap()
+        let name = app.textFields["home.recipe.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Evening matcha idea")
+        let source = app.textFields["Paste a website or social link"]
+        source.tap(); source.typeText("https://example.org/tea")
+        app.buttons["home.recipe.saveIdea"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Evening matcha idea")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
     }
 }

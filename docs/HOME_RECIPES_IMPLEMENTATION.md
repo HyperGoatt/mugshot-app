@@ -4,6 +4,41 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Standalone Home library and shorter logging — 2026-11-04 candidate
+
+**Saved → Home library** and **Journal → Keep exploring → Home library** open
+Recipes, Beans, Gear and Preferences without creating a sip. Bags can be added,
+scanned, edited, marked finished/archived and restored. Gear uses the existing
+role-based editor and archive. Recipes keep the existing versioned workspace;
+a link/caption/screenshot can become an idea or editable preparation. Find a
+recipe opens a user-chosen web search, then returns to add the source. It does
+not fetch videos, scrape websites or bypass source restrictions.
+
+Home setup shows latte, espresso, pour-over, matcha, tea and more methods in an
+adaptive grid. **Log this sip** takes the short capture → shared sip reflection
+→ shared review route; **Make with guidance** starts the existing method-aware
+preparation and actuals path, then joins that same finish. Both keep private-first
+review and unknown actuals. Saved recipes retain their own values.
+
+Preferences remember favorite method, go-to bag and active gear on this device,
+scoped to the account or guest. Fresh method setups use safe selected snapshots;
+archived, missing or foreign-owner defaults are ignored. The existing export
+serializes these preferences with the local shelf. Guest shelf adoption may
+carry defaults; it never carries Luna permission.
+
+Luna permission is enabled once per account/device and can be revoked here.
+Selected bag photos are automatically read into the editable bag; fields typed
+while reading remain intact. Scanning failure uses Apple Vision/manual entry.
+Saving a named bag does not wait for a provider. Recipe screenshots/pasted text
+can fill an editable recipe after copying rights are confirmed. No AI result
+publishes or changes a saved recipe, rating or audience automatically.
+
+The shelf remains local-first. Sync serializes writes per account, skips unchanged
+remote rows, retries latest offline edits and blocks late account/erasure results.
+[Audit, tests and actual installation state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md)
+supersede earlier Home entry/control descriptions below. No new backend contract
+or TestFlight gate is promoted by this native change.
+
 ## Current Home bean entry — 2026-11-04
 
 Use **Add → Home → choose a method → Adjust today’s setup → Beans, gear, and

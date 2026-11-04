@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import UIKit
 
 struct HomeMethodDefinition: Identifiable, Hashable {
@@ -208,7 +209,10 @@ struct HomeSipV3SetupView: View {
     let onQuickLog: () -> Void
     let onResumeSession: (UUID) -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var authModel: AppAuthModel
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
+    @State private var libraryPresentation: HomeLibraryPresentation?
     @State private var sheet: HomeSipSetupSheet?
     @State private var linkedRecipeDetail: HomeLinkedRecipeSheet?
     @State private var didTrackOpen = false
@@ -274,16 +278,20 @@ struct HomeSipV3SetupView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.secondaryText)
 
-                    if usesV4 { ScrollView(.horizontal) {
-                        HStack(spacing: 10) {
+                    if usesV4 {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 160 : 100), spacing: 10)], spacing: 10) {
                             starter("Latte", method: .completeDrink, action: selectLatte)
                             starter("Espresso", method: .espresso) { select(method: .espresso) }
                             starter("Pour-over", method: .pourOver) { select(method: .pourOver) }
                             starter("Matcha", method: .traditionalMatcha) { select(method: .traditionalMatcha) }
                             starter("Tea", method: .westernTea) { select(method: .westernTea) }
+                            starter("More", method: .other) { sheet = .methods }
+                        }
+                        if let favorite = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID)).preferences?.preferredMethod {
+                            Button("Your favorite: \(favorite.title)") { select(method: favorite) }
+                                .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
                         }
                     }
-                    .scrollIndicators(.hidden) }
 
                     if let usual = store.workspace.usuals.first,
                        let version = usual.current {
@@ -314,21 +322,16 @@ struct HomeSipV3SetupView: View {
                     }
 
                     VStack(spacing: 0) {
-                        setupRow(systemImage: "magnifyingglass", title: "Choose a recipe",
-                                 detail: "Coffee, matcha, tea, components, and drinks",
-                                 accessibilityIdentifier: "logASipV3.home.chooseRecipe") { sheet = .recipes }
+                        setupRow(systemImage: "book.pages", title: "Choose a recipe",
+                                 detail: "Your favorites, or an idea from anywhere",
+                                 accessibilityIdentifier: "logASipV3.home.chooseRecipe") {
+                            libraryPresentation = HomeLibraryPresentation(ownerID: draft.ownerUserID)
+                        }
                         Divider().padding(.leading, 64)
-                        setupRow(systemImage: "square.grid.2x2", title: "Choose a method",
-                                 detail: "Start with only the useful fields",
-                                 accessibilityIdentifier: "logASipV3.home.chooseMethod") { sheet = .methods }
-                        Divider().padding(.leading, 64)
-                        setupRow(systemImage: "plus", title: "Create a recipe",
-                                 detail: "A name and source link are enough") { sheet = .quickRecipe }
-                        Divider().padding(.leading, 64)
-                        setupRow(method: .other, title: "Brew freely",
-                                 detail: "Start blank and add only what matters") {
-                            MugshotAnalytics.shared.capture(.homeWorkbench(action: .freeSetupSelected))
-                            select(method: .other)
+                        setupRow(systemImage: "slider.horizontal.3", title: "Beans, gear & preferences",
+                                 detail: "Your Home library, always within reach",
+                                 accessibilityIdentifier: "home.setup.library") {
+                            libraryPresentation = HomeLibraryPresentation(ownerID: draft.ownerUserID, section: .beans)
                         }
                     }
                     .homeSetupCard()
@@ -340,29 +343,23 @@ struct HomeSipV3SetupView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 8) {
-                Button(action: selectedRecipeIsSourceOnly ? { sheet = .adjustSetup } : onStartMaking) {
-                    Label(selectedRecipeIsSourceOnly ? "Add preparation details" : "Start making", systemImage: selectedRecipeIsSourceOnly ? "slider.horizontal.3" : "arrow.right")
+            VStack(spacing: 6) {
+                Button(action: usesV4 ? onQuickLog : onStartMaking) {
+                    Label(usesV4 ? "Log this sip" : "Start making", systemImage: "arrow.right")
                         .frame(maxWidth: .infinity, minHeight: 52)
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                .disabled(selectedMethod == nil || isRecoveryLocked)
+                .disabled(isRecoveryLocked || (!usesV4 && selectedMethod == nil))
                 .accessibilityIdentifier("logASipV3.primaryAction")
 
-                if selectedMethod != nil {
-                    Button("Skip guidance", action: onSkipGuidance)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.mugshotSage)
-                        .frame(minHeight: 44)
-                        .disabled(isRecoveryLocked)
+                Button(action: selectedRecipeIsSourceOnly ? { sheet = .adjustSetup } : onStartMaking) {
+                    Label(selectedRecipeIsSourceOnly ? "Add preparation details" : "Make with guidance", systemImage: "play.circle")
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
-
-                Button("Already made it? Quick log instead", action: onQuickLog)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .frame(minHeight: 44)
-                    .disabled(isRecoveryLocked)
-                    .accessibilityIdentifier("logASipV3.home.quickLog")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.mugshotSageText)
+                .disabled(selectedMethod == nil || isRecoveryLocked)
+                .accessibilityIdentifier("home.makeWithGuidance")
             }
             .padding(.horizontal, DesignSystem.Space.md)
             .padding(.top, 10)
@@ -387,8 +384,17 @@ struct HomeSipV3SetupView: View {
                     sheet = nil
                 }
             case .adjustSetup:
-                HomeTodaySetupSheet(draft: $draft)
+                HomeTodaySetupSheet(draft: $draft, onSelectRecipe: { recipe, version in
+                    select(recipe, version: version)
+                    sheet = nil
+                })
             }
+        }
+        .sheet(item: $libraryPresentation) { item in
+            HomeLibraryView(ownerID: item.ownerID, initialSection: item.section, onSelectRecipe: { recipe, version in
+                select(recipe, version: version)
+                libraryPresentation = nil
+            }).environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         .sheet(item: $linkedRecipeDetail) { item in
             HomeLinkedRecipeDetail(store: store, reference: item.reference)
@@ -541,6 +547,8 @@ struct HomeSipV3SetupView: View {
     }
 
     private func select(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion) {
+        draft.homeCoffeeBagID = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID)).bags
+            .first(where: { $0.safeSnapshot == version.content.coffee })?.id
         draft.homeSipPath = .guided
         draft.launchContext.sourceRecipeIdentityID = recipe.id
         draft.launchContext.sourceRecipeVersion = "v\(version.number)"
@@ -565,7 +573,7 @@ struct HomeSipV3SetupView: View {
     }
 
     private func select(method: HomeBrewMethod) {
-        let content = HomeRecipeContent(
+        var content = HomeRecipeContent(
             name: method == .other ? "" : method.title,
             template: .preparation,
             method: method,
@@ -573,6 +581,7 @@ struct HomeSipV3SetupView: View {
             ingredients: HomeRecipeContent.defaultIngredients(for: method),
             steps: HomeRecipeContent.defaultSteps(for: method)
         )
+        applyLibraryDefaults(to: &content)
         draft.homeSipPath = .guided
         draft.launchContext.sourceRecipeIdentityID = nil
         draft.launchContext.sourceRecipeVersion = nil
@@ -590,6 +599,14 @@ struct HomeSipV3SetupView: View {
         MugshotHaptic.selection.play()
     }
 
+    private func applyLibraryDefaults(to content: inout HomeRecipeContent) {
+        guard authModel.authenticatedUser?.id == draft.ownerUserID else { return }
+        let defaults = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID)).defaults(for: draft.ownerUserID, method: content.method)
+        content.coffee = defaults.bag?.safeSnapshot
+        content.equipment = defaults.equipment.map(\.snapshot)
+        draft.homeCoffeeBagID = defaults.bag?.id
+    }
+
     private func selectLatte() {
         var content = HomeRecipeContent(name: "Latte", template: .drink, method: .completeDrink)
         content.targets = HomeRecipeContent.defaultTargets(for: .espresso)
@@ -605,6 +622,7 @@ struct HomeSipV3SetupView: View {
             content.ingredients.append(HomeRecipeIngredient(name: "Espresso", amount: 1, unit: "serving"))
         }
         content.ingredients.append(HomeRecipeIngredient(name: "Milk", amount: 160, unit: "ml"))
+        applyLibraryDefaults(to: &content)
         draft.homeSetupContent = content
         draft.launchContext.sourceRecipeIdentityID = nil
         draft.launchContext.homeRecipeVersionID = nil
@@ -626,7 +644,7 @@ struct HomeSipV3SetupView: View {
                 HomeMethodIconView(method: method, size: 29)
                 Text(title).font(.caption.weight(.bold)).foregroundStyle(Color.espressoBrown)
             }
-            .frame(width: 94, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(minHeight: 80)
             .padding(10)
             .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
@@ -821,73 +839,136 @@ struct HomeQuickRecipeSheet: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let onSaved: (HomeRecipeRecord, HomeRecipeVersion) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var source = ""
-    @State private var sourceText = ""
-    @State private var creatorCredit = ""
+    @EnvironmentObject private var authModel: AppAuthModel
+    @ObservedObject private var permission = CoffeeAssistancePermissionStore.shared
+    @StateObject private var assistance = CoffeeAssistanceSession()
+    @State private var content = HomeRecipeContent(name: "", template: .preparation, method: .other)
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var image: UIImage?
+    @State private var canCopy = false
+    @State private var importID = UUID()
     @State private var error: String?
     @State private var showsFullEditor = false
+    private let originalScope: LocalAccountScope
+
+    init(store: HomeRecipeWorkspaceStore, onSaved: @escaping (HomeRecipeRecord, HomeRecipeVersion) -> Void) {
+        self.store = store
+        self.onSaved = onSaved
+        originalScope = store.scope
+    }
+    private var isCurrentOwner: Bool { store.scope == originalScope && authModel.authenticatedUser?.id == originalScope.userID }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Save a recipe idea") {
-                    TextField("Recipe name", text: $name)
-                    TextField("Paste the caption or instructions", text: $sourceText, axis: .vertical)
-                        .lineLimit(4...10)
-                    TextField("Instagram, TikTok, or website", text: $source)
-                        .textInputAutocapitalization(.never).keyboardType(.URL)
-                    TextField("Creator credit", text: $creatorCredit)
-                }
-                Section {
-                    Text("Keep the idea as you found it. Add ingredients, amounts, and steps only when you want to. Saving never starts making.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Button("Build a full recipe instead", systemImage: "slider.horizontal.3") {
-                        showsFullEditor = true
-                    }
-                }
-                if let error { Text(error).foregroundStyle(.red) }
-            }
+            recipeForm
             .scrollContentBackground(.hidden).background(Color.creamWhite)
-            .navigationTitle("Save a simple recipe")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Add a recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        do {
-                            var content = HomeRecipeContent()
-                            content.template = .preparation
-                            content.method = .other
-                            content.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                            content.sourceURL = source.trimmingCharacters(in: .whitespacesAndNewlines)
-                            content.sourceText = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            content.creatorCredit = creatorCredit.trimmingCharacters(in: .whitespacesAndNewlines)
-                            let id = try store.saveRecipe(HomeRecipeEditorDraft(content: content))
-                            guard let recipe = store.workspace.recipes.first(where: { $0.id == id }), let version = recipe.current else { return }
-                            onSaved(recipe, version)
-                        } catch { self.error = error.localizedDescription }
-                    }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Save", action: save).disabled(!isCurrentOwner || content.name.remoteTrimmedNonEmpty == nil)
+                        .accessibilityIdentifier("home.recipe.saveIdea")
                 }
             }
+            .onChange(of: content.sourceText) { _, _ in restartImport() }
+            .onChange(of: canCopy) { _, _ in restartImport() }
+            .onChange(of: permission.revision) { _, _ in restartImport() }
+            .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+                if !isCurrentOwner { assistance.invalidate(); dismiss() }
+            }
+            .task(id: selectedPhoto) { await loadPhoto() }
+            .task(id: importID) { await readRecipe() }
+            .onDisappear { assistance.invalidate() }
         }
         .fullScreenCover(isPresented: $showsFullEditor) {
-            HomeRecipeCreationFlow(store: store) { id in
-                guard let recipe = store.workspace.recipes.first(where: { $0.id == id }),
-                      let version = recipe.current else { return }
-                showsFullEditor = false
-                onSaved(recipe, version)
+            NavigationStack {
+                HomeRecipeEditorView(store: store, draft: HomeRecipeEditorDraft(content: content)) { id in finish(id) }
             }
         }
+    }
+    private var recipeForm: some View {
+        Form {
+            Section {
+                TextField("Recipe name", text: $content.name).accessibilityIdentifier("home.recipe.name")
+                TextField("Paste a website or social link", text: $content.sourceURL)
+                    .textInputAutocapitalization(.never).keyboardType(.URL)
+                TextField("Creator credit", text: $content.creatorCredit)
+                TextField("Paste a caption or instructions", text: $content.sourceText, axis: .vertical)
+                    .lineLimit(3...8)
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Label(image == nil ? "Add a recipe screenshot" : "Change screenshot", systemImage: "photo")
+                }
+                if let image { Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 160) }
+            } header: { Text("From wherever you found it") }
+            if image != nil || !content.sourceText.isEmpty {
+                Section {
+                    Toggle("I can copy these recipe instructions", isOn: $canCopy)
+                    LunaPermissionControl(ownerID: originalScope.userID)
+                    if assistance.isWorking { ProgressView("Luna is reading your recipe…") }
+                    if let message = assistance.message { Text(message).font(.footnote).foregroundStyle(Color.secondaryText) }
+                    if !content.ingredients.isEmpty || !content.steps.isEmpty {
+                        Label("\(content.ingredients.count) ingredients · \(content.steps.count) steps", systemImage: "checkmark.circle")
+                        Text("Open the details to check amounts and make any edits.").font(.caption).foregroundStyle(Color.secondaryText)
+                    }
+                }
+            }
+            Section {
+                Button("Edit ingredients, steps & method", systemImage: "slider.horizontal.3") { showsFullEditor = true }
+                Text("A name and link are enough to save an idea. You can add details or make it whenever you’re ready.")
+                    .font(.footnote).foregroundStyle(Color.secondaryText)
+            }
+            if let error { Text(error).foregroundStyle(.red) }
+        }
+    }
+
+    private func loadPhoto() async {
+        guard let item = selectedPhoto, let data = try? await item.loadTransferable(type: Data.self),
+              !Task.isCancelled, isCurrentOwner, let chosen = UIImage(data: data) else { return }
+        image = chosen
+        restartImport()
+    }
+
+    private func readRecipe() async {
+        let operation = importID
+        guard isCurrentOwner, let owner = originalScope.userID, canCopy,
+              permission.isEnabled(ownerID: owner), image != nil || !content.sourceText.isEmpty else { return }
+        do {
+            try await Task.sleep(for: .milliseconds(900))
+            let encoded = try image.map(CoffeeAssistanceImage.encode)
+            let request = CoffeeAssistanceRequest(ownerID: owner, task: .recipeImport,
+                evidence: CoffeeAssistanceRecipeImport.source(content), image: encoded)
+            await assistance.run(request, consent: true, currentOwner: { authModel.authenticatedUser?.id })
+            guard !Task.isCancelled, operation == importID, isCurrentOwner, canCopy,
+                  permission.isEnabled(ownerID: owner), let result = assistance.result else { return }
+            content.sourceReuseAllowed = true
+            CoffeeAssistanceRecipeImport.apply(result.fields, to: &content)
+        } catch is CancellationError { }
+        catch { self.error = "Couldn’t read that image. Your recipe idea can still be saved." }
+    }
+
+    private func restartImport() { assistance.invalidate(); importID = UUID() }
+    private func save() {
+        guard isCurrentOwner else { return }
+        assistance.invalidate()
+        do { finish(try store.saveRecipe(HomeRecipeEditorDraft(content: content))) }
+        catch { self.error = "Couldn’t save that recipe. Your details are still here." }
+    }
+    private func finish(_ id: UUID) {
+        guard isCurrentOwner, let recipe = store.workspace.recipes.first(where: { $0.id == id }), let version = recipe.current else { return }
+        showsFullEditor = false
+        onSaved(recipe, version)
     }
 }
 
 private struct HomeTodaySetupSheet: View {
     @Binding var draft: SipDraft
+    let onSelectRecipe: (HomeRecipeRecord, HomeRecipeVersion) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
     @State private var calculation: HomeRecipeCalculation = .ratio
     @State private var showsComponentPicker = false
+    @State private var showsGearLibrary = false
 
     private var method: HomeBrewMethod { HomeBrewMethod(storedValue: draft.brewMethod) }
     private var content: HomeRecipeContent? {
@@ -1016,6 +1097,8 @@ private struct HomeTodaySetupSheet: View {
                                 draft.brewDetails.coffeeBag = bag?.safeSnapshot
                                 updateContent { $0.coffee = bag?.safeSnapshot }
                             }
+                            Button("Manage beans & gear", systemImage: "slider.horizontal.3") { showsGearLibrary = true }
+                                .frame(minHeight: 44)
                             ForEach(library.equipment.filter { $0.archivedAt == nil }) { gear in
                                 Toggle(gear.displayName, isOn: Binding(
                                     get: { content?.equipment.contains(gear.snapshot) == true },
@@ -1055,6 +1138,10 @@ private struct HomeTodaySetupSheet: View {
             }
             .onAppear { calculation = content?.targets.calculation ?? .ratio }
             .onDisappear { discardUnnamedIngredients() }
+            .sheet(isPresented: $showsGearLibrary) {
+                HomeLibraryView(ownerID: draft.ownerUserID, initialSection: .gear, onSelectRecipe: onSelectRecipe)
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
             .sheet(isPresented: $showsComponentPicker) {
                 HomeSipRecipePicker(store: store) { recipe, version in
                     updateContent { $0.ingredients.append(HomeRecipeIngredient(

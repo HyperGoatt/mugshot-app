@@ -11,7 +11,7 @@ struct CoffeeAssistancePresentation: Identifiable {
     let allowsPhoto: Bool
 }
 
-/// A contextual helper. Presenting it never makes a request or changes source data.
+/// A user-invoked tool. Enabled Luna requests a result; persistence stays explicit.
 struct CoffeeAssistanceButton: View {
     let ownerID: UUID?
     let task: CoffeeAssistanceTask
@@ -52,7 +52,8 @@ struct CoffeeAssistanceReviewSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var session: CoffeeAssistanceSession
     private let ownerResolver: (() -> UUID?)?
-    @State private var consent = false
+    @ObservedObject private var permission = CoffeeAssistancePermissionStore.shared
+    private var consent: Bool { permission.isEnabled(ownerID: presentation.ownerID) }
     @State private var ownsSource = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var image: UIImage?
@@ -91,15 +92,23 @@ struct CoffeeAssistanceReviewSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("An optional suggestion from Mugsy")
-                        .font(.headline)
-                    Text("Your original details stay available. Suggestions can be wrong; check the evidence before using them. Nothing is saved or shared automatically.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                    if !consent {
+                        LunaPermissionControl(ownerID: presentation.ownerID)
+                    } else {
+                        Label("Luna", systemImage: "sparkles").font(.headline)
+                        Text("Check the result and make it yours. Saving is always your choice.")
+                            .font(.subheadline).foregroundStyle(Color.secondaryText)
+                    }
                 }
-                Section("Review what you send") {
+                if session.isWorking { Section { ProgressView("Asking Luna…") } }
+                if let message = session.message { Section { Text(message).foregroundStyle(Color.secondaryText) } }
+                if let result = session.result { resultSection(result) }
+                Section("Selected details") {
                     if !presentation.query.isEmpty { Text(presentation.query) }
-                    ForEach(selectedEvidence) { item in
-                        DisclosureGroup(item.title) { Text(item.detail).textSelection(.enabled) }
+                    DisclosureGroup("Details used (\(selectedEvidence.count))") {
+                        ForEach(selectedEvidence) { item in
+                            DisclosureGroup(item.title) { Text(item.detail).textSelection(.enabled) }
+                        }
                     }
                     if let image {
                         Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 220)
@@ -113,34 +122,26 @@ struct CoffeeAssistanceReviewSheet: View {
                     }
                     if let imageError { Text(imageError).foregroundStyle(.red) }
                     if presentation.task == .recipeImport {
-                        Toggle("I created this recipe or have permission to copy it", isOn: $ownsSource)
+                        Toggle("I can copy these recipe instructions", isOn: $ownsSource)
                     }
-                    Toggle("Allow OpenAI to process only these details for this request", isOn: $consent)
-                        .accessibilityIdentifier("coffeeAssistance.consent")
-                    Text("This may include private details shown above. It does not change who can see your journal or recipes. OpenAI may retain API content for abuse monitoring; training sharing is off by default. You can leave this helper without sending anything.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Link("OpenAI data controls", destination: URL(string: "https://developers.openai.com/api/docs/guides/your-data")!)
                     Button {
                         requested = UUID()
                     } label: {
                         if session.isWorking { ProgressView("Asking Mugsy…") }
-                        else { Text("Get a suggestion") }
+                        else { Text(session.result == nil ? "Ask Luna" : "Try again") }
                     }
                     .disabled(!canAsk)
                     .accessibilityIdentifier("coffeeAssistance.generate")
-                }
-                if let message = session.message {
-                    Section("Your original details are safe") { Text(message) }
-                }
-                if let result = session.result {
-                    resultSection(result)
                 }
             }
             .navigationTitle(presentation.task.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { session.invalidate(); dismiss() } } }
             .background(Color.creamWhite)
-            .task { image = presentation.image }
+            .task {
+                image = presentation.image
+                askIfReady()
+            }
             .task(id: requested) {
                 guard requested != nil else { return }
                 do {
@@ -163,9 +164,15 @@ struct CoffeeAssistanceReviewSheet: View {
                       !Task.isCancelled, let decoded = UIImage(data: data) else { return }
                 image = decoded
                 reset()
+                askIfReady()
             }
-            .onChange(of: consent) { _, value in if !value { reset(); CoffeeAssistanceCache.shared.clear() } }
-            .onChange(of: ownsSource) { _, value in if !value && presentation.task == .recipeImport { reset() } }
+            .onChange(of: permission.revision) { _, _ in
+                if !consent { reset() } else { askIfReady() }
+            }
+            .onChange(of: ownsSource) { _, value in
+                if !value && presentation.task == .recipeImport { reset() }
+                else { askIfReady() }
+            }
             .onReceive(authModel.$authenticatedUser) { user in
                 if ownerResolver == nil && user?.id != presentation.ownerID { reset(); CoffeeAssistanceCache.shared.clear(); dismiss() }
             }
@@ -175,7 +182,7 @@ struct CoffeeAssistanceReviewSheet: View {
 
     @ViewBuilder
     private func resultSection(_ result: CoffeeAssistanceResult) -> some View {
-        Section("AI suggestion · check before using") {
+        Section("Luna’s suggestion") {
             if onAccepted != nil && result.fields.isEmpty {
                 TextField("Edit the suggestion", text: $editedText, axis: .vertical).lineLimit(3...8)
             } else { Text(result.text) }
@@ -214,6 +221,10 @@ struct CoffeeAssistanceReviewSheet: View {
                 .accessibilityIdentifier("coffeeAssistance.accept")
             }
         }
+    }
+    private func askIfReady() {
+        guard canAsk, session.result == nil, requested == nil else { return }
+        requested = UUID()
     }
     private func reset() { requested = nil; session.invalidate(); fields = []; selectedFields = []; editedText = "" }
 }

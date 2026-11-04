@@ -6,6 +6,7 @@ struct HomeLibrarySnapshot: Codable, Equatable {
     var equipment: [EquipmentProfile]
     var recentSetups: [HomeBrewSnapshot]
     var updatedAt: Date
+    var preferences: HomeLibraryPreferences? = nil
 
     static let empty = HomeLibrarySnapshot(
         bags: [],
@@ -55,12 +56,26 @@ final class HomeLibraryStore {
         )[0].appendingPathComponent("MugshotHomeLibrary", isDirectory: true)
 
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var container = encoder.singleValueContainer()
+            try container.encode(formatter.string(from: date))
+        }
         encoder.outputFormatting = [.sortedKeys]
         self.encoder = encoder
 
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: raw) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: raw) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid library date")
+        }
         self.decoder = decoder
     }
 
@@ -72,6 +87,11 @@ final class HomeLibraryStore {
             return .empty
         }
         return snapshot
+    }
+
+    @discardableResult
+    func savePreferences(_ preferences: HomeLibraryPreferences, in scope: LocalAccountScope) throws -> HomeLibrarySnapshot {
+        try mutate(in: scope) { $0.preferences = preferences }
     }
 
     @discardableResult
@@ -190,11 +210,12 @@ final class HomeLibraryStore {
         let guestScope = LocalAccountScope.guest
         let destinationScope = LocalAccountScope.user(userID)
         let guest = load(in: guestScope)
-        guard !guest.bags.isEmpty || !guest.equipment.isEmpty || !guest.recentSetups.isEmpty else {
+        guard !guest.bags.isEmpty || !guest.equipment.isEmpty || !guest.recentSetups.isEmpty || guest.preferences != nil else {
             return load(in: destinationScope)
         }
 
         var destination = load(in: destinationScope)
+        if destination.preferences == nil { destination.preferences = guest.preferences }
         for var bag in guest.bags {
             bag.ownerUserID = userID
             if let relativePath = bag.localPhotoPath?.remoteTrimmedNonEmpty {

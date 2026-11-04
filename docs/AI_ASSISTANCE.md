@@ -26,11 +26,21 @@ records the reported physical Journal crash and installed add/scan controls in
 current Home setup. Corrected Journal opening is now physically verified with the
 existing account; touch navigation and real helper acceptance remain human QA.
 
+## Simpler native access — November 4 candidate
+
+The [Home library candidate](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md) replaces
+per-request consent forms with one short, explicit Enable Luna control, remembered
+per account/device and revocable in Home preferences. Opening the library itself
+makes no AI request. Selecting a bag photo then reads it directly into editable
+fields; invoking another contextual helper requests its result without a second
+Generate step. Recipe idea capture can read selected screenshots/pasted text into
+a draft after source-copying permission. Ordinary Save stays separate.
+
 ## Product behavior
 
 | Helper | Entry | Existing independent behavior |
 | --- | --- | --- |
-| Bag capture | Add → Home → method → Adjust today’s setup → Beans, gear, and more → Scan bag → photo → Improve this scan | Apple Vision scan, editable fields and ordinary Save |
+| Bag capture | Saved → Home library → Beans → Scan a bag → photo | Apple Vision scan, editable fields and ordinary Save |
 | Recipe capture | Bring in a recipe in the recipe editor | Blank/template entry, source text and normal recipe draft/save |
 | Memory search | Find a memory alongside Journal archive search | Ordinary local search, filters and timeline |
 | Taste observations | Notice a taste pattern in Journal tools after three completed memories | Existing evidence-based Taste Passport |
@@ -40,8 +50,11 @@ existing account; touch navigation and real helper acceptance remain human QA.
 These are five feature groups; capture has separate bag and recipe tasks. There
 is no general chat, autonomous agent, background generation, or AI dependency in
 authentication, save, publication, recipe persistence, search, scoring or recaps.
-Every request starts from a closed helper, previews the exact selected records
-and optional image, and requires an unchecked-by-default per-request consent.
+Luna starts disabled for each account on this device. Its short enable control
+names OpenAI and selected photos, recipe text and saved sip details. After explicit
+enablement, the user starts work by selecting a scan/import source or invoking a
+contextual tool. Selected evidence stays inspectable. No passive journal-wide
+background processing occurs.
 Recipe extraction also requires the user to confirm source-copying rights.
 Known protected/no-copy recipes cannot use import. Accepted fields update only
 the editable draft; ordinary Save remains a separate action. Recipe capture
@@ -59,8 +72,13 @@ drafts. AI reflection text stays out of the existing automatic share card.
 ## Privacy and ownership
 
 - API keys remain server-only; `.env.local` is ignored and never an iOS resource.
-- No cloud call happens on opening a helper. The user reviews details before
-  allowing a request and may leave without sending anything.
+- Opening the library or an unenabled helper makes no AI request. After explicit
+  enablement, choosing a scan source or opening a contextual tool starts that
+  bounded request. Bag reads fill editable identity fields while preserving typing
+  made during the request. Manual save does not wait for a provider.
+- The remembered permission is versioned and account-specific, revocable in Home
+  preferences and erased on deletion. It is never adopted across accounts. A
+  revoked permission invalidates active UI work and clears the result cache.
 - Journal search excludes private notes unless the user enables its explicit
   inclusion control. Single-attempt feedback is visible in the request preview.
 - Only owner-bound completed journal records and saved Home records are used.
@@ -80,10 +98,11 @@ drafts. AI reflection text stays out of the existing automatic share card.
   IDs are needed for linking results. Results can cite only supplied IDs.
 - Responses API uses `store: false`; this does not promise zero provider
   retention. OpenAI's standard abuse-monitoring retention and any organization
-  data-sharing choices still apply. The helper links current provider controls.
+  data-sharing choices still apply. See [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data).
 - The local result cache is memory-only, owner-bound, source-sensitive, limited
-  to 30 items and five minutes. Consent withdrawal clears it. No prompt or result
-  is persisted as journal or recipe content without explicit field acceptance.
+  to 30 items and five minutes. Permission withdrawal clears it. Scan/import
+  results can fill editable capture fields; ordinary Save is required to persist
+  them. Other contextual suggestions retain explicit acceptance.
 - Product analytics records only fixed task/outcome enums. No prompts, images,
   questions, answers, source IDs, private notes or LLM content traces are sent to
   PostHog. Content moderation remains local text rules and report/human review.
@@ -133,7 +152,7 @@ separate gates under the [release workflow](SUPABASE_RELEASE_WORKFLOW.md).
 
 Follow [VERIFICATION_POLICY.md](VERIFICATION_POLICY.md). Run the focused Deno
 handler/provider tests with coverage, `node qa/pglite/check-coffee-assistance.mjs`,
-native domain/account/cancellation tests, and the consent/failure/review Simulator
+native domain/account/cancellation tests, and the permission/failure/review and automatic-scan Simulator
 journeys. The paid synthetic provider probe is explicit and separate from CI:
 `scripts/check-coffee-assistance-provider.ts`. It must never receive production
 journal content. Full commands and observed results belong in the evidence ledger.

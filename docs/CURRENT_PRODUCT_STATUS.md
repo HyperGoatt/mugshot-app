@@ -4,6 +4,17 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Home library and Luna simplification — 2026-11-04 candidate
+
+`codex/home-library-flow` builds on the installed Journal fix. Standalone recipe,
+bean and gear management moves into Saved → Home library, with account-local
+preferences. Home offers a short log route and optional making guidance, ending
+in shared reflection/review. Luna reads selected bag photos directly into editable
+fields after one-time account enablement; repeated consent checkboxes are removed.
+Manual entry, on-device scan, source rights and account boundaries remain.
+[Current verification and phone state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md)
+are authoritative; implementation is not a TestFlight acceptance claim.
+
 ## Journal and bean-entry correction — 2026-11-04
 
 The owner reported a physical crash when opening Journal. The crash report

@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Owner-requested Home simplification — 2026-11-04
+
+Work on `codex/home-library-flow` adds standalone Home library management, shorter
+Home logging, optional guidance and automatic Luna bag reading with remembered
+account permission. Preserve shared reflection/review, offline core paths, source
+rights, account scope and the existing parent merge/TestFlight holds.
+[Audit and verification](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
+
 ## Luna phone handoff — 2026-11-04
 
 Backend activation and the owner-authorized development-device install are

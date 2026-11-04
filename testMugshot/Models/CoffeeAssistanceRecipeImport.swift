@@ -28,7 +28,7 @@ enum CoffeeAssistanceRecipeImport {
         return result
     }
 
-    /// Called only after explicit review. Existing content is preserved; import
+    /// Fills an editable capture draft; ordinary Save stays separate. Existing content is preserved; import
     /// fills blank identity fields and appends selected ingredients/steps.
     static func apply(_ fields: [CoffeeAssistanceField], to content: inout HomeRecipeContent) {
         guard content.sourceReuseAllowed != false else { return }

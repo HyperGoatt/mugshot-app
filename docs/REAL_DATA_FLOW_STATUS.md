@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-11-04
 ---
 
+## Home library ownership and Luna permission — 2026-11-04 candidate
+
+The standalone library reuses existing bags/gear and the versioned recipe workspace;
+no sip is created when managing it. Device-local defaults are stored in the typed
+account/guest shelf JSON, included in its existing owner export and erased with
+that scope. Sync binds the originating bearer, serializes account writes, retains
+newer local edits, skips unchanged rows and cancels before account erasure.
+
+Luna enablement is a separate versioned per-account UserDefaults choice, never
+copied from guest/other accounts, revoked in Home preferences and cleared on owner
+erasure. Revocation invalidates active UI work/cache. After enablement, selecting
+a bag photo or invoking a contextual tool starts the bounded request directly;
+recipe copying permission and private-note inclusion remain explicit. Results
+update editable capture fields or reviewed suggestions, never save/publish or
+change ratings/audiences automatically. Server authorization, input limits,
+quota reservation and model remain unchanged.
+[Current evidence](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md) supersedes the
+initial per-request checkbox interaction described below.
+
 ## Luna live path and preserved data — 2026-11-04
 
 `coffee-assistance` is active at version 3 with the approved server-only key,

@@ -37,6 +37,14 @@ struct HomeLibraryExperienceTests {
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let shelf = try decoder.decode(HomeLibrarySnapshot.self, from: data)
         #expect(shelf.preferences == nil)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let guest = root.appendingPathComponent("guest")
+        try FileManager.default.createDirectory(at: guest, withIntermediateDirectories: true)
+        try data.write(to: guest.appendingPathComponent("library-v1.json"))
+        let stored = HomeLibraryStore(baseDirectory: root).load(in: .guest)
+        #expect(stored.updatedAt == shelf.updatedAt)
+        #expect(stored.preferences == nil)
     }
 
     @Test func defaultsPersistWithoutCrossingAccountOrChangingSnapshots() throws {
@@ -63,6 +71,16 @@ struct HomeLibraryExperienceTests {
         shelf.preferences = HomeLibraryPreferences(defaultBagID: bag.id, defaultEquipmentIDs: [UUID()])
         #expect(shelf.defaults(for: owner).bag == nil)
         #expect(shelf.defaults(for: owner).equipment.isEmpty)
+    }
+
+    @Test func coffeeDefaultsDoNotBecomeTeaOrMatchaIngredients() {
+        let owner = UUID()
+        let bag = CoffeeBag(ownerUserID: owner, name: "Go-to coffee")
+        var shelf = HomeLibrarySnapshot.empty
+        shelf.bags = [bag]; shelf.preferences = HomeLibraryPreferences(defaultBagID: bag.id)
+        #expect(shelf.defaults(for: owner, method: .espresso).bag?.id == bag.id)
+        #expect(shelf.defaults(for: owner, method: .westernTea).bag == nil)
+        #expect(shelf.defaults(for: owner, method: .traditionalMatcha).bag == nil)
     }
 
     @Test func autofillPreservesTypingWhileReadingAndIgnoresBlankFields() {
@@ -169,6 +187,72 @@ struct HomeLibraryExperienceTests {
         #expect(store.load(in: .user(owner)).bags.isEmpty)
         #expect(remote.writes.isEmpty)
     }
+
+    @Test func photoSyncPreservesTheLocalPhotoAndAcknowledgesThePrivatePath() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeLibraryStore(baseDirectory: root), owner = UUID()
+        var bag = CoffeeBag(ownerUserID: owner, name: "With photo")
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { _ in UIColor.white.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 8, height: 8)) }
+        bag.localPhotoPath = try store.saveBagPhoto(image, bagID: bag.id, in: .user(owner))
+        _ = try store.upsert(bag, in: .user(owner))
+        let remote = FakeShelf(), sync = HomeLibrarySynchronizer(store: store, transport: { _ in remote })
+        #expect(await sync.synchronize(scope: .user(owner), currentOwner: { owner }))
+        let saved = try #require(store.load(in: .user(owner)).bags.first)
+        #expect(saved.privatePhotoPath == "private/fixture.jpg")
+        #expect(saved.localPhotoPath == bag.localPhotoPath)
+        #expect(remote.uploads == 1)
+        #expect(await sync.synchronize(scope: .user(owner), currentOwner: { owner }))
+        #expect(remote.uploads == 1)
+        #expect(remote.writes.count == 1)
+    }
+
+    @Test func anAccountChangeDuringPhotoUploadCannotWriteBagMetadata() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeLibraryStore(baseDirectory: root), owner = UUID()
+        var current: UUID? = owner
+        var bag = CoffeeBag(ownerUserID: owner, name: "Private photo")
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { _ in UIColor.white.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 8, height: 8)) }
+        bag.localPhotoPath = try store.saveBagPhoto(image, bagID: bag.id, in: .user(owner))
+        _ = try store.upsert(bag, in: .user(owner))
+        let remote = FakeShelf(), sync = HomeLibrarySynchronizer(store: store, transport: { _ in remote })
+        remote.onUpload = { current = UUID() }
+        #expect(await !sync.synchronize(scope: .user(owner), currentOwner: { current }))
+        #expect(remote.writes.isEmpty)
+        #expect(store.load(in: .user(owner)).bags.first?.privatePhotoPath == nil)
+    }
+
+    @Test func gearSyncAcknowledgesOnceAndDoesNotRewriteUnchangedGear() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeLibraryStore(baseDirectory: root), owner = UUID()
+        let gear = EquipmentProfile(ownerUserID: owner, role: .kettle, nickname: "Kettle")
+        _ = try store.upsert(gear, in: .user(owner))
+        let remote = FakeShelf(), sync = HomeLibrarySynchronizer(store: store, transport: { _ in remote })
+        #expect(await sync.synchronize(scope: .user(owner), currentOwner: { owner }))
+        #expect(remote.gearWrites.map(\.id) == [gear.id])
+        #expect(await sync.synchronize(scope: .user(owner), currentOwner: { owner }))
+        #expect(remote.gearWrites.count == 1)
+        #expect(store.load(in: .user(owner)).equipment.first?.nickname == "Kettle")
+    }
+
+    @Test func aGearEditDuringSyncSurvivesTheOlderAcknowledgement() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeLibraryStore(baseDirectory: root), owner = UUID()
+        let gear = EquipmentProfile(ownerUserID: owner, nickname: "Original")
+        _ = try store.upsert(gear, in: .user(owner))
+        let remote = FakeShelf(), sync = HomeLibrarySynchronizer(store: store, transport: { _ in remote })
+        remote.onGearWrite = {
+            remote.onGearWrite = nil
+            var changed = gear; changed.nickname = "New name"
+            _ = try? store.upsert(changed, in: .user(owner))
+        }
+        #expect(await sync.synchronize(scope: .user(owner), currentOwner: { owner }))
+        #expect(remote.gearWrites.count == 2)
+        #expect(store.load(in: .user(owner)).equipment.first?.nickname == "New name")
+    }
 }
 
 @MainActor
@@ -178,16 +262,25 @@ private final class FakeShelf: HomeLibrarySyncTransport {
     var fails = false
     var onFetch: (() -> Void)?
     var onWrite: (() -> Void)?
+    var onUpload: (() -> Void)?
+    var uploads = 0
+    var equipment: [EquipmentProfile] = []
+    var gearWrites: [EquipmentProfile] = []
+    var onGearWrite: (() -> Void)?
     func fetch(userID: UUID) async throws -> RemoteHomeLibrary {
         if fails { throw CoffeeAssistanceError.unavailable }
         onFetch?()
-        return RemoteHomeLibrary(bags: bags, equipment: [])
+        return RemoteHomeLibrary(bags: bags, equipment: equipment)
     }
     func upsert(_ bag: CoffeeBag, userID: UUID) async throws -> CoffeeBag {
         writes.append(bag); onWrite?()
         bags.removeAll { $0.id == bag.id }; bags.append(bag)
         return bag
     }
-    func upsert(_ equipment: EquipmentProfile, userID: UUID) async throws -> EquipmentProfile { equipment }
-    func uploadBagPhoto(_ image: UIImage, bagID: UUID, userID: UUID) async throws -> String { "private/fixture.jpg" }
+    func upsert(_ gear: EquipmentProfile, userID: UUID) async throws -> EquipmentProfile {
+        gearWrites.append(gear); onGearWrite?()
+        equipment.removeAll { $0.id == gear.id }; equipment.append(gear)
+        return gear
+    }
+    func uploadBagPhoto(_ image: UIImage, bagID: UUID, userID: UUID) async throws -> String { uploads += 1; onUpload?(); return "private/fixture.jpg" }
 }

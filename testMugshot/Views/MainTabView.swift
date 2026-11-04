@@ -698,7 +698,12 @@ struct MainTabView: View {
             SavedTabView(
                 dataManager: dataManager,
                 onLogVisitRequested: beginCafeSip,
-                onAuthenticationRequired: requestAuthentication
+                onAuthenticationRequired: requestAuthentication,
+                onComposeDraft: { draft in
+                    composerDraft = draft
+                    composerSessionID = UUID()
+                    withAnimation(DesignSystem.Motion.base) { tabCoordinator.selectedTab = .add }
+                }
             )
         case .journal:
             JournalTabView(dataManager: dataManager) { draft in
