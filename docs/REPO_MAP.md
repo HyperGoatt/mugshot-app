@@ -10,6 +10,11 @@ last_verified: 2026-11-04
   drink composition with immutable references and safe base replacement.
 - `Views/Add/HomeDrinkBuilderView.swift`: native mix editor, saved-part/base picker,
   optional amounts, parent-preserving inspection and account-scoped draft Save.
+- `HomeDrinkBuilderView.swift` includes a native numeric control that preserves
+  its editing buffer during draft updates. `HomeRecipeWorkspaceStore.shared`
+  isolates/reset Debug UI fixtures in a separate Home workspace.
+- `HomeDrinkComposition.guidance` resolves explicit or linked base methods and
+  de-duplicates assembly for the shared Home Make surface.
 - [Interview-grounded native package](design/home-recipe-composer-2026-11-04/README.md).
 
 ## Recipe source capture — November 4 follow-up

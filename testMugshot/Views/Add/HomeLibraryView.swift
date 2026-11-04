@@ -87,7 +87,11 @@ struct HomeLibraryView: View {
         return workspace.workspace.recipes.filter {
             !$0.isArchived && (query.isEmpty || $0.current?.content.name.localizedCaseInsensitiveContains(query) == true)
                 && (recipeUseFilter == nil || $0.current.map { HomeRecipeUse.suggested(for: $0.content) == recipeUseFilter } == true)
-        }.sorted { lhs, rhs in lhs.isPinned != rhs.isPinned ? lhs.isPinned : (lhs.lastUsedAt ?? .distantPast) > (rhs.lastUsedAt ?? .distantPast) }
+        }.sorted { lhs, rhs in
+            lhs.isPinned != rhs.isPinned ? lhs.isPinned
+                : (lhs.lastUsedAt ?? lhs.current?.createdAt ?? .distantPast)
+                    > (rhs.lastUsedAt ?? rhs.current?.createdAt ?? .distantPast)
+        }
     }
 
     var body: some View {
@@ -244,7 +248,7 @@ struct HomeLibraryView: View {
                         else { recipe = item }
                     } label: {
                         shelfRow(version.content.name,
-                            detail: HomeRecipeUse.suggested(for: version.content).title + " · " + version.content.summary,
+                            detail: HomeRecipeUse.suggested(for: version.content).title + " · " + version.content.recipeContentsSummary,
                             symbol: HomeRecipeUse.suggested(for: version.content).symbol)
                     }.buttonStyle(.plain)
                 }
@@ -262,7 +266,7 @@ struct HomeLibraryView: View {
 
     private func openPendingRecipe() {
         guard isCurrentOwner, let saved = pendingRecipe else { pendingRecipe = nil; return }
-        pendingRecipe = nil; recipe = saved
+        query = ""; recipeUseFilter = nil; pendingRecipe = nil; recipe = saved
     }
 
     private var beanShelf: some View {

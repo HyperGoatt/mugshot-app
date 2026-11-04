@@ -7,7 +7,17 @@ import UserNotifications
 /// replaces a newer local edit or treats a failed write as a successful save.
 @MainActor
 final class HomeRecipeWorkspaceStore: ObservableObject {
-    static let shared = HomeRecipeWorkspaceStore()
+    static let shared: HomeRecipeWorkspaceStore = {
+        #if DEBUG
+        if MugshotLaunchEnvironment.isUITesting {
+            let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("MugshotUITestHomeRecipes", isDirectory: true)
+            if MugshotLaunchEnvironment.shouldResetUITestState { try? FileManager.default.removeItem(at: root) }
+            return HomeRecipeWorkspaceStore(root: root)
+        }
+        #endif
+        return HomeRecipeWorkspaceStore()
+    }()
     @Published private(set) var workspace = HomeRecipeWorkspace()
     @Published private(set) var scope = LocalAccountScope.guest
     @Published var errorMessage: String?

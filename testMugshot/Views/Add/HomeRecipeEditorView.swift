@@ -619,7 +619,8 @@ struct HomeRecipeRow: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(content.name).font(.headline).foregroundStyle(Color.espressoBrown)
-                Text(content.summary.isEmpty ? "Saved reference" : content.summary).font(.caption).foregroundStyle(.secondary)
+                Text(HomeRecipeUse.suggested(for: content).title + " · " + content.recipeContentsSummary)
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }.padding(.vertical, 5)
     }

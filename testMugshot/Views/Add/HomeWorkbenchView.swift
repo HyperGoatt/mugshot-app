@@ -1655,8 +1655,11 @@ struct HomeEquipmentEditorSheet: View {
                     }
                 }
                 TextField("Nickname", text: $equipment.nickname)
+                    .autocorrectionDisabled()
                 TextField("Brand", text: $equipment.brand)
+                    .autocorrectionDisabled()
                 TextField("Model", text: $equipment.model)
+                    .autocorrectionDisabled()
                 TextField("Private notes", text: $equipment.notes, axis: .vertical)
                     .lineLimit(2...4)
 
@@ -1695,6 +1698,7 @@ struct HomeEquipmentEditorSheet: View {
 
     private func save() {
         guard canSave else { return }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         do {
             equipment.ownerUserID = scope.userID
             equipment.updatedAt = .now

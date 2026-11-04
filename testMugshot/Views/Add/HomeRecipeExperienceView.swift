@@ -28,6 +28,7 @@ struct HomeRecipeExperienceView: View {
     var onEarlierEntries: (() -> Void)?
     var initialCollection: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(RoadmapFeatureFlags.homeSipV4Route) private var homeSipV4RouteEnabled = RoadmapFeatureFlags.homeSipV4RouteEnabledByDefault
     @StateObject private var store = HomeRecipeWorkspaceStore.shared
     @State private var path: [HomeRecipeRoute] = []
@@ -121,6 +122,7 @@ struct HomeRecipeExperienceView: View {
                         onLog: { startLog($0) }, onMake: { startMaking($0) },
                         onAttempt: { path.append(.attempt($0)) },
                         onCreatedDrink: { path.append(.recipe($0)) })
+                        .environment(\.dynamicTypeSize, dynamicTypeSize)
                 case .attempt(let id):
                     if homeSipV4RouteEnabled {
                         HomeAttemptCanonicalDetailView(

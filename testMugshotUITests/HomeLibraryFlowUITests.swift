@@ -29,6 +29,7 @@ final class HomeLibraryFlowUITests: XCTestCase {
         let nickname = app.textFields["Nickname"]
         XCTAssertTrue(nickname.waitForExistence(timeout: 5))
         nickname.tap(); nickname.typeText("Kitchen kettle")
+        XCTAssertEqual(nickname.value as? String, "Kitchen kettle", "Gear identity must retain the complete typed nickname.")
         app.navigationBars.buttons["Save"].tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Kitchen kettle")).firstMatch.waitForExistence(timeout: 5))
         app.buttons["home.library.close"].tap()

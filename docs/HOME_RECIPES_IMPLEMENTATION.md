@@ -21,6 +21,10 @@ Changing a base identifies it rather than deleting an arbitrary first ingredient
 Drafts retain existing account-local persistence and explicit final Save.
 No recipe-composition action automatically creates a sip or child preparation.
 Existing guidance, actuals, rating, review and privacy rules remain authoritative.
+Guidance respects an explicitly selected matcha/tea/coffee method. A saved base
+adds its instructions once; an unlinked drink does not repeat its assembly as
+both base and drink steps. Generic legacy drinks retain their espresso fallback
+when a dose exists. Same-base selection retains the drink's adjusted targets.
 [Interview sources, native package and exact acceptance](design/home-recipe-composer-2026-11-04/README.md).
 
 ## Source capture and recipe-first navigation — November 4 follow-up

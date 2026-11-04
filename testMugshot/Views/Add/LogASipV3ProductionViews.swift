@@ -1819,30 +1819,12 @@ private struct LogASipV3HomeBrewSurface: View {
         _completedIngredientIDs = State(initialValue: session?.completedIngredientIDs ?? [])
     }
 
-    private var baseContent: HomeRecipeContent {
-        guard content.template == .drink else { return content }
-        if let reference = content.ingredients.compactMap(\.recipe).first(where: { reference in
-            guard let method = store.workspace.version(reference)?.content.method else { return false }
-            return [.coffee, .matcha, .hojicha, .tea].contains(method.family)
-        }), var linked = store.workspace.version(reference)?.content {
-            linked.targets = linked.targets.applying(content.targets)
-            return linked
-        }
-        if content.targets.dose != nil {
-            var espresso = content
-            espresso.method = .espresso
-            return espresso
-        }
-        return content
+    private var preparationGuide: HomeDrinkComposition.Guidance {
+        HomeDrinkComposition.guidance(for: content) { store.workspace.version($0)?.content }
     }
-
+    private var baseContent: HomeRecipeContent { preparationGuide.base }
     private var method: HomeBrewMethod { baseContent.method }
-
-    private var guidanceSteps: [HomePreparationStep] {
-        content.template == .drink
-            ? baseContent.visibleSteps + content.visibleSteps
-            : content.visibleSteps
-    }
+    private var guidanceSteps: [HomePreparationStep] { preparationGuide.steps }
 
     var body: some View {
         LogASipV3ScrollableSurface(
@@ -1872,6 +1854,7 @@ private struct LogASipV3HomeBrewSurface: View {
                     Text([method.title, draft.equipment.remoteTrimmedNonEmpty].compactMap { $0 }.joined(separator: " · "))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color.secondaryText)
+                        .accessibilityIdentifier("home.guidance.method")
                 }
                 Spacer()
             }
@@ -1884,13 +1867,14 @@ private struct LogASipV3HomeBrewSurface: View {
                 timerSurface
             }
 
-            if guidanceSteps.isEmpty {
+            if guidanceSteps.isEmpty || (content.template == .drink && !preparationGuide.usesSavedBase) {
                 Text(defaultMakingPrompt)
                     .font(.system(size: 19, weight: .semibold, design: .serif))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                     .background(Color.mugshotMint.opacity(0.14), in: RoundedRectangle(cornerRadius: DesignSystem.Radius.card))
                     .padding(.horizontal, DesignSystem.Space.md)
+                    .accessibilityIdentifier("home.guidance.methodTip")
             }
 
             if !content.ingredients.isEmpty {

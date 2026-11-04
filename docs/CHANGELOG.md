@@ -15,6 +15,10 @@ last_verified: 2026-11-04
   the parent mix. Usage amounts never change the component batch.
 - Open a saved recipe directly after capture, keep explicit recipe Save, and
   reuse existing optional guidance and shared rating/review.
+- Preserve drink target overrides on unchanged-base selection, keep explicit
+  coffee/matcha/tea guidance and avoid duplicated assembly. Keep numeric input
+  stable during draft updates, make saved-part rows fully tappable, and flush
+  gear identity editing before Save. Stack the builder at accessibility sizes.
 - [Interview-grounded design and verification](design/home-recipe-composer-2026-11-04/README.md).
 
 ## 2026-11-04 — Social recipe capture and full Home-flow QA candidate

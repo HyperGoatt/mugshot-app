@@ -12,7 +12,7 @@ final class OwnerHomePhoneUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "co.mugshot.app.dev")
         app.activate()
         let close = app.buttons["home.library.close"]
-        if close.exists { close.tap() }
+        if close.exists && close.isHittable { close.tap() }
         app.buttons["mugshot.tab.saved"].tap()
         app.buttons["home.library.entry"].tap()
         // Select one existing actionable recipe; never create a synthetic owner recipe.
@@ -23,5 +23,17 @@ final class OwnerHomePhoneUITests: XCTestCase {
         XCTAssertFalse(app.textFields["logASipV3.drinkName"].exists)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Owner recipe details"; attachment.lifetime = .keepAlways; add(attachment)
+        if ProcessInfo.processInfo.environment["MUGSHOT_QA_COMPONENT_FLOW"] == "1" {
+            let use = app.buttons["home.recipe.useInDrink"]
+            XCTAssertTrue(use.waitForExistence(timeout: 5)); use.tap()
+            XCTAssertTrue(app.textFields["home.drink.name"].waitForExistence(timeout: 5))
+            let linked = app.buttons["Open \(recipeName) recipe"]
+            for _ in 0..<4 where !linked.isHittable { app.swipeUp() }
+            XCTAssertTrue(linked.exists)
+            XCTAssertFalse(app.buttons["home.drink.save"].isEnabled)
+            // Opening/closing this prefilled mix must not create an owner draft.
+            app.navigationBars.buttons["Close"].firstMatch.tap()
+            XCTAssertTrue(use.waitForExistence(timeout: 5))
+        }
     }
 }

@@ -5,6 +5,10 @@ status: installed-physical-navigation-verified
 
 # Home library and simpler Log a Sip — 2026-11-04
 
+**Later recipe UX:** [Native recipe canvas and drink composition](../design/home-recipe-composer-2026-11-04/README.md)
+supersede this report's recipe presentation and candidate delivery state. This
+report retains its original standalone-library and physical-navigation chronology.
+
 **Follow-up:** [Home source capture and full-flow QA](HOME_SOURCE_CAPTURE_2026-11-04.md)
 adds automatic factual source capture and the isolated physical guidance/rating/
 review journey. This report retains the original navigation-only chronology.

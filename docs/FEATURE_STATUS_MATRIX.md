@@ -10,6 +10,10 @@ Native source-first capture and a dedicated drink builder are implemented. The
 recipe book exposes Build a drink; saved components/brews expose Use in a drink.
 Optional parent amounts and exact saved links keep source batches independent.
 Current validation/install evidence is in the [native package](design/home-recipe-composer-2026-11-04/README.md).
+Simulator accepted: 22-case domain/composer batch, final largest-text quantity
+entry and the legacy caption-guidance review path. Earlier 20-case repeat gate
+passes 40 executions. Signed device packages are ready; the new installation
+and hardware acceptance are blocked by unavailable trusted device services.
 
 ## Recipe source capture and Home journey — 2026-11-04 follow-up
 

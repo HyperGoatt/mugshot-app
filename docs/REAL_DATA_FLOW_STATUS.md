@@ -14,6 +14,9 @@ attribution and immutable-version conflicts. Builder draft work remains in the
 originating account; source inspection preserves it. Final Save remains explicit.
 No new Supabase contract, provider call, analytics payload or recursive sharing
 behavior is introduced. [Design and acceptance](design/home-recipe-composer-2026-11-04/README.md).
+Debug UI fixtures now use a dedicated resettable Home workspace. Ordinary owner
+storage and the explicitly promoted read-only phone run retain their existing
+paths; resetting a fixture never targets that owner workspace.
 
 ## Native recipe-source reading — November 4 follow-up
 

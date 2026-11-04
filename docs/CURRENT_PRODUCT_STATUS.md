@@ -12,6 +12,11 @@ with optional usage amounts and parent-preserving inspection. Existing generic
 syrup records work without rewriting history. The new candidate's validation and
 phone delivery are tracked in the [native design/QA package](design/home-recipe-composer-2026-11-04/README.md);
 the prior source-capture phone receipt below is separate evidence.
+The composition/input gate passes 20 cases twice; final guidance/composer checks
+pass 22/22, followed by largest-text quantity entry and legacy caption-guidance
+checks. Signed 0.5.3 (8) packages are ready. This new candidate is not installed:
+CoreDevice trusted services are unavailable, blocking the fresh owner backup.
+The physical connection request and parent draft/merge holds remain pending.
 
 ## Recipe-source capture and complete Home QA — November 4 follow-up
 

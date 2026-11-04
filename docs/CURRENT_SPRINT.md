@@ -11,6 +11,11 @@ capture and composition. The core journey is save a syrup → use it in a latte 
 inspect the source and return → save the drink → existing guidance/reflection.
 Preserve all owner content and source attribution; synthetic saves use isolated
 fixtures. [Native package and verification](design/home-recipe-composer-2026-11-04/README.md).
+Implementation and focused Simulator acceptance are complete, including reusable
+components, stable quantity entry, same-base target preservation, method-correct
+guidance and largest-text entry. Signed development packages are ready; fresh
+owner backup/install/hardware acceptance await the iPhone connection. Keep the
+stack draft; no TestFlight or backend release is promoted.
 
 ## Owner-promoted complete Home QA and source capture — November 4 follow-up
 

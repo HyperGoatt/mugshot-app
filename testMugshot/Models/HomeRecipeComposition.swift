@@ -40,6 +40,28 @@ enum HomeRecipeUse: String, CaseIterable, Identifiable {
 
 /// Composes existing immutable references; a usage amount never edits the source batch.
 enum HomeDrinkComposition {
+    struct Guidance {
+        let base: HomeRecipeContent
+        let steps: [HomePreparationStep]
+        let usesSavedBase: Bool
+    }
+
+    static func guidance(for content: HomeRecipeContent,
+                         resolve: (HomeRecipeReference) -> HomeRecipeContent? = { _ in nil }) -> Guidance {
+        guard content.template == .drink else {
+            return Guidance(base: content, steps: content.visibleSteps, usesSavedBase: false)
+        }
+        if var linked = content.ingredients.compactMap(\.recipe).compactMap(resolve).first(where: {
+            [.coffee, .matcha, .hojicha, .tea].contains($0.method.family)
+        }) {
+            linked.targets = linked.targets.applying(content.targets)
+            return Guidance(base: linked, steps: linked.visibleSteps + content.visibleSteps, usesSavedBase: true)
+        }
+        var base = content
+        if [.other, .completeDrink].contains(content.method), content.targets.dose != nil { base.method = .espresso }
+        return Guidance(base: base, steps: content.visibleSteps, usesSavedBase: false)
+    }
+
     static func starting(with component: HomeRecipeRecord? = nil) -> HomeRecipeContent {
         var content = HomeRecipeContent(name: "", template: .drink, method: .espresso)
         content.targets = HomeRecipeContent.defaultTargets(for: .espresso)
@@ -62,8 +84,9 @@ enum HomeDrinkComposition {
     }
 
     static func useBase(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion, in content: inout HomeRecipeContent, replacing baseID: UUID? = nil) {
-        replaceBase(in: &content, with: HomeRecipeIngredient(name: version.content.name, unit: "serving",
+        let changed = replaceBase(in: &content, with: HomeRecipeIngredient(name: version.content.name, unit: "serving",
             recipe: HomeRecipeReference(recipeID: recipe.id, versionID: version.id)), replacing: baseID)
+        guard changed || content.method != version.content.method else { return }
         content.method = version.content.method
         content.targets = version.content.targets
         content.coffee = version.content.coffee
@@ -71,7 +94,8 @@ enum HomeDrinkComposition {
     }
 
     static func usePreset(_ method: HomeBrewMethod, in content: inout HomeRecipeContent, replacing baseID: UUID? = nil) {
-        replaceBase(in: &content, with: HomeRecipeIngredient(name: method.title, unit: "serving"), replacing: baseID)
+        let changed = replaceBase(in: &content, with: HomeRecipeIngredient(name: method.title, unit: "serving"), replacing: baseID)
+        guard changed || content.method != method else { return }
         content.method = method
         content.targets = HomeRecipeContent.defaultTargets(for: method)
         if method.family != .coffee { content.coffee = nil }
@@ -89,11 +113,14 @@ enum HomeDrinkComposition {
         return content.ingredients.first { $0.recipe == nil && names.contains($0.name.lowercased()) }?.id
     }
 
-    private static func replaceBase(in content: inout HomeRecipeContent, with base: HomeRecipeIngredient, replacing baseID: UUID?) {
-        let oldID = baseID ?? Self.baseID(in: content)
+    private static func replaceBase(in content: inout HomeRecipeContent, with base: HomeRecipeIngredient, replacing baseID: UUID?) -> Bool {
+        let oldID = baseID
+            ?? content.ingredients.first(where: { base.recipe != nil && $0.recipe == base.recipe })?.id
+            ?? Self.baseID(in: content)
         if let old = content.ingredients.first(where: { $0.id == oldID }),
-           old.name == base.name, old.recipe == base.recipe { return }
+           old.name == base.name, old.recipe == base.recipe { return false }
         content.ingredients.removeAll { $0.id == oldID || (base.recipe != nil && $0.recipe == base.recipe) }
         content.ingredients.insert(base, at: 0)
+        return true
     }
 }

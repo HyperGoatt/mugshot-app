@@ -10,6 +10,7 @@ struct HomeRecipeDetailScreen: View {
     var onCreatedDrink: (UUID) -> Void = { _ in }
     @State private var linked: HomeLinkedRecipeSheet?
     @State private var drinkDraft: HomeRecipeEditorDraft?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var recipe: HomeRecipeRecord? { store.workspace.recipes.first { $0.id == recipeID } }
 
     var body: some View {
@@ -27,7 +28,7 @@ struct HomeRecipeDetailScreen: View {
                             if version.content.isActionable {
                                 Button("Make this component", systemImage: "play.fill") { onMake(recipe) }
                                     .buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.recipe.make")
-                            }
+                            } else { Button("Add preparation details") { edit(recipe, version: version) } }
                         } else {
                             if version.content.isActionable {
                                 Button("Make this", systemImage: "play.fill") { onMake(recipe) }
@@ -85,12 +86,13 @@ struct HomeRecipeDetailScreen: View {
         .scrollContentBackground(.hidden).background(Color.creamWhite)
         .sheet(item: $linked) { item in
             HomeLinkedRecipeDetail(store: store, reference: item.reference)
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         .sheet(item: $drinkDraft) { draft in
             HomeDrinkBuilderSheet(store: store, draft: draft) { id in
                 drinkDraft = nil
                 if id != recipeID { onCreatedDrink(id) }
-            }
+            }.environment(\.dynamicTypeSize, dynamicTypeSize)
         }
     }
     private func useInDrink(_ recipe: HomeRecipeRecord) -> some View {
@@ -100,7 +102,7 @@ struct HomeRecipeDetailScreen: View {
     }
     private func edit(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion) {
         let draft = HomeRecipeEditorDraft(recipeID: recipe.id, baseVersionID: version.id, content: version.content)
-        if version.content.template == .drink { drinkDraft = draft }
+        if HomeRecipeUse.suggested(for: version.content) == .drink { drinkDraft = draft }
         else { onEdit(draft) }
     }
     private func change(_ update: (inout HomeRecipeRecord) -> Void) {
@@ -152,12 +154,18 @@ struct HomeLinkedRecipeDetail: View {
         NavigationStack {
             List {
                 if let version = store.workspace.version(reference) {
-                    HomeRecipeRow(content: version.content)
-                    Text("Version \(version.number)").font(.caption)
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label(HomeRecipeUse.suggested(for: version.content).title, systemImage: HomeRecipeUse.suggested(for: version.content).symbol)
+                                .font(.caption.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
+                            Text(version.content.name).mugshotDisplay(size: 30)
+                            Text(version.content.recipeContentsSummary).font(.subheadline).foregroundStyle(Color.secondaryText)
+                        }.padding(.vertical, 10)
+                    }
                     HomeRecipeInformation(content: version.content, onLinked: nil)
                 } else { Text("This version is unavailable. Your parent recipe is unchanged.") }
             }
-            .navigationTitle("Linked recipe")
+            .navigationTitle("Recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Done") { dismiss() }.accessibilityIdentifier("home.recipe.linked.done") }
             .scrollContentBackground(.hidden).background(Color.creamWhite)
         }

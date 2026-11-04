@@ -5,6 +5,10 @@ status: installed-physical-caption-journey-verified
 
 # Home recipe capture and full-flow QA — November 4, 2026
 
+**Later recipe UX:** [Native recipe canvas and drink composition](../design/home-recipe-composer-2026-11-04/README.md)
+supersede this report's capture/composition presentation and candidate delivery
+state. Source/media contracts and this dated phone chronology remain evidence.
+
 Current implementation: [Home recipes](../HOME_RECIPES_IMPLEMENTATION.md),
 [Luna assistance](../AI_ASSISTANCE.md) and [current product status](../CURRENT_PRODUCT_STATUS.md).
 This owner-requested change affects product behavior, native data ownership,

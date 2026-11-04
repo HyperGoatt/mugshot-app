@@ -147,6 +147,27 @@ struct HomeRecipeCompositionTests {
         #expect(store.workspace.recipes.first?.versions.count == 1)
     }
 
+    @Test func reselectingTheCurrentPresetPreservesAdjustedDrinkTargets() {
+        var content = HomeDrinkComposition.starting()
+        content.targets.dose = 21; content.targets.seconds = 32
+        let before = content
+        HomeDrinkComposition.usePreset(.espresso, in: &content)
+        #expect(content == before)
+    }
+
+    @Test func reselectingTheSavedBasePreservesTheDrinksOwnOverrides() throws {
+        let base = HomeRecipeRecord(versions: [HomeRecipeVersion(content: HomeRecipeContent(
+            name: "House espresso", template: .preparation, method: .espresso,
+            targets: HomeRecipeTargets(dose: 19, ratio: 2.1, seconds: 29)))])
+        let version = try #require(base.current)
+        var content = HomeDrinkComposition.starting()
+        HomeDrinkComposition.useBase(base, version: version, in: &content)
+        content.targets.dose = 21
+        let before = content
+        HomeDrinkComposition.useBase(base, version: version, in: &content)
+        #expect(content == before)
+    }
+
     @Test func replacingALinkedBaseFindsItBehindOtherIngredients() throws {
         let base = HomeRecipeContent(name: "Saved espresso", template: .preparation, method: .espresso)
         let reference = HomeRecipeReference(recipeID: UUID(), versionID: UUID())
@@ -159,6 +180,39 @@ struct HomeRecipeCompositionTests {
         HomeDrinkComposition.usePreset(.traditionalMatcha, in: &drink, replacing: oldBaseID)
         #expect(drink.ingredients.contains(milk))
         #expect(!drink.ingredients.contains { $0.id == linked.id })
+    }
+
+    @Test func presetMatchaGuidanceKeepsItsMethodAndDoesNotDuplicateAssembly() {
+        var content = HomeDrinkComposition.starting()
+        HomeDrinkComposition.usePreset(.traditionalMatcha, in: &content)
+        let guide = HomeDrinkComposition.guidance(for: content)
+        #expect(guide.base.method == .traditionalMatcha)
+        #expect(guide.steps == content.visibleSteps)
+        #expect(!guide.usesSavedBase)
+    }
+
+    @Test func guidancePrependsTheSavedBaseOnceAndKeepsParentTargets() throws {
+        var base = HomeRecipeContent(name: "House brew", template: .preparation, method: .espresso,
+                                     targets: HomeRecipeTargets(dose: 19, ratio: 2, seconds: 28))
+        base.steps = [HomePreparationStep(instruction: "Prepare the saved base.")]
+        let record = HomeRecipeRecord(versions: [HomeRecipeVersion(content: base)])
+        let version = try #require(record.current)
+        var content = HomeDrinkComposition.starting(with: record); content.targets.dose = 21
+        let guide = HomeDrinkComposition.guidance(for: content) { $0.versionID == version.id ? base : nil }
+        #expect(guide.base.targets.dose == 21 && base.targets.dose == 19)
+        #expect(guide.steps == base.visibleSteps + content.visibleSteps)
+        #expect(guide.usesSavedBase)
+    }
+
+    @Test func genericLegacyDrinkKeepsEspressoFallbackWithoutRepeatingSteps() {
+        var content = HomeRecipeContent(name: "Legacy latte", template: .drink, method: .completeDrink,
+                                        targets: HomeRecipeTargets(dose: 18, ratio: 2))
+        content.steps = [HomePreparationStep(instruction: "Put this drink together.")]
+        let guide = HomeDrinkComposition.guidance(for: content)
+        #expect(guide.base.method == .espresso)
+        #expect(guide.steps == content.visibleSteps && !guide.usesSavedBase)
+        content.method = .other; content.targets = HomeRecipeTargets()
+        #expect(HomeDrinkComposition.guidance(for: content).base.method == .other)
     }
 
     private func syrup() -> HomeRecipeRecord {

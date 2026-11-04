@@ -5,6 +5,7 @@ struct HomeQuickRecipeSheet: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let onSaved: (HomeRecipeRecord, HomeRecipeVersion) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var authModel: AppAuthModel
     @ObservedObject private var permission = CoffeeAssistancePermissionStore.shared
     @StateObject private var assistance = CoffeeAssistanceSession()
@@ -79,9 +80,11 @@ struct HomeQuickRecipeSheet: View {
         }
         .fullScreenCover(isPresented: $showsDrinkBuilder) {
             HomeDrinkBuilderSheet(store: store) { id in finish(id) }
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         .fullScreenCover(isPresented: $showsFullEditor) {
             NavigationStack { HomeRecipeEditorView(store: store, draft: HomeRecipeEditorDraft(content: content)) { id in finish(id) } }
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
     }
 
@@ -133,7 +136,8 @@ struct HomeQuickRecipeSheet: View {
                         Text("A name is enough to save an idea.").font(.caption).foregroundStyle(Color.secondaryText)
                     }
                 }
-                if hasSource {
+                if hasSource && ((originalScope.userID != nil && !permission.isEnabled(ownerID: originalScope.userID))
+                    || assistance.isWorking || assistance.message != nil) {
                     VStack(alignment: .leading, spacing: 12) {
                         LunaPermissionControl(ownerID: originalScope.userID)
                         if assistance.isWorking { ProgressView("Luna is reading your recipe…").tint(Color.mugshotSageText) }
