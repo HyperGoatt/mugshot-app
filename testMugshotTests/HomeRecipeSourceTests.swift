@@ -3,7 +3,33 @@ import Testing
 import UIKit
 @testable import testMugshot
 
+@Suite(.serialized)
 struct HomeRecipeSourceTests {
+    @Test func sourceTransportIsUnauthenticatedAndFailureLeavesAnHonestFallback() async throws {
+        let reader = HomeRecipeSourceReader(protocolClasses: [RecipeSourceProtocol.self])
+        RecipeSourceProtocol.reply = (200, "text/html", Data(#"<meta property="og:description" content="Ingredients:&#10;2 g matcha&#10;Steps:&#10;Whisk.">"#.utf8))
+        let source = try await reader.read("https://www.instagram.com/p/test-source/?igsh=tracking")
+        #expect(source.text.contains("2 g matcha"))
+        #expect(RecipeSourceProtocol.lastRequest?.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(RecipeSourceProtocol.lastRequest?.value(forHTTPHeaderField: "Cookie") == nil)
+        #expect(RecipeSourceProtocol.lastRequest?.url?.query == nil)
+        RecipeSourceProtocol.reply = (403, "text/html", Data("Sign in".utf8))
+        await #expect(throws: (any Error).self) { try await reader.read("https://www.instagram.com/p/test-source/") }
+        RecipeSourceProtocol.reply = (200, "image/jpeg", Data("not a caption".utf8))
+        await #expect(throws: (any Error).self) { try await reader.read("https://www.instagram.com/p/test-source/") }
+    }
+
+    @Test func approvedVideoDataIsBoundedAndStoredOnlyInATemporaryFile() async throws {
+        let reader = HomeRecipeSourceReader(protocolClasses: [RecipeSourceProtocol.self])
+        RecipeSourceProtocol.reply = (200, "video/mp4", Data([1, 2, 3]))
+        let url = try await reader.video(URL(string: "https://video.cdninstagram.com/clip.mp4")!)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(try Data(contentsOf: url) == Data([1, 2, 3]))
+        await #expect(throws: (any Error).self) { try await reader.video(URL(string: "https://127.0.0.1/clip.mp4")!) }
+        RecipeSourceProtocol.reply = (200, "text/html", Data("Not a video".utf8))
+        await #expect(throws: (any Error).self) { try await reader.video(URL(string: "https://video.cdninstagram.com/clip.mp4")!) }
+    }
+
     @Test func replacingAScreenshotKeepsItsCaptionAndUserTyping() {
         var sources = HomeRecipeCaptureSources()
         let caption = sources.update(.caption, text: "Creator caption", currentText: "")
@@ -82,4 +108,21 @@ struct HomeRecipeSourceTests {
         #expect(text.lowercased().contains("matcha"))
         #expect(!HomeRecipeSourceParser.fields(in: text).isEmpty)
     }
+}
+
+private final class RecipeSourceProtocol: URLProtocol, @unchecked Sendable {
+    static var reply = (200, "text/html", Data())
+    static var lastRequest: URLRequest?
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.lastRequest = request
+        let (status, mime, data) = Self.reply
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+                                       headerFields: ["Content-Type": mime, "Content-Length": String(data.count)])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }
