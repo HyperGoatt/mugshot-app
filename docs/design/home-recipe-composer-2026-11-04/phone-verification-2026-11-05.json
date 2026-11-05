@@ -1,0 +1,141 @@
+{
+  "date": "2026-11-05",
+  "platform": "iPhone 16 Pro / iOS 27.0.1",
+  "sourceCommit": "44967197b81f1d2d9c5fc10ab67d46ee9d76dacc",
+  "ownerPackage": {
+    "bundleID": "co.mugshot.app.dev",
+    "displayName": "Mugshot Luna QA",
+    "version": "0.5.3",
+    "build": "8",
+    "debugDylibSHA256": "9cc76f80d52401cf59254360cbc2abd39cf28f945d1dc09525549293cced1ae2",
+    "signature": "deep-strict-pass (unchanged package)",
+    "entitlements": "unchanged; existing development APNs environment, delivery untested",
+    "analytics": "disabled",
+    "credentialExclusion": "pass",
+    "installed": true
+  },
+  "runs": [
+    {
+      "label": "initial domain pass / UI initialization failure",
+      "resultBundle": "/tmp/mugshot-composer-physical-2026-11-05.xcresult",
+      "result": "Failed",
+      "passedTests": 17,
+      "failedTests": 1,
+      "skippedTests": 0,
+      "durationSeconds": 80.234,
+      "failureKind": "UI runner initialization timeout; no UI case executed"
+    },
+    {
+      "label": "focused capture UI retry",
+      "resultBundle": "/tmp/mugshot-composer-physical-runner-retry-2026-11-05.xcresult",
+      "result": "Passed",
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "durationSeconds": 18.819,
+      "failureKind": null
+    },
+    {
+      "label": "remaining nine UI cases",
+      "resultBundle": "/tmp/mugshot-composer-physical-ui-2026-11-05.xcresult",
+      "result": "Passed",
+      "passedTests": 9,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "durationSeconds": 229.838,
+      "failureKind": null
+    },
+    {
+      "label": "explicit owner read-only component check",
+      "resultBundle": "/tmp/mugshot-composer-owner-readonly-2026-11-05.xcresult",
+      "result": "Passed",
+      "passedTests": 1,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "durationSeconds": 20.683,
+      "failureKind": null
+    }
+  ],
+  "selectedFixtureCasePasses": 27,
+  "ownerReadOnlyCasePasses": 1,
+  "preservation": {
+    "backupScope": [
+      "Application Support",
+      "Library/Preferences"
+    ],
+    "documentsFiles": 0,
+    "protectedOSSnapshots": "excluded from complete comparison",
+    "originalApplicationSupportFiles": 43,
+    "allOriginalFilesByteIdenticalAfterFixture": true,
+    "allOriginalFilesByteIdenticalAfterInstallBeforeLaunch": true,
+    "entireRecipeWorkspaceByteIdenticalAfterOwnerCheck": true,
+    "ownerWorkspaceCounts": {
+      "recipes": 8,
+      "attempts": 6,
+      "sessions": 15,
+      "recipeDrafts": 1,
+      "attemptDrafts": 13
+    },
+    "shelfContentUnchangedExceptUpdatedAt": true,
+    "rotatedBatteryDiagnosticFiles": {
+      "removed": 2,
+      "added": 2
+    },
+    "otherOriginalFilesByteIdentical": 40,
+    "existingPrivacyAssistancePreferencesUnchanged": true,
+    "syntheticOwnerRecordsCreated": 0
+  },
+  "fixtureIsolation": {
+    "bundleID": "co.mugshot.app.homeqa",
+    "backend": "invalid fixture",
+    "analytics": "disabled",
+    "ownerKeychainShared": false,
+    "appGroups": false,
+    "urlSchemes": false,
+    "appExtensions": false
+  },
+  "cleanup": {
+    "removedTaskApps": [
+      "co.mugshot.app.homeqa",
+      "co.mugshot.app.homeqa.testMugshotUITests.xctrunner",
+      "co.mugshot.app.testMugshotUITests.xctrunner"
+    ],
+    "ownerDevelopmentAndMugshotAppsRetained": true,
+    "unrelatedMotionQAAppRetained": true
+  },
+  "screens": {
+    "phone-screens/01-capture.png": {
+      "source": "isolated physical fixture",
+      "sha256": "e888f0f844657281de562e5bb698485adbf8d9e326677001ca26f1c46bd94edc",
+      "visuallyInspected": true
+    },
+    "phone-screens/03-builder.png": {
+      "source": "isolated physical fixture",
+      "sha256": "17dd5acd7f90fe023b0d09e64c6ae3a5cd21b51211288fd8efa7e3c6f79c5817",
+      "visuallyInspected": true
+    },
+    "phone-screens/04-review.png": {
+      "source": "isolated physical fixture",
+      "sha256": "5ef5470548089be9ec6bcfe21b5d756ffa6c2bb32340f1a5e71fb4f77c19a460",
+      "visuallyInspected": true
+    },
+    "phone-screens/06-largest-builder.png": {
+      "source": "isolated physical fixture",
+      "sha256": "2764abc1d6dfe686095e3bbfc051df0fc19edb79f51d3579a9245d3e55a25608",
+      "visuallyInspected": true
+    }
+  },
+  "limits": [
+    "Real source/media fidelity and permission flows remain human QA",
+    "VoiceOver and wider appearance/device matrix not exercised",
+    "Initial overall run failed at UI runner initialization; domain cases reused only after actual passes",
+    "No new runtime coverage collected; previous focused Simulator coverage remains separate"
+  ],
+  "release": {
+    "productionBackendChanged": false,
+    "parentMerges": "held draft stack",
+    "testFlight": "no archive/export/upload/assignment",
+    "marketingVersionChanged": false
+  },
+  "privateEvidence": "Owner backups, screenshots and recipe identifiers remain outside repository"
+}

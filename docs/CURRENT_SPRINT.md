@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 ## Owner-requested recipe UX and component composition — November 4 follow-up
@@ -13,9 +13,12 @@ Preserve all owner content and source attribution; synthetic saves use isolated
 fixtures. [Native package and verification](design/home-recipe-composer-2026-11-04/README.md).
 Implementation and focused Simulator acceptance are complete, including reusable
 components, stable quantity entry, same-base target preservation, method-correct
-guidance and largest-text entry. Signed development packages are ready; fresh
-owner backup/install/hardware acceptance await the iPhone connection. Keep the
-stack draft; no TestFlight or backend release is promoted.
+guidance and largest-text entry. November 5 owner backup/install and the selected
+hardware gate are complete: 27 fixture checks plus the separate existing-owner
+component check pass. Original recipe records and drafts remain unchanged.
+Human QA can now try the installed development app; keep the stack draft and
+retain the separate TestFlight/backend release gates.
+[Physical receipt and owner checklist](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
 
 ## Owner-promoted complete Home QA and source capture — November 4 follow-up
 

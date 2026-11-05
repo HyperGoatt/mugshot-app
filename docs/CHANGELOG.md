@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
+
+## 2026-11-05 — Recipe composer installed and physically verified
+
+- Install the verified recipe canvas/drink builder in Mugshot Luna QA 0.5.3 (8).
+- Pass 17 composition-domain and 10 isolated UI cases on iPhone, then a separate
+  read-only check of the owner's existing component and prefilled drink builder.
+- Preserve all 43 Application Support files byte-for-byte through installation.
+  After launch, the complete recipe workspace and shelf content are unchanged;
+  only the shelf timestamp and local battery diagnostics rotate.
+- Remove the disposable flow app/test runners. Keep the draft stack, production
+  backend and TestFlight state unchanged. [Physical ledger](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
 
 ## 2026-11-04 — Recipe canvas and reusable drink composition
 

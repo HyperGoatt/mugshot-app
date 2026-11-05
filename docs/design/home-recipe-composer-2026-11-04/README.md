@@ -1,11 +1,16 @@
 ---
 document_type: historical
-status: simulator-verified-phone-connection-pending
+status: simulator-and-physical-verified
 ---
 
 # Recipe capture and drink composition — November 4, 2026
 
 Current implementation and acceptance: [Home recipes](../../HOME_RECIPES_IMPLEMENTATION.md).
+**November 5 update:** the same candidate is installed and passes the 27 selected
+hardware checks plus the owner read-only component check. See the
+[physical ledger](../../audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md) and
+[phone captures](gallery.html#phone). The November 4 blocked-delivery checkpoint
+below retains its original chronology.
 [Open the native screen gallery](gallery.html).
 This native review package changes product presentation and draft composition,
 reusing existing account ownership, immutable recipe links, persistence and
@@ -176,7 +181,7 @@ The owner candidate is **Mugshot Luna QA 0.5.3 (8)**, debug-library SHA-256
 The isolated fixture package matches the current Swift sources and retains its
 data/keychain/backend isolation.
 
-**Not installed / not physically accepted for this candidate.** Repeated safe
+**November 4 delivery checkpoint: not installed / not physically accepted.** Repeated safe
 owner-container backup attempts stop at CoreDevice error 4016: trusted device
 services are unavailable, with no assertable device states. No install is attempted
 without the fresh preservation backup. A physical connect/unlock request is

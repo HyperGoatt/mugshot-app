@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 ## Recipe composition uses existing ownership — November 4 follow-up
@@ -17,6 +17,13 @@ behavior is introduced. [Design and acceptance](design/home-recipe-composer-2026
 Debug UI fixtures now use a dedicated resettable Home workspace. Ordinary owner
 storage and the explicitly promoted read-only phone run retain their existing
 paths; resetting a fixture never targets that owner workspace.
+
+November 5 physical verification confirms the boundary: all 43 original
+Application Support files match after the isolated run and owner installation.
+After the owner read-only journey, the entire recipe workspace is byte-identical;
+all shelf content is unchanged apart from `updatedAt`. Two local battery-metric
+files rotate during normal launch. No synthetic record is saved in the owner app.
+[Exact preservation and hardware receipts](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
 
 ## Native recipe-source reading — November 4 follow-up
 

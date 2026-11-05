@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 ## Recipe canvas and drink composition — 2026-11-04 follow-up
@@ -12,8 +12,11 @@ Optional parent amounts and exact saved links keep source batches independent.
 Current validation/install evidence is in the [native package](design/home-recipe-composer-2026-11-04/README.md).
 Simulator accepted: 22-case domain/composer batch, final largest-text quantity
 entry and the legacy caption-guidance review path. Earlier 20-case repeat gate
-passes 40 executions. Signed device packages are ready; the new installation
-and hardware acceptance are blocked by unavailable trusted device services.
+passes 40 executions. The same candidate is installed in Mugshot Luna QA
+0.5.3 (8) on November 5. Hardware acceptance passes 17 domain and 10 isolated UI
+cases, then the owner's existing-component open/close check. Owner records and
+drafts are preserved; real-source fidelity, VoiceOver and broader device coverage
+remain separate human QA. [Physical evidence](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
 
 ## Recipe source capture and Home journey — 2026-11-04 follow-up
 

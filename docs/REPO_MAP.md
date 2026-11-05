@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 ## Recipe canvas and drink builder — November 4 follow-up
@@ -16,6 +16,7 @@ last_verified: 2026-11-04
 - `HomeDrinkComposition.guidance` resolves explicit or linked base methods and
   de-duplicates assembly for the shared Home Make surface.
 - [Interview-grounded native package](design/home-recipe-composer-2026-11-04/README.md).
+- [November 5 installation, physical acceptance and owner preservation](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
 
 ## Recipe source capture — November 4 follow-up
 

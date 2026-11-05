@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 ## Recipe canvas and drink composition — November 4 follow-up
@@ -26,6 +26,12 @@ adds its instructions once; an unlinked drink does not repeat its assembly as
 both base and drink steps. Generic legacy drinks retain their espresso fallback
 when a dose exists. Same-base selection retains the drink's adjusted targets.
 [Interview sources, native package and exact acceptance](design/home-recipe-composer-2026-11-04/README.md).
+
+On November 5 this candidate is installed in Mugshot Luna QA 0.5.3 (8) and passes
+27 isolated hardware checks plus an owner read-only existing-component check.
+The complete owner recipe workspace remains unchanged. The [physical ledger](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md)
+includes the exact results, preservation boundaries and owner QA route. This is
+development-device acceptance; TestFlight and parent merges remain held.
 
 ## Source capture and recipe-first navigation — November 4 follow-up
 

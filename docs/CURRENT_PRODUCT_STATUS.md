@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 ## Recipe canvas and reusable drink builder — November 4 follow-up
@@ -14,9 +14,12 @@ phone delivery are tracked in the [native design/QA package](design/home-recipe-
 the prior source-capture phone receipt below is separate evidence.
 The composition/input gate passes 20 cases twice; final guidance/composer checks
 pass 22/22, followed by largest-text quantity entry and legacy caption-guidance
-checks. Signed 0.5.3 (8) packages are ready. This new candidate is not installed:
-CoreDevice trusted services are unavailable, blocking the fresh owner backup.
-The physical connection request and parent draft/merge holds remain pending.
+checks. On November 5 the same signed candidate is installed as **Mugshot Luna QA
+0.5.3 (8)** on iPhone 16 Pro / iOS 27.0.1. All 27 selected fixture checks and the
+separate owner read-only component check pass. All 43 original Application Support
+files match through installation; the complete recipe workspace remains unchanged
+after launch. [Physical ledger and remaining human QA](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
+Parent draft/merge holds and the separate TestFlight gate remain.
 
 ## Recipe-source capture and complete Home QA — November 4 follow-up
 

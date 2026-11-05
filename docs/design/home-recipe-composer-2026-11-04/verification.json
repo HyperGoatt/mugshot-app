@@ -167,8 +167,8 @@
     "credentialExclusion": "pass",
     "sourceSwiftMatches": true
   },
-  "installation": "not installed - trusted device services unavailable",
-  "physicalAcceptance": "pending connection; no current-candidate hardware test started",
+  "installation": "installed and owner read-only launch verified - Mugshot Luna QA 0.5.3 (8)",
+  "physicalAcceptance": "27 selected isolated fixture cases plus 1 owner read-only component check passed; see dated phone ledger",
   "testFlight": "no archive/export/upload/assignment",
   "merge": "held draft stack",
   "privacy": "fictional screenshots only; owner recipe and backup excluded",
@@ -178,5 +178,7 @@
     "diffWhitespace": "passed",
     "actualCredentialExclusion": "passed",
     "unrelatedWeeklyPour": "excluded"
-  }
+  },
+  "currentStatusDate": "2026-11-05",
+  "hardwareVerification": "phone-verification-2026-11-05.json"
 }

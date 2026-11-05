@@ -17,7 +17,7 @@
   <div class="eyebrow">Mugshot · Native recipe composition</div>
   <h1>Save it. Mix it.<br>Make it yours.</h1>
   <p class="intro">A recipe can be a syrup, a brew, or the whole drink. Bring in an idea, keep it in your recipe book, then use it in as many drinks as you like. Optional amounts belong to the drink; the component batch stays its own recipe.</p>
-  <p class="note">Actual native Simulator captures with fictional fixture recipes. These screens do not contain the owner's recipe or establish physical-device acceptance. Exact delivery evidence is in <a href="README.md">the review report</a>.</p>
+  <p class="note">Fictional native captures only; the owner's recipe is excluded. The first sections preserve November 4 Simulator evidence. November 5 physical captures and delivery evidence appear <a href="#phone">below</a> and in <a href="README.md">the review report</a>.</p>
   <div class="screens">
     <figure><img src="screens/01-capture.png" alt="Source-first Add a recipe screen with link, screenshot and video choices"><figcaption><h2>1. Bring in an idea</h2><p>Paste a source or caption, choose a screenshot, or just name a recipe. Structured details can come later.</p></figcaption></figure>
     <figure><img src="screens/02-component.png" alt="Editable saved syrup preview"><figcaption><h2>2. Keep a reusable component</h2><p>Use a syrup or foam in a drink without copying its batch instructions into the parent.</p></figcaption></figure>
@@ -32,5 +32,15 @@
       <figure><img src="screens/06-largest-builder.png" alt="Drink builder with the largest accessibility text size"><figcaption>Drink composition at the largest accessibility text size.</figcaption></figure>
     </div>
   </div>
+  <section class="accessibility" id="phone">
+    <div class="eyebrow">On iPhone · November 5</div>
+    <p class="intro">Inspected iPhone 16 Pro captures from the isolated hardware run. All 27 selected fixture checks and the separate owner read-only check pass. Mugshot Luna QA 0.5.3 (8) is installed; <a href="../../audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md">exact evidence and remaining human QA</a>.</p>
+    <div class="screens" style="max-width:none">
+      <figure><img src="phone-screens/01-capture.png" alt="Source-first recipe capture on the physical iPhone"><figcaption>Bring in a recipe without a long form.</figcaption></figure>
+      <figure><img src="phone-screens/03-builder.png" alt="Physical iPhone drink builder with espresso, milk and 15 ml of fictional berry syrup"><figcaption>A saved component keeps its own instructions; the drink owns its usage amount.</figcaption></figure>
+      <figure><img src="phone-screens/04-review.png" alt="Composed drink on the physical iPhone's shared private review screen"><figcaption>Guidance rejoins shared rating and private review.</figcaption></figure>
+      <figure><img src="phone-screens/06-largest-builder.png" alt="Physical iPhone builder retaining 125 ml at the largest accessibility text size"><figcaption>Largest accessibility text retains the complete amount.</figcaption></figure>
+    </div>
+  </section>
 </main>
 </html>
