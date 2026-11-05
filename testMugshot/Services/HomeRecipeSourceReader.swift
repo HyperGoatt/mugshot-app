@@ -109,16 +109,53 @@ enum HomeRecipeSourceParser {
     /// Deterministic fallback: only explicitly labelled sections, no invented amounts or steps.
     static func fields(in text: String) -> [CoffeeAssistanceField] {
         var section = "", output: [CoffeeAssistanceField] = []
+        var pending = "", quote = "", numberedStep = false
+        func flush() {
+            guard !pending.isEmpty, !section.isEmpty, output.count < 40 else { pending = ""; quote = ""; return }
+            output.append(CoffeeAssistanceField(key: section, value: pending, sourceQuote: quote))
+            pending = ""; quote = ""
+        }
         for raw in text.components(separatedBy: .newlines).prefix(160) {
             let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             let lower = line.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ": "))
-            if ["ingredients", "you’ll need", "you'll need", "what you need"].contains(lower) { section = "ingredient"; continue }
-            if ["steps", "instructions", "method", "directions", "how to make"].contains(lower) { section = "step"; continue }
-            if ["notes", "tips", "nutrition", "source"].contains(lower) || line.hasPrefix("#") { section = ""; continue }
+            if ["ingredients", "you’ll need", "you'll need", "what you need"].contains(lower) {
+                flush(); section = "ingredient"; continue
+            }
+            if ["steps", "instructions", "method", "directions", "preparation", "how to make"].contains(lower) {
+                flush(); section = "step"; numberedStep = false; continue
+            }
+            if lower.hasPrefix("to make ") || lower == "to make" {
+                flush()
+                // A screenshot can contain syrup instructions followed by a latte.
+                // Keep the first preparation together instead of combining recipes.
+                if output.contains(where: { $0.key == "step" }) { break }
+                section = "step"; continue
+            }
+            if ["notes", "tips", "nutrition", "source", "related recipes", "you may also like", "reviews", "comments"]
+                .contains(where: { lower == $0 || lower.hasPrefix($0 + " ") }) || line.hasPrefix("#") {
+                flush(); section = ""; continue
+            }
+            if ["print", "print recipe", "share", "save recipe", "subscribe", "sign up", "add to cart", "accept cookies"]
+                .contains(lower) || lower.range(of: "^(?:get|save)\\s+[0-9]+%", options: .regularExpression) != nil { continue }
             guard !section.isEmpty, !line.isEmpty, line.count <= 500, output.count < 40 else { continue }
-            let cleaned = line.replacingOccurrences(of: "^(?:[-•*]\\s*|[0-9]+[.)]\\s*)", with: "", options: .regularExpression)
-            if !cleaned.isEmpty { output.append(CoffeeAssistanceField(key: section, value: cleaned, sourceQuote: line)) }
+            let hasNumber = line.range(of: "^[0-9]+[.)]\\s+", options: .regularExpression) != nil
+            let hasBullet = line.range(of: "^(?:[-•*●◦○]\\s*|o\\s+(?=[0-9¼½¾⅓⅔]))", options: .regularExpression) != nil
+            let cleaned = line.replacingOccurrences(of: "^(?:[-•*●◦○]\\s*|o\\s+(?=[0-9¼½¾⅓⅔])|[0-9]+[.)]\\s+)", with: "", options: .regularExpression)
+            guard !cleaned.isEmpty else { continue }
+            let startsQuantity = cleaned.range(of: "^[0-9¼½¾⅓⅔⅛⅜⅝⅞]", options: .regularExpression) != nil
+            if section == "ingredient" {
+                let openParenthesis = pending.filter { $0 == "(" }.count > pending.filter { $0 == ")" }.count
+                let unfinished = [" of", " the", " and", " or", " condensed", " insides", ","]
+                    .contains { pending.lowercased().hasSuffix($0) }
+                if hasBullet || startsQuantity || !(openParenthesis || unfinished) { flush() }
+            } else {
+                if hasNumber || hasBullet { flush(); numberedStep = hasNumber }
+                else if !numberedStep, pending.last.map({ ".!?".contains($0) }) == true { flush() }
+            }
+            pending += (pending.isEmpty ? "" : " ") + cleaned
+            quote += (quote.isEmpty ? "" : "\n") + line
         }
+        flush()
         return output
     }
 

@@ -1,8 +1,28 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
+
+## Recipe-only provider update completed — 2026-11-05
+
+The owner approved a fresh data-less QA branch at $0.01344/hour. It aligned all
+185 repository migrations with inert scheduler secrets and inactive schedules,
+then passed all 67 hosted SQL contracts. Final authenticated recipe text/image
+cases and ownership/denial/quota/erasure checks passed. A live synthetic RED
+identified spliced source quotes; instructions now require contiguous verbatim
+quotes while allowing cleaned field values. Existing server validation remains.
+
+A completed November 5 physical backup and exact 184-migration release dry run
+preceded deployment. The held Home V4 migration was excluded. Only the
+`coffee-assistance` provider changed: production version 4, bundle SHA-256
+`fdf7897e08ba8fd4a55a33ba1392839b1bd433279193069d0e89bab67dd4545c`.
+The deployed files match reviewed local sources; 75 protected table whole-row
+fingerprints/counts, all other function metadata and security advisory counts
+remain unchanged. Missing/invalid bearer requests return 401. Main schema and
+secrets are unchanged. The paid QA branch was deleted and absence confirmed.
+Rollback remains the prior provider bundle or optional-assistance disable switch.
+[Full ledger and native boundaries](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
 
 ## Optional Luna activation completed — 2026-11-04
 

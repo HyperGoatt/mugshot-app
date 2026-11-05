@@ -1,10 +1,91 @@
 import Foundation
 
 enum CoffeeAssistanceRecipeImport {
+    /// Owns only automatically generated draft fields. Edited/deleted fields are
+    /// protected by their source identity across subsequent OCR/provider reads.
+    struct Draft {
+        private var ingredients: [HomeRecipeIngredient] = []
+        private var steps: [HomePreparationStep] = []
+        private var origins: [UUID: CoffeeAssistanceField] = [:]
+        private var protected: [CoffeeAssistanceField] = []
+        private var name: String?
+        private var protectsName = false
+        private var method: HomeBrewMethod?
+        private var customMethod = ""
+
+        mutating func apply(_ fields: [CoffeeAssistanceField], to content: inout HomeRecipeContent) {
+            guard content.sourceReuseAllowed != false else { return }
+            let allowed = fields.filter { field in
+                !(field.key == "name" && protectsName) && !protected.contains { original in
+                    guard original.key == field.key else { return false }
+                    let a = normalized(original.sourceQuote), b = normalized(field.sourceQuote)
+                    return normalized(original.value) == normalized(field.value) || (!a.isEmpty && a == b)
+                        || (min(a.count, b.count) >= 8 && (a.contains(b) || b.contains(a)))
+                }
+            }
+            let previous = content
+            CoffeeAssistanceRecipeImport.apply(allowed, to: &content)
+            let addedIngredients = content.ingredients.filter { item in !previous.ingredients.contains { $0.id == item.id } }
+            let addedSteps = content.steps.filter { item in !previous.steps.contains { $0.id == item.id } }
+            ingredients += addedIngredients; steps += addedSteps
+            for item in addedIngredients { origins[item.id] = allowed.first { $0.key == "ingredient" && $0.value == item.name } }
+            for item in addedSteps { origins[item.id] = allowed.first { $0.key == "step" && $0.value == item.instruction } }
+            if previous.name.isEmpty, !content.name.isEmpty { name = content.name }
+            if previous.method == .other, previous.customMethodName.isEmpty,
+               content.method != .other || !content.customMethodName.isEmpty {
+                method = content.method; customMethod = content.customMethodName
+            }
+        }
+
+        mutating func replace(_ fields: [CoffeeAssistanceField], to content: inout HomeRecipeContent) {
+            guard content.sourceReuseAllowed != false else { return }
+            // An insufficient/partial AI result cannot erase a usable fallback
+            // section that it did not actually replace.
+            removeGenerated(from: &content, keys: Set(fields.map(\.key)))
+            apply(fields, to: &content)
+        }
+
+        mutating func removeGenerated(from content: inout HomeRecipeContent,
+                                      keys: Set<String> = ["ingredient", "step", "name", "method"]) {
+            if keys.contains("ingredient") {
+                for item in ingredients where !content.ingredients.contains(item) {
+                    if let origin = origins[item.id] { protected.append(origin) }
+                }
+                content.ingredients.removeAll { ingredients.contains($0) }
+                for item in ingredients { origins[item.id] = nil }
+                ingredients = []
+            }
+            if keys.contains("step") {
+                for item in steps where !content.steps.contains(item) {
+                    if let origin = origins[item.id] { protected.append(origin) }
+                }
+                content.steps.removeAll { steps.contains($0) }
+                for item in steps { origins[item.id] = nil }
+                steps = []
+            }
+            if keys.contains("name"), let name {
+                if content.name == name { content.name = "" } else { protectsName = true }
+                self.name = nil
+            }
+            if keys.contains("method") {
+                if content.method == method, content.customMethodName == customMethod {
+                    content.method = .other; content.customMethodName = ""
+                }
+                method = nil; customMethod = ""
+            }
+        }
+
+        private func normalized(_ text: String) -> String {
+            text.lowercased().replacingOccurrences(of: "[^\\p{L}\\p{N}]+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
     static func source(_ content: HomeRecipeContent) -> [CoffeeAssistanceEvidence] {
         guard content.sourceReuseAllowed != false else { return [] }
         let text = content.sourceText
-        var result: [CoffeeAssistanceEvidence] = []
+        var result = [CoffeeAssistanceEvidence(id: "recipe-target", title: "Selected recipe",
+            detail: bounded("Name: \(content.name)\nUse: \(content.template.rawValue)"))]
         let hasCredit = !content.creatorCredit.isEmpty || !content.sourceURL.isEmpty
         var remaining = text.unicodeScalars[...]
         while !remaining.isEmpty && result.count < (hasCredit ? 19 : 20) {

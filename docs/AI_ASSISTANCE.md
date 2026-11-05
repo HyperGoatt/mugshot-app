@@ -1,15 +1,30 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 # Optional coffee assistance
 
+## Recipe focus update — November 5
+
+Function version 4 is enabled with the same `gpt-6-luna` model. Recipe instructions
+focus on one selected component/drink, omit page chrome and unrelated recipes,
+join wrapped lines and retain supported amounts/timing. Clean field values use
+short, contiguous exact source quotes. A cropped instruction remains incomplete
+and is identified in the result text. The native capture replaces only untouched
+generated sections, protects user edits/deletions and keeps fallback sections
+when a provider result is insufficient. It never updates an existing saved version.
+
+The fresh data-less QA branch passed 67 hosted contracts, authenticated recipe
+text/image probes and access/quota/erasure checks before provider-only deployment.
+It is deleted. The signed native update is installed and launched on the owner's
+iPhone; new-source fidelity remains human QA. [Exact evidence and limits](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
 ## Delivery state
 
-The `codex/luna-assistance` candidate is production-configured for optional
-`gpt-6-luna` requests. Function version 3 is enabled after 67 hosted contracts,
+The `codex/luna-assistance` stack is production-configured for optional
+`gpt-6-luna` requests. Initial function version 3 was enabled on November 4 after 67 hosted contracts,
 eight authenticated synthetic text/image probes and quota/ownership denial
 checks. Existing data was preserved around the exact additive migration.
 
@@ -47,8 +62,9 @@ the Photos picker and optional spoken-step recognition remain separate checks.
 ## Product behavior
 
 The [recipe canvas and drink builder](design/home-recipe-composer-2026-11-04/README.md)
-reuse the existing extractor. Selecting a recipe-use label or combining saved
-parts needs no model request. Source caption/image boundaries, remembered Luna
+reuse the existing extractor. Combining saved parts needs no model request.
+Changing a capture's recipe-use label refreshes the optional source read to focus
+on that component/drink; native parsing still works without Luna. Source caption/image boundaries, remembered Luna
 permission and ordinary Save remain unchanged. Composition links private saved
 versions; it does not copy or publish their instructions automatically.
 
@@ -149,7 +165,8 @@ requests retain their reservation. A manual retry uses a new ID and consumes
 another slot. These are request caps, not a claim of exact dollar spending.
 
 The server uses the owner-approved `gpt-6-luna` with reasoning `none`, no tools,
-a strict output schema and 1,000 maximum output tokens. No automatic upgrade or
+a strict output schema and maximum output tokens of 2,400 for recipe imports,
+1,000 for the other tasks. No automatic upgrade or
 fallback model exists. Provider timeout is 20 seconds; native request/resource
 timeouts are 25/30 seconds. Refusals, partial/malformed responses, invented
 references, quota denial, missing configuration and outages return a generic

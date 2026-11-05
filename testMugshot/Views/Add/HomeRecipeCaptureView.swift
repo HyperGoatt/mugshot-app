@@ -28,11 +28,7 @@ struct HomeQuickRecipeSheet: View {
     @State private var error: String?
     @State private var showsFullEditor = false
     @State private var isFinished = false
-    @State private var generatedIngredients: [HomeRecipeIngredient] = []
-    @State private var generatedSteps: [HomePreparationStep] = []
-    @State private var generatedName: String?
-    @State private var generatedMethod: HomeBrewMethod?
-    @State private var generatedCustomMethod = ""
+    @State private var extraction = CoffeeAssistanceRecipeImport.Draft()
     @State private var sources = HomeRecipeCaptureSources()
     private let originalScope: LocalAccountScope
 
@@ -64,6 +60,7 @@ struct HomeQuickRecipeSheet: View {
                     if count > 0, sourceField != "caption" { showsCaption = false }
                 }
                 .onChange(of: permission.revision) { _, _ in restartImport() }
+                .onChange(of: selectedUse) { _, _ in restartImport() }
                 .onChange(of: authModel.authenticatedUser?.id) { _, _ in if !isCurrentOwner { stop(); dismiss() } }
                 .safeAreaInset(edge: .bottom) { saveBar }
                 .onChange(of: showsDrinkBuilder) { _, shows in if shows { sourceGeneration = UUID(); isReading = false; assistance.invalidate() } }
@@ -348,37 +345,27 @@ struct HomeQuickRecipeSheet: View {
             applyFields(HomeRecipeSourceParser.fields(in: content.sourceText))
             guard let owner = originalScope.userID, permission.isEnabled(ownerID: owner) else { return }
             let encoded = try image.map(CoffeeAssistanceImage.encode)
+            var selectedRecipe = content
+            recipeUse.apply(to: &selectedRecipe)
             let request = CoffeeAssistanceRequest(ownerID: owner, task: .recipeImport,
-                evidence: CoffeeAssistanceRecipeImport.source(content), image: encoded)
+                evidence: CoffeeAssistanceRecipeImport.source(selectedRecipe), image: encoded)
             await assistance.run(request, consent: true, currentOwner: { authModel.authenticatedUser?.id })
             guard !Task.isCancelled, operation == importID, canRead, content.sourceReuseAllowed != false,
                   permission.isEnabled(ownerID: owner), let result = assistance.result else { return }
-            applyFields(result.fields)
+            // Luna replaces untouched fallback rows; appending leaves screenshot
+            // chrome and wrapped-line fragments beside the cleaner recipe.
+            extraction.replace(result.fields, to: &content)
+            sourceStatus = result.text
         } catch is CancellationError { }
         catch { self.error = "Couldn’t read that image. Your recipe idea can still be saved." }
     }
 
     private func applyFields(_ fields: [CoffeeAssistanceField]) {
         guard content.sourceReuseAllowed != false else { return }
-        let previous = content
-        CoffeeAssistanceRecipeImport.apply(fields, to: &content)
-        generatedIngredients += content.ingredients.filter { item in !previous.ingredients.contains(where: { $0.id == item.id }) }
-        generatedSteps += content.steps.filter { item in !previous.steps.contains(where: { $0.id == item.id }) }
-        if previous.name.isEmpty, !content.name.isEmpty { generatedName = content.name }
-        if previous.method == .other, previous.customMethodName.isEmpty,
-           content.method != .other || !content.customMethodName.isEmpty {
-            generatedMethod = content.method; generatedCustomMethod = content.customMethodName
-        }
+        extraction.apply(fields, to: &content)
     }
     private func removeGeneratedFields() {
-        content.ingredients.removeAll { generatedIngredients.contains($0) }
-        content.steps.removeAll { generatedSteps.contains($0) }
-        if content.name == generatedName { content.name = "" }
-        if content.method == generatedMethod, content.customMethodName == generatedCustomMethod {
-            content.method = .other; content.customMethodName = ""
-        }
-        generatedIngredients = []; generatedSteps = []; generatedName = nil
-        generatedMethod = nil; generatedCustomMethod = ""
+        extraction.removeGenerated(from: &content)
     }
     private func restartImport() { assistance.invalidate(); importID = UUID() }
     private func stop() {

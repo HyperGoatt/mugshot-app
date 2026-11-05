@@ -125,6 +125,13 @@ struct MugshotSaveReceipt: Identifiable, Equatable {
     }
 }
 
+enum MugshotPostCompletionPolicy {
+    static func shouldPresent(receipt: MugshotSaveReceipt?, activeOwnerID: UUID?, hasCompletedSave: Bool) -> Bool {
+        guard hasCompletedSave, let receipt, let owner = receipt.ownerID, owner == activeOwnerID else { return false }
+        return receipt.audience == .friends || receipt.audience == .everyone
+    }
+}
+
 /// Receipts arrive only from a completed transaction, not a detail read.
 struct MugshotReceiptLedger {
     private var consumed: Set<String> = []

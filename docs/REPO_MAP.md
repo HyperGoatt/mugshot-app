@@ -4,6 +4,23 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Recipe focus and full-screen post result — 2026-11-05
+
+- `Services/HomeRecipeSourceReader.swift`: preparation headings, wrapped-line
+  grouping and page/other-recipe exclusion without AI.
+- `Models/CoffeeAssistanceRecipeImport.swift`: bounded selection evidence and
+  draft-owned replacement that protects edits/deletions and partial fallbacks.
+- `supabase/functions/coffee-assistance/provider.ts`: one-recipe instructions,
+  exact contiguous source quotes and a recipe-only output budget.
+- `Views/Sharing/MugshotPostedResultView.swift`, `MugshotShareHubView.swift` and
+  `Views/Add/SipComposerView.swift`: confirmed-owner full-screen result, focused
+  sharing and existing post routing within one cover.
+- `Design/MugshotPolishPresentation.swift`: pure receipt/owner/completion policy;
+  `Views/Developer/PostedResultPreviewHost.swift`: Debug fictional preview only.
+- `HomeRecipeSourceTests`, `CompletionChoreographyTests`, `CoffeeAssistanceTests`
+  and `PostedResultUITests`: source, replacement, owner/cancellation and native
+  result/share/privacy boundaries. [Evidence and gallery](design/recipe-focus-post-celebration-2026-11-05/README.md).
+
 ## Recipe canvas and drink builder — November 4 follow-up
 
 - `Models/HomeRecipeComposition.swift`: presentation use suggestions and parent-only

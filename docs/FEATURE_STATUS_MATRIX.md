@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Recipe focus and posted-result follow-up — 2026-11-05
+
+Implemented, installed and launched: cleaner recipe-only fallback/Luna extraction,
+preserved user edits and a shared full-screen result for confirmed Home/cafe/
+Elsewhere posts. Share opens a clean preview; See post reuses owned post detail.
+The isolated iPhone passes 48 native and four UI cases, followed by one read-only
+owner component check. The tighter provider is production version 4 after 67
+hosted QA contracts and recipe/access/quota checks. Existing saved versions and
+production content are preserved. Real-source fidelity and actual owner publishing/
+external sharing remain human QA; draft merges and TestFlight stay held.
+[Exact acceptance ledger](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
 ## Recipe canvas and drink composition — 2026-11-04 follow-up
 
 Native source-first capture and a dedicated drink builder are implemented. The

@@ -21,6 +21,7 @@ struct LogASipV3ProductionView: View {
     let isOpeningPublishedMugshot: Bool
     let completionStatusMessage: String?
     let completion: LogASipV3PassportSummary?
+    var completionIsPresentedFullScreen = false
     let saveReceipt: MugshotSaveReceipt?
     let wantToTryAchievementCafeName: String?
     let showsFirstSipGuidance: Bool
@@ -74,6 +75,7 @@ struct LogASipV3ProductionView: View {
         isOpeningPublishedMugshot: Bool = false,
         completionStatusMessage: String? = nil,
         completion: LogASipV3PassportSummary? = nil,
+        completionIsPresentedFullScreen: Bool = false,
         saveReceipt: MugshotSaveReceipt? = nil,
         wantToTryAchievementCafeName: String? = nil,
         showsFirstSipGuidance: Bool = false,
@@ -111,6 +113,7 @@ struct LogASipV3ProductionView: View {
         self.isOpeningPublishedMugshot = isOpeningPublishedMugshot
         self.completionStatusMessage = completionStatusMessage
         self.completion = completion
+        self.completionIsPresentedFullScreen = completionIsPresentedFullScreen
         self.saveReceipt = saveReceipt
         self.wantToTryAchievementCafeName = wantToTryAchievementCafeName
         self.showsFirstSipGuidance = showsFirstSipGuidance
@@ -165,7 +168,9 @@ struct LogASipV3ProductionView: View {
             ZStack {
                 Color.creamWhite.ignoresSafeArea()
 
-                if let completion {
+                if completionIsPresentedFullScreen {
+                    Color.creamWhite.ignoresSafeArea()
+                } else if let completion {
                     MugshotShareHubView(
                         summary: completion,
                         receipt: saveReceipt,
@@ -1158,7 +1163,7 @@ struct LogASipV3ProductionView: View {
     }
 }
 
-private struct WantToTryAchievementBanner: View {
+struct WantToTryAchievementBanner: View {
     let cafeName: String
     let reduceMotion: Bool
     let onUndo: () -> Void

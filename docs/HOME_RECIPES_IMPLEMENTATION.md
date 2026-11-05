@@ -4,6 +4,22 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Recipe-only screenshot extraction — November 5
+
+Source capture recognizes preparation sections, joins wrapped ingredient/step
+lines and omits common browser/shop controls, promotions and later recipes.
+Luna receives the selected name/use as bounded evidence and structures one recipe.
+Its clean sections replace untouched generated fallback rows instead of appending
+duplicates. Typed edits and deletions remain protected; missing AI sections keep
+their usable native fallback. Cropped or hidden details are identified in the
+capture status rather than completed from a guess. Ordinary Save and all source
+rights/account boundaries remain separate from extraction.
+
+Saved components, linked drink versions and posted recipes are not rewritten.
+The owner's existing PSL component therefore retains its original imported rows.
+The updated source is installed in Mugshot Luna QA 0.5.3 (8), and the tighter
+server provider is live. [Evidence, limitations and human QA](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
 ## Recipe canvas and drink composition — November 4 follow-up
 
 The Add a recipe page is a native ScrollView with source-first input, compact

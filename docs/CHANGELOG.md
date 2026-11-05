@@ -4,11 +4,23 @@ status: current
 last_verified: 2026-11-05
 ---
 
-## 2026-11-05 — Recipe focus and posted-result candidate
+## 2026-11-05 — Cleaner recipe imports and full-screen post celebration
 
-- Reproduce screenshot section/footer pollution with focused ECC RED fixtures.
-- Define generated-field replacement and confirmed-owner post-result boundaries.
-- Implementation and delivery remain in progress; [checkpoint ledger](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+- Recognize preparation headings, join wrapped ingredients/steps and exclude page
+  controls, promotions and later recipes in the non-AI source parser.
+- Replace untouched generated draft fields with Luna's clean sections while
+  preserving typing/deletions, partial-result fallbacks and immutable saved recipes.
+- Focus Luna on one selected recipe with exact supporting quotes; identify cropped
+  details rather than inventing them. Recipe output has a 2,400-token ceiling;
+  other tasks retain 1,000. Model, permissions, quotas and explicit Save remain.
+- Present confirmed Home, cafe and Elsewhere posts full screen, with Share opening
+  a clean native artwork preview and See post using the existing post destination.
+  Retain private-save behavior, audience safeguards and reduced-motion support.
+- Install and launch Mugshot Luna QA 0.5.3 (8); pass 52 isolated hardware checks
+  and an owner read-only existing-component check. Deploy only the provider update
+  as function version 4 after disposable QA; preserve all 75 protected table
+  fingerprints. Delete the paid QA branch. Draft stack and TestFlight remain held.
+- [Exact ECC, preservation and acceptance ledger](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
 
 ## 2026-11-05 — Recipe composer installed and physically verified
 

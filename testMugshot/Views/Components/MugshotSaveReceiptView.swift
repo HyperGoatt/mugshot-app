@@ -6,6 +6,7 @@ import UIKit
 struct MugshotSaveReceiptView: View {
     let receipt: MugshotSaveReceipt
     let detail: String
+    var isCelebration = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.mugshotReduceMotionOverride) private var motionOverride
     @Environment(\.mugshotFeedbackOwnerID) private var activeOwnerID
@@ -23,6 +24,42 @@ struct MugshotSaveReceiptView: View {
     }
 
     var body: some View {
+        Group {
+            if isCelebration { celebration }
+            else { compactReceipt }
+        }
+        .opacity(receipt.ownerID == activeOwnerID ? 1 : 0)
+        .accessibilityHidden(receipt.ownerID != activeOwnerID)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mugshot.saveReceipt")
+        .task(id: playbackID) { await acknowledge() }
+        .onDisappear { settleImmediately() }
+    }
+
+    private var celebration: some View {
+        VStack(spacing: 22) {
+            MugsyCompletionMoment(progress: progress)
+                .padding(18)
+                .frame(width: typeSize.isAccessibilitySize ? 112 : 246,
+                       height: typeSize.isAccessibilitySize ? 112 : 246)
+                .background(Color.mugshotMint.opacity(0.3), in: Circle())
+                .accessibilityHidden(true)
+            VStack(spacing: 12) {
+                Text(receipt.title)
+                    .font(.system(typeSize.isAccessibilitySize ? .title2 : .largeTitle, design: .serif).weight(.semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                Text(receipt.drinkName)
+                    .font(.title3.weight(.medium)).foregroundStyle(Color.espressoBrown)
+                Text(detail)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText)
+            }
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var compactReceipt: some View {
         HStack(alignment: .center, spacing: 12) {
             if receipt.isExpressive && !typeSize.isAccessibilitySize {
                 MugsyCompletionMoment(progress: progress)
@@ -46,12 +83,6 @@ struct MugshotSaveReceiptView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.mugshotMint.opacity(0.24), in: RoundedRectangle(cornerRadius: 20))
-        .opacity(receipt.ownerID == activeOwnerID ? 1 : 0)
-        .accessibilityHidden(receipt.ownerID != activeOwnerID)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("mugshot.saveReceipt")
-        .task(id: playbackID) { await acknowledge() }
-        .onDisappear { settleImmediately() }
     }
 
     @MainActor

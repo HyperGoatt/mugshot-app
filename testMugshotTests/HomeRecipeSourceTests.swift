@@ -178,6 +178,18 @@ struct HomeRecipeSourceTests {
         #expect(content.steps.isEmpty)
     }
 
+    @Test func insufficientOrPartialAIOutputKeepsTheUsableFallbackSections() {
+        var content = HomeRecipeContent(name: "Syrup", template: .component, method: .other)
+        var capture = CoffeeAssistanceRecipeImport.Draft()
+        capture.apply([.init(key: "ingredient", value: "2 tsp sugar", sourceQuote: "2 tsp sugar")], to: &content)
+        let original = content.ingredients
+        capture.replace([], to: &content)
+        #expect(content.ingredients == original)
+        capture.replace([.init(key: "step", value: "Stir.", sourceQuote: "Stir.")], to: &content)
+        #expect(content.ingredients == original)
+        #expect(content.steps.map(\.instruction) == ["Stir."])
+    }
+
     @Test func blockedOrOversizedSourcesCannotBecomeFabricatedRecipes() throws {
         let link = try HomeRecipeSourceURL("https://www.instagram.com/p/abc/")
         #expect(throws: (any Error).self) { try HomeRecipeSourceParser.parse(Data("<title>Login • Instagram</title>".utf8), contentType: "text/html", source: link) }

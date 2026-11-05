@@ -1,3 +1,9 @@
+---
+document_type: living
+status: current
+last_verified: 2026-11-05
+---
+
 # Canonical Mugsy Design System
 
 Status: approved model, motion, and product-placement implementation
@@ -255,6 +261,18 @@ identity was introduced. Runtime/physical acceptance remains tracked in the
 Named accessibility refresh keeps the current scroll position and displays a quiet
 progress label. It does not pour coffee or insert the pull gesture gap.
 
+
+## Full-screen confirmed posts — 2026-11-05
+
+Confirmed Home, cafe and Elsewhere posts present one full-screen cream result
+with a large native Mugsy, the actual audience and drink, Share and See post.
+Share opens a focused artwork preview with Story/Post and a compact Style menu;
+See post uses the existing owned post-detail destination within that same cover.
+Private saves keep their compact private receipt. No action waits for animation,
+and the durable account/operation marker prevents replay after returning from Share.
+The existing finite sequence, haptic preference and scene/owner cancellation remain.
+Accessibility sizes use a smaller static hero, scrollable content and fixed bottom
+actions. Reduce Motion retains a static acknowledgment. [Native captures and actual acceptance](design/recipe-focus-post-celebration-2026-11-05/README.md).
 
 ## Coordinated completed-operation acknowledgment — 2026-10-30
 

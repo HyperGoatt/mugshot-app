@@ -19,6 +19,7 @@ struct LogVisitView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
     @AppStorage(SipComposerExperience.storageKey) private var composerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
     @AppStorage(RoadmapFeatureFlags.cafeSessionsAndPulse) private var cafeSessionsAndPulse = true
 
@@ -54,6 +55,7 @@ struct LogVisitView: View {
     @State private var wantToTryAchievementCafe: Cafe?
     @State private var wantToTryCompletionTask: Task<Void, Never>?
     @State private var showPublishedMugshot = false
+    @State private var dismissedPostResultID: UUID?
     @State private var completedCafeSession: CafeSessionDraft?
     @State private var completedSessionCafe: Cafe?
     @State private var activeContinuationSession: CafeSessionDraft?
@@ -365,10 +367,28 @@ struct LogVisitView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
-            .fullScreenCover(isPresented: $showPublishedMugshot, onDismiss: {
+            .fullScreenCover(isPresented: publishedResultPresentation, onDismiss: {
                 finishSuccessfulSave()
             }) {
-                if let completedRemoteVisit {
+                if !showPublishedMugshot, let summary = v3CompletionSummary, showsFullScreenPostResult {
+                    MugshotShareHubView(summary: summary, receipt: publicationReceipt,
+                        isOpeningMugshot: isLoadingPublishedVisit, statusMessage: completionStatusMessage,
+                        onViewMugshot: viewPublishedMugshot, onViewPassport: viewPassportAfterCompletion,
+                        onFinish: {
+                            if isFirstSipGuidanceEnabled { onFirstSipGuidanceCompleted() }
+                            publishedResultPresentation.wrappedValue = false
+                        }, onStartAnother: nil)
+                        .environment(\.dynamicTypeSize, dynamicTypeSize)
+                        .environment(\.mugshotReduceMotionOverride, motionOverride)
+                        .environment(\.mugshotFeedbackOwnerID, authModel.authenticatedUser?.id)
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if let cafe = wantToTryAchievementCafe {
+                                WantToTryAchievementBanner(cafeName: cafe.consumerDisplayName,
+                                    reduceMotion: reduceMotion, onUndo: undoWantToTryRemoval)
+                                    .padding(.horizontal, 16)
+                            }
+                        }
+                } else if let completedRemoteVisit {
                     RemoteVisitDetailView(
                         visitId: completedRemoteVisit.id,
                         initialSummary: completedRemoteVisit,
@@ -385,6 +405,23 @@ struct LogVisitView: View {
                     )
                 }
             }
+    }
+
+    private var showsFullScreenPostResult: Bool {
+        v3CompletionSummary != nil && publicationReceipt?.id != dismissedPostResultID
+            && MugshotPostCompletionPolicy.shouldPresent(receipt: publicationReceipt,
+                activeOwnerID: authModel.authenticatedUser?.id, hasCompletedSave: showSavedConfirmation)
+    }
+
+    /// The celebration and post detail share one cover, avoiding stacked modal
+    /// presentations. Finishing runs once, after the cover actually dismisses.
+    private var publishedResultPresentation: Binding<Bool> {
+        Binding(get: { showPublishedMugshot || showsFullScreenPostResult }, set: { presented in
+            if !presented {
+                dismissedPostResultID = publicationReceipt?.id
+                showPublishedMugshot = false
+            }
+        })
     }
 
     private var alertedComposer: some View {
@@ -558,6 +595,7 @@ struct LogVisitView: View {
             isOpeningPublishedMugshot: isLoadingPublishedVisit,
             completionStatusMessage: completionStatusMessage,
             completion: showSavedConfirmation ? v3CompletionSummary : nil,
+            completionIsPresentedFullScreen: showsFullScreenPostResult,
             saveReceipt: publicationReceipt,
             wantToTryAchievementCafeName: wantToTryAchievementCafe?.consumerDisplayName,
             showsFirstSipGuidance: isFirstSipGuidanceEnabled,

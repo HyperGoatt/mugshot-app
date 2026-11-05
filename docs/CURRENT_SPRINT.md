@@ -4,6 +4,16 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Recipe focus and post celebration — November 5 follow-up
+
+Cleaner screenshot extraction and a full-screen confirmed-post result are installed
+in Mugshot Luna QA 0.5.3 (8). The new iPhone gate passes 52 isolated checks plus a
+read-only existing-owner component check. Provider version 4 is live after data-less
+QA and unchanged protected-data fingerprints; the paid branch is deleted. Human
+QA should try a fresh PSL import and a real post's Share/See post actions. Keep the
+draft stack, Home V4 migration and TestFlight holds.
+[Exact current acceptance and checklist](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
 ## Owner-requested recipe UX and component composition — November 4 follow-up
 
 Use the original Home interview and accepted September V4 read-back to improve

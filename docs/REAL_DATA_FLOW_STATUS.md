@@ -4,6 +4,24 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Draft recipe replacement and confirmed post presentation — November 5
+
+Capture tracks only automatically generated ingredient/step/name/method fields.
+Luna replaces untouched generated sections; edited/deleted source identities stay
+protected, and missing sections retain their native fallback. The selected recipe
+name/use and attribution fit the existing bounded evidence contract. Saved workspace
+versions, linked drinks and published instructions are never silently cleaned.
+The production change replaces only `coffee-assistance/provider.ts`; no schema,
+auth, ownership, quota, analytics or sharing contract changes. Original whole-row
+hashes/counts across 75 protected tables are unchanged, and the paid QA is deleted.
+
+The post-result policy requires a confirmed receipt, completed save and active
+matching owner. One cover hosts celebration, share preview and existing detail
+routing. Share preparation is deferred until chosen; late link work is fenced by
+visit/account/cancellation. Private receipts remain private. The signed native
+candidate preserves owner files through install and leaves the saved PSL unchanged.
+[Exact verification and data-preservation evidence](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
 ## Recipe composition uses existing ownership — November 4 follow-up
 
 Recipe use is a presentation choice over existing templates. New drink recipes

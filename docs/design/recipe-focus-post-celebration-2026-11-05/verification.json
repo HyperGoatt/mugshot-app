@@ -1,0 +1,94 @@
+{
+  "date": "2026-11-05",
+  "branch": "codex/home-library-flow",
+  "app": {
+    "name": "Mugshot Luna QA",
+    "version": "0.5.3",
+    "build": "8",
+    "installed": true,
+    "launched": true,
+    "package": {
+      "bundleID": "co.mugshot.app.dev",
+      "displayName": "Mugshot Luna QA",
+      "version": "0.5.3",
+      "build": "8",
+      "signature": "deep-strict-pass",
+      "entitlements": "unchanged",
+      "analytics": "disabled",
+      "credentialExclusion": "pass",
+      "debugDylibSHA256": "efc8685aa609530cc5c0d19f09bb1b43fc98dceea8816249bea1a5a65dc50a88"
+    }
+  },
+  "simulator": {
+    "sourceCompletionAndJourneys": 35,
+    "assistanceBoundaries": 19,
+    "finalResultUI": 4,
+    "existingSharingBoundarySuiteReused": 16
+  },
+  "physical": {
+    "native": 48,
+    "resultUI": 4,
+    "ownerReadOnly": 1,
+    "fixtureAppIsolated": true,
+    "package": {
+      "bundleID": "co.mugshot.app.homeqa",
+      "signature": "deep-strict-pass",
+      "ownerGroups": false,
+      "ownerKeychain": false,
+      "ownerURLSchemes": false,
+      "ownerExtensions": false,
+      "analytics": "disabled",
+      "backend": "invalid-fixture-only",
+      "credentialExclusion": "pass",
+      "debugDylibSHA256": "40773190f930e2b2380f64ab7ab868664d493435947e52d0482ed05d817e2cf9"
+    },
+    "temporaryAppsRemoved": true
+  },
+  "production": {
+    "protectedTables": 75,
+    "countsAndWholeRowFingerprintsUnchanged": true,
+    "otherFunctionChanges": [],
+    "productionVersion": 4,
+    "bundleSHA256": "fdf7897e08ba8fd4a55a33ba1392839b1bd433279193069d0e89bab67dd4545c",
+    "exactSourceMatch": true,
+    "securityAdvisoryCountsUnchanged": true,
+    "migrationCount": 184,
+    "migrationHead": "20261102160000",
+    "heldHomeV4Applied": false,
+    "inventoryUnchanged": true,
+    "noBearerStatus": 401,
+    "invalidBearerStatus": 401,
+    "mainSecretsChanged": false,
+    "qaHostedSQL": {
+      "passed": 67,
+      "failed": 0
+    },
+    "finalAuthenticatedRecipeCases": 4,
+    "qaBranchDeleted": true
+  },
+  "ownerPreservation": {
+    "originalFiles": 45,
+    "installByteIdentical": true,
+    "afterLaunchNewFiles": 0,
+    "afterLaunchRemovedFiles": 0,
+    "recipeWorkspaceUnchanged": true,
+    "shelfContentUnchanged": true,
+    "onlyShelfUpdatedAtChanged": true,
+    "savedPSLRepaired": false
+  },
+  "boundaries": {
+    "realOwnerPublicationTested": false,
+    "externalShareDelivered": false,
+    "testFlightUploaded": false,
+    "merged": false
+  },
+  "coverage": {
+    "run": "GREEN2",
+    "recipeImportFile": 0.8839779005524862,
+    "sourceReaderFile": 0.8837209302325582
+  },
+  "checks": {
+    "backendStatic": 12,
+    "denoHandlerProvider": 11
+  }
+}

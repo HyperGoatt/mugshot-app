@@ -4,6 +4,20 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Recipe focus and full-screen posted result — November 5
+
+Mugshot Luna QA 0.5.3 (8) now includes cleaner screenshot/caption extraction,
+edit-safe generated-field replacement and a full-screen result for confirmed
+Home, cafe and Elsewhere posts. Share opens the clean artwork preview; See post
+uses the existing owned detail route. Private saves and ordinary non-AI paths remain.
+The provider-only recipe instructions are live as function version 4; the paid
+data-less QA branch is deleted and 75 protected table fingerprints are unchanged.
+The native update is installed/launched, with 52 isolated hardware checks and
+an owner read-only existing-component check passing. The existing PSL saved version
+is preserved, not repaired. Real new-source quality and a newly published owner
+post remain human QA. [Evidence, screenshots and exact gates](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+Parent draft/merge holds and TestFlight remain unchanged.
+
 ## Recipe canvas and reusable drink builder — November 4 follow-up
 
 Source implements a cleaner native recipe capture page and a direct recipe-book

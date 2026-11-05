@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
+
+## Recipe focus and full-screen post result — 2026-11-05
+
+[Current delivery, data preservation and human QA](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md)
+records the installed development candidate, tighter live provider and completed
+disposable QA. [Fictional native gallery](design/recipe-focus-post-celebration-2026-11-05/README.md)
+shows the result, clean sharing preview and accessibility layout. Parent merges
+and TestFlight remain held.
 
 ## Luna phone QA handoff — 2026-11-04
 
