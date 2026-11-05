@@ -104,3 +104,24 @@ the tests and fails on those missing APIs (`locationName`, `HomeJournalProjectio
 `deleteAttempt` and related controls); this is an intended behavior/API RED, not
 the owner diagnostics-module limitation. Receipt:
 `/tmp/mugshot-home-controls-red-2026-11-05.log`. No owner mutation was used.
+
+The first GREEN batch passes 68 native cases across Home controls, workspace and
+library suites (`/tmp/mugshot-home-controls-core-green1-2026-11-05.xcresult`).
+The ordinary sip-draft discard API then has its own intended-API RED in
+`/tmp/mugshot-sip-draft-controls-red-2026-11-05.log`; existing APIs do not yet
+provide a throwing, protected-outbox-aware discard and durable stale-save guard.
+
+### Additional audit finding: compatibility and cover identity
+
+The private workspace JSON is opaque to the server. An older client can omit
+new deletion fields on a later save; server-side retention is therefore required
+to keep confirmed deletions from being reintroduced by those clients. The action
+plan now includes an additive, owner-only deletion-normalization trigger and
+hermetic/disposable contracts. This changes the initial no-migration assumption;
+no live database change is authorized as routine verification.
+
+Private Home saving also serializes photo order without honoring the selected
+cover. The implementation will retain all photos in stable selected-cover-first
+order, matching the existing published sip behavior. Legacy make/reflection also
+keeps its current surface only in view state; an optional resume marker will make
+relaunch return to the user's last surface.
