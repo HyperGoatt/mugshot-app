@@ -125,3 +125,10 @@ cover. The implementation will retain all photos in stable selected-cover-first
 order, matching the existing published sip behavior. Legacy make/reflection also
 keeps its current surface only in view state; an optional resume marker will make
 relaunch return to the user's last surface.
+
+The hermetic Postgres recipe suite reproduces the server gap: after a deletion
+marker is submitted, the saved attempt remains present. The assertion fails on
+the old schema (`/tmp/mugshot-home-workspace-deletion-red-2026-11-05.log`). The
+new tests also require old-client saves to retain markers, remove associated
+unfinished sessions, preserve recipes/servings and reject malformed markers
+without advancing the revision.

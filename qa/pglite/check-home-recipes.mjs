@@ -147,5 +147,34 @@ await asUser(other);
 assert.equal((await db.query('select public.get_visit_home_preparation_v4($1) result', [postID])).rows[0].result, null);
 await db.exec('reset role; set role anon');
 await assert.rejects(db.query('select public.get_home_workspace_v1($1)', [owner]), /permission denied/);
+await asUser(owner);
+const beforeControls = (await db.query('select public.get_home_workspace_v1($1) result', [owner])).rows[0].result;
+const makeID = randomUUID(), draftID = randomUUID(), recipeDraftID = randomUUID(), servingID = randomUUID();
+const sharedPhoto = `${randomUUID()}-${randomUUID()}.jpg`;
+const controlDocument = { ...beforeControls.document,
+  attempts: [{ id: makeID, name: 'Private Home sip', photoNames: [sharedPhoto] },
+    { id: servingID, name: 'Independent serving', batchSourceAttemptID: makeID, photoNames: [sharedPhoto] }],
+  attemptDrafts: [{ id: draftID, name: 'Unfinished tea' }],
+  sessions: [{ id: randomUUID(), attempt: { id: draftID }, phase: 'preparing' }],
+  recipeDrafts: [{ id: recipeDraftID, content: { name: 'Unfinished syrup' } }]
+};
+const withControls = await save(beforeControls.revision, controlDocument);
+const deletedControls = await save(withControls.revision, { ...controlDocument,
+  deletions: { attempts: [makeID], attemptDrafts: [draftID], recipeDrafts: [recipeDraftID], publications: [] }
+});
+assert.deepEqual(deletedControls.document.attempts.map(x => x.id), [servingID], 'deleted Home sip must be removed without erasing its serving');
+assert.equal(deletedControls.document.attemptDrafts.length, 0);
+assert.equal(deletedControls.document.recipeDrafts.length, 0);
+assert.equal(deletedControls.document.sessions.length, 0);
+assert.deepEqual(deletedControls.document.recipes, beforeControls.document.recipes, 'deletion must preserve immutable saved recipes');
+const oldClientSave = await save(deletedControls.revision, controlDocument);
+assert.deepEqual(oldClientSave.document.attempts.map(x => x.id), [servingID], 'an old client cannot resurrect a confirmed deletion');
+assert.equal(oldClientSave.document.attemptDrafts.length, 0);
+assert.equal(oldClientSave.document.recipeDrafts.length, 0);
+assert.ok(oldClientSave.document.deletions.attempts.includes(makeID));
+assert.ok(oldClientSave.document.deletions.photoNames.includes(sharedPhoto));
+await assert.rejects(save(oldClientSave.revision, { ...oldClientSave.document,
+  deletions: { attempts: ['not-a-uuid'] } }), /Invalid Home deletion/);
+assert.equal((await db.query('select public.get_home_workspace_v1($1) result', [owner])).rows[0].result.revision, oldClientSave.revision);
 await db.close();
-console.log('PASS Home recipe owner isolation, immutable versions, CAS, retries, linked privacy, cycles, source rights');
+console.log('PASS Home recipe owner isolation, immutable versions, CAS, retries, linked privacy, source rights, deletion retention and old-client recovery');
