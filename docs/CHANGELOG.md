@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## 2026-11-05 — Home journey control audit and action plan
+
+- Audit Journal card parity, missing Home deletion, draft/session overlap, named
+  Home identity, four remaining Form screens and flow/permission controls.
+- Record the ordered [implementation plan](plans/home-flow-controls-2026-11-05.plan.md)
+  and [audit evidence](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md) before changing app code.
+- Implementation and new acceptance remain pending at this planning checkpoint.
+
 ## 2026-11-05 — Cleaner recipe imports and full-screen post celebration
 
 - Recognize preparation headings, join wrapped ingredients/steps and exclude page
