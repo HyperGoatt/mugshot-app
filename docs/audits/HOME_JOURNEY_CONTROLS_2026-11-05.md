@@ -94,3 +94,13 @@ Luna/model change, additional analytics or paid hosted QA is planned.
 The ordered [code action plan](../plans/home-flow-controls-2026-11-05.plan.md)
 maps each finding to implementation and focused ECC RED/GREEN evidence. Native
 captures, final acceptance and remaining limits will be appended here after work.
+
+### ECC RED checkpoint
+
+Focused `HomeJourneyControlTests` intentionally targets missing private-sip delete,
+scope-aware draft discard, conflict deletion markers, profile identity, complete
+draft indexing and Journal projection behavior. The isolated Debug build reaches
+the tests and fails on those missing APIs (`locationName`, `HomeJournalProjection`,
+`deleteAttempt` and related controls); this is an intended behavior/API RED, not
+the owner diagnostics-module limitation. Receipt:
+`/tmp/mugshot-home-controls-red-2026-11-05.log`. No owner mutation was used.
