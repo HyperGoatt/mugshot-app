@@ -7,6 +7,13 @@ protocol HomeRecipeWorkspaceTransport {
     func synchronize(_ workspace: HomeRecipeWorkspace, ownerID: UUID) async throws -> HomeRecipeWorkspace
     func uploadPhoto(_ data: Data, name: String, ownerID: UUID) async throws
     func downloadPhoto(name: String, ownerID: UUID) async throws -> Data
+    func deletePhoto(name: String, ownerID: UUID) async throws
+}
+
+extension HomeRecipeWorkspaceTransport {
+    func deletePhoto(name: String, ownerID: UUID) async throws {
+        throw HomeRecipeWorkspaceError.invalid("Private photo cleanup is unavailable. Please retry syncing.")
+    }
 }
 
 struct HomeRecipeWorkspaceService: HomeRecipeWorkspaceTransport {
@@ -17,6 +24,9 @@ struct HomeRecipeWorkspaceService: HomeRecipeWorkspaceTransport {
     }
     func downloadPhoto(name: String, ownerID: UUID) async throws -> Data {
         try await HomeRecipeMediaService(client: client).download(name: name, owner: ownerID)
+    }
+    func deletePhoto(name: String, ownerID: UUID) async throws {
+        try await HomeRecipeMediaService(client: client).delete(name: name, owner: ownerID)
     }
 
     func attachRecipes(_ attachments: [HomeRecipePostAttachment], visitID: UUID, ownerID: UUID) async throws {

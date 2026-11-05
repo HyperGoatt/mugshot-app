@@ -7,11 +7,15 @@ struct HomeRecipeMediaService {
     let client: SupabaseClient
     static let bucket = "home-coffee-bag-photos"
 
+    static func isValidName(_ name: String) -> Bool {
+        name.count == 77 && name.hasSuffix(".jpg") &&
+              UUID(uuidString: String(name.prefix(36))) != nil &&
+              name.dropFirst(36).first == "-" &&
+              UUID(uuidString: String(name.dropFirst(37).prefix(36))) != nil
+    }
+
     static func path(owner: UUID, name: String) throws -> String {
-        guard name.count == 77, name.hasSuffix(".jpg"),
-              UUID(uuidString: String(name.prefix(36))) != nil,
-              name.dropFirst(36).first == "-",
-              UUID(uuidString: String(name.dropFirst(37).prefix(36))) != nil else {
+        guard isValidName(name) else {
             throw HomeRecipeWorkspaceError.invalid("Invalid private photo reference.")
         }
         return "\(owner.uuidString.lowercased())/home-attempts/\(name)"
@@ -25,6 +29,10 @@ struct HomeRecipeMediaService {
 
     func download(name: String, owner: UUID) async throws -> Data {
         try await client.storage.from(Self.bucket).download(path: Self.path(owner: owner, name: name))
+    }
+
+    func delete(name: String, owner: UUID) async throws {
+        try await client.storage.from(Self.bucket).remove(paths: [Self.path(owner: owner, name: name)])
     }
 }
 

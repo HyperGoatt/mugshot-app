@@ -11,7 +11,7 @@ enum CoffeeAssistanceTask: String, Codable, CaseIterable, Identifiable, Sendable
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .bagScan: "Improve this scan"
+        case .bagScan: "Read this bag"
         case .recipeImport: "Read a recipe"
         case .memorySearch: "Find a memory"
         case .tasteInsight: "Notice a taste pattern"

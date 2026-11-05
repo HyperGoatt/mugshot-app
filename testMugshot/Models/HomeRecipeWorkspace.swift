@@ -742,6 +742,13 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
     var id = UUID()
     var createdAt = Date()
     var name = ""
+    /// A chosen Home nickname, frozen for this sip. Never an address or coordinate.
+    var locationName: String?
+    var homeCoffeeBagID: UUID?
+    var resumeAtReflection: Bool?
+    /// A recoverable edit has its own draft ID and replaces this saved copy only.
+    var editingAttemptID: UUID?
+    var lastEditedDraftID: UUID?
     var recipe: HomeRecipeReference?
     var targets: HomeRecipeContent?
     var preparation: HomeRecipeContent?
@@ -804,7 +811,7 @@ struct HomeAttemptRecord: Identifiable, Codable, Equatable, Sendable {
 
 extension HomeAttemptRecord {
     private enum CodingKeys: String, CodingKey {
-        case id, createdAt, name, recipe, targets, preparation, actuals, rating,
+        case id, createdAt, name, locationName, homeCoffeeBagID, resumeAtReflection, editingAttemptID, lastEditedDraftID, recipe, targets, preparation, actuals, rating,
              manualRating, ratingCriteria, sensorySnapshot, reaction, privateNote,
              nextTimeNote, makeAgain, batchID, batchSourceAttemptID, photoNames,
              savedAt, publicationDraftID, publicationStatus, pendingKeptIngredientIDs,
@@ -816,6 +823,11 @@ extension HomeAttemptRecord {
         id = try values.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         name = try values.decodeIfPresent(String.self, forKey: .name) ?? ""
+        locationName = try values.decodeIfPresent(String.self, forKey: .locationName)
+        homeCoffeeBagID = try values.decodeIfPresent(UUID.self, forKey: .homeCoffeeBagID)
+        resumeAtReflection = try values.decodeIfPresent(Bool.self, forKey: .resumeAtReflection)
+        editingAttemptID = try values.decodeIfPresent(UUID.self, forKey: .editingAttemptID)
+        lastEditedDraftID = try values.decodeIfPresent(UUID.self, forKey: .lastEditedDraftID)
         recipe = try values.decodeIfPresent(HomeRecipeReference.self, forKey: .recipe)
         targets = try values.decodeIfPresent(HomeRecipeContent.self, forKey: .targets)
         preparation = try values.decodeIfPresent(HomeRecipeContent.self, forKey: .preparation)
@@ -906,6 +918,7 @@ struct HomeRecipeWorkspace: Codable, Equatable, Sendable {
     var retainedVersions: [HomeRetainedRecipeVersion]?
     var preparationConflicts: [HomePreparationSession]?
     var attemptConflicts: [HomeAttemptRecord]?
+    var deletions: HomeWorkspaceDeletions?
 
     func version(_ reference: HomeRecipeReference) -> HomeRecipeVersion? {
         recipes.first { $0.id == reference.recipeID }?.versions.first { $0.id == reference.versionID }
@@ -938,6 +951,15 @@ extension HomeRecipeWorkspace {
     /// Remote canonical versions win only after explicit reconciliation. Local
     /// variants, independent makes and unfinished work remain recoverable.
     func reconciling(local: HomeRecipeWorkspace) -> HomeRecipeWorkspace {
+        let removed = (deletions ?? HomeWorkspaceDeletions()).union(local.deletions ?? HomeWorkspaceDeletions())
+        // Filter both inputs before recovery allocates fresh IDs for conflicts.
+        var remote = self, local = local
+        remote.deletions = removed; local.deletions = removed
+        remote.applyDeletions(); local.applyDeletions()
+        return remote.reconcilingFiltered(local: local)
+    }
+
+    private func reconcilingFiltered(local: HomeRecipeWorkspace) -> HomeRecipeWorkspace {
         var merged = self
         var retained = retainedVersions ?? []
         for saved in local.retainedVersions ?? [] where !retained.contains(where: { $0.reference == saved.reference }) {
@@ -1037,6 +1059,7 @@ extension HomeRecipeWorkspace {
             !(savedReferences ?? []).contains { $0.id == item.id }
         }
         merged.pendingOperationID = UUID()
+        merged.applyDeletions()
         return merged
     }
 }

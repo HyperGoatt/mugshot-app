@@ -5,6 +5,8 @@ struct SavedTabView: View {
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
 
+    var onComposeDraft: (SipDraft) -> Void = { _ in }
+
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -96,6 +98,7 @@ struct SavedTabView: View {
                     cafeLibrary
                 } else if let currentUserID = authModel.authenticatedUser?.id {
                     MugshotScreenHeader("Saved", subtitle: "Plan places together")
+                    HomeLibraryEntryButton(onComposeDraft: onComposeDraft).padding(.horizontal, 16).padding(.bottom, 12)
 
                     if showsSectionPicker {
                         savedSectionPicker
@@ -202,8 +205,11 @@ struct SavedTabView: View {
     private var cafeLibrary: some View {
         ScrollView {
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                MugshotScreenHeader("Saved", subtitle: "Your personal cafe library")
+                MugshotScreenHeader("Saved", subtitle: "Your places and Home favorites")
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                HomeLibraryEntryButton(onComposeDraft: onComposeDraft)
+                    .padding(.horizontal, 16).padding(.bottom, 16)
 
                 Section {
                     cafeLibraryControls

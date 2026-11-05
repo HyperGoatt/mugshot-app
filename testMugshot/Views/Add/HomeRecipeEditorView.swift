@@ -19,6 +19,7 @@ struct HomeRecipeEditorView: View {
     @State private var didSave = false
     @State private var tagsText: String
     @State private var choicesText: [UUID: String]
+    @State private var library = HomeLibrarySnapshot.empty
 
     init(store: HomeRecipeWorkspaceStore, draft: HomeRecipeEditorDraft, onSaved: @escaping (UUID) -> Void) {
         self.store = store
@@ -41,214 +42,36 @@ struct HomeRecipeEditorView: View {
     }
 
     var body: some View {
-        Form {
-            if store.scope == originalScope, originalScope.userID != nil, draft.content.sourceReuseAllowed != false {
-                Section("Bring in a recipe") {
-                    CoffeeAssistanceButton(ownerID: originalScope.userID, task: .recipeImport,
-                        evidence: CoffeeAssistanceRecipeImport.source(draft.content), allowsPhoto: true,
-                        onAccepted: { result in
-                            guard store.scope == originalScope else { return }
-                            CoffeeAssistanceRecipeImport.apply(result.fields, to: &draft.content)
-                            showIngredients = !draft.content.ingredients.isEmpty
-                            showSteps = !draft.content.steps.isEmpty
-                            sourceExpanded = true
-                        })
-                    Text("Paste source text in Inspiration & credit, or choose a screenshot. Review extracted details before adding them to this draft.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Section {
-                TextField("Recipe name", text: $draft.content.name)
-                    .accessibilityIdentifier("home.recipe.name")
-                    .font(.title3.weight(.semibold))
-                Picker("Recipe type", selection: Binding(
-                    get: { draft.content.template },
-                    set: { changeTemplate(to: $0) }
-                )) {
-                    ForEach(HomeRecipeTemplate.allCases.filter { $0 != .coffee }) { Text($0.title).tag($0) }
-                }
-                DisclosureGroup("Inspiration & credit", isExpanded: $sourceExpanded) {
-                    TextField("Instagram, TikTok, or website link", text: $draft.content.sourceURL)
-                        .textInputAutocapitalization(.never).keyboardType(.URL)
-                    TextField("Creator credit (optional)", text: $draft.content.creatorCredit)
-                    TextField("Paste the recipe caption or instructions", text: $draft.content.sourceText, axis: .vertical)
-                        .lineLimit(3...10)
-                }
-            }
+        HomeEditorCanvas(title: "Make it yours.",
+            detail: "Keep the ingredients, steps and little details that make this recipe worth making again.",
+            symbol: draft.content.template.symbol) {
+            identityCard
+            if originalScope.userID != nil, draft.content.sourceReuseAllowed != false { importCard }
             if draft.content.template == .coffee || draft.content.template == .preparation {
-                Section("Preparation") {
-                    Picker("Method", selection: Binding(get: { draft.content.method }, set: { method in
-                        let previous = draft.content.method
-                        draft.content.changeMethod(from: previous, to: method)
-                        if method == .pourOver { showSteps = true }
-                    })) {
-                        ForEach(HomeBrewMethod.allCases) { Text($0.title).tag($0) }
-                    }
-                    .accessibilityIdentifier("home.recipe.method")
-                    if draft.content.method == .other {
-                        TextField("Custom method name", text: $draft.content.customMethodName)
-                            .accessibilityIdentifier("home.recipe.customMethodName")
-                        Text("Add any text, number, duration, or choice fields below. Mugshot keeps this method name exactly as written.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    if draft.content.metricConfiguration != nil {
-                        HomeConfiguredTargetsEditor(content: $draft.content)
-                    } else if draft.content.method != .other {
-                        HomeTargetsEditor(targets: $draft.content.targets, method: draft.content.method, advanced: $advanced)
-                    }
-                    NavigationLink("Customize preparation fields") {
-                        HomeRecipeFieldConfigurationScreen(content: $draft.content)
-                    }
-                }
-                if showCoffeeLibrary {
-                    Section("Beans and equipment") {
-                    let library = HomeLibraryStore.shared.load(in: store.scope)
-                    Menu(draft.content.coffee?.displayName ?? "Choose coffee (optional)") {
-                        Button("None") { draft.content.coffee = nil }
-                        ForEach(library.bags.filter { $0.status.isCurrent }) { bag in
-                            Button(bag.displayName) { draft.content.coffee = bag.safeSnapshot }
-                        }
-                    }
-                    ForEach(library.equipment.filter { $0.archivedAt == nil }) { gear in
-                        Toggle(gear.displayName, isOn: Binding(get: {
-                            draft.content.equipment.contains(gear.snapshot)
-                        }, set: { selected in
-                            draft.content.equipment.removeAll { $0 == gear.snapshot }
-                            if selected { draft.content.equipment.append(gear.snapshot) }
-                        }))
-                    }
-                }
-                }
+                preparationCard
+                if showCoffeeLibrary { coffeeLibraryCard }
             }
-            if showIngredients {
-                Section("Ingredients") {
-                ForEach($draft.content.ingredients) { $ingredient in
-                    VStack(alignment: .leading) {
-                        TextField("Ingredient", text: $ingredient.name)
-                        HStack {
-                            HomeNumberField(title: "Amount", value: $ingredient.amount)
-                            TextField("Unit", text: $ingredient.unit).frame(maxWidth: 85)
-                        }
-                        if ingredient.recipe != nil {
-                            Label("Linked recipe version", systemImage: "link").font(.caption).foregroundStyle(.secondary)
-                            Button("Use as plain ingredient") { ingredient.recipe = nil }
-                        }
-                    }
-                }
-                .onDelete { draft.content.ingredients.remove(atOffsets: $0) }
-                .onMove { draft.content.ingredients.move(fromOffsets: $0, toOffset: $1) }
-                Button("Add ingredient", systemImage: "plus") { draft.content.ingredients.append(HomeRecipeIngredient()) }
-                Button("Link a saved recipe", systemImage: "link") { linkedPicker = HomeRecipeLinkPickerPresentation() }
-                    .accessibilityIdentifier("home.recipe.link")
-            }
-            }
-            if showSteps {
-                Section(draft.content.method == .pourOver ? "Pouring steps" : "Instructions") {
-                ForEach($draft.content.steps) { $step in
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Instruction", text: $step.instruction, axis: .vertical)
-                        Toggle("Show when making", isOn: Binding(get: { step.isHidden != true }, set: { step.isHidden = !$0 }))
-                        HomeNumberField(title: "Start at (seconds)", value: $step.startSeconds)
-                        HomeNumberField(title: "Wait (seconds)", value: $step.waitSeconds)
-                        if draft.content.method == .pourOver {
-                            Picker("Water", selection: $step.waterMode) {
-                                ForEach(HomeWaterTargetMode.allCases, id: \.self) { Text($0.title).tag($0) }
-                            }
-                            HomeNumberField(title: "Water (g)", value: $step.waterGrams)
-                        }
-                    }
-                }
-                .onDelete { draft.content.steps.remove(atOffsets: $0) }
-                .onMove { draft.content.steps.move(fromOffsets: $0, toOffset: $1) }
-                Button("Add step", systemImage: "plus") { draft.content.steps.append(HomePreparationStep()) }
-            }
-            }
-            if showOrganization {
-                Section("Yield and organization") {
-                TextField("Servings", value: $draft.content.servings, format: .number).keyboardType(.decimalPad)
-                TextField("Yield, e.g. one bottle", text: $draft.content.yieldDescription)
-                TextField("Tags, separated by commas", text: $tagsText)
-                    .onChange(of: tagsText) { _, value in
-                        draft.content.tags = value.split(separator: ",", omittingEmptySubsequences: true)
-                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                    }
-                TextField("Preparation notes", text: $draft.content.notes, axis: .vertical)
-            }
-            }
-            if showCustomFields {
-                Section("Custom fields") {
-                ForEach($draft.content.fields) { $field in
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Field name", text: $field.label)
-                        Picker("Type", selection: $field.kind) {
-                            ForEach(HomeCustomFieldKind.allCases, id: \.self) { Text($0.title).tag($0) }
-                        }
-                        if field.kind == .choice {
-                            TextField("Choices, separated by commas", text: Binding(
-                                get: { choicesText[field.id] ?? field.choices.joined(separator: ", ") },
-                                set: { value in
-                                    choicesText[field.id] = value
-                                    field.choices = value.split(separator: ",", omittingEmptySubsequences: true)
-                                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                                    if !field.value.isEmpty, !field.choices.contains(field.value) { field.value = "" }
-                                }
-                            ))
-                            Picker("Value", selection: $field.value) {
-                                Text("Not set").tag("")
-                                ForEach(field.choices, id: \.self) { Text($0).tag($0) }
-                            }
-                        } else {
-                            TextField("Value", text: $field.value)
-                                .keyboardType(field.kind == .number || field.kind == .duration ? .decimalPad : .default)
-                            if field.kind == .number { TextField("Unit", text: $field.unit) }
-                            if field.kind == .duration { Text("Duration in seconds").font(.caption).foregroundStyle(.secondary) }
-                        }
-                        Toggle("Show when making", isOn: $field.isVisible)
-                    }
-                }
-                .onDelete { draft.content.fields.remove(atOffsets: $0) }
-                .onMove { draft.content.fields.move(fromOffsets: $0, toOffset: $1) }
-                Button("Add custom field", systemImage: "plus") { draft.content.fields.append(HomeCustomField()) }
-            }
-            }
-            if optionalSectionsRemain {
-                Section("Add to this recipe") {
-                    if (draft.content.template == .coffee || draft.content.template == .preparation),
-                       draft.content.method.family == .coffee,
-                       !showCoffeeLibrary {
-                        Button("Beans and equipment", systemImage: "shippingbox") { showCoffeeLibrary = true }
-                    }
-                    if !showIngredients { Button("Ingredients", systemImage: "list.bullet") { showIngredients = true } }
-                    if !showSteps { Button("Instructions", systemImage: "list.number") { showSteps = true } }
-                    if !showOrganization { Button("Yield, tags, and notes", systemImage: "tag") { showOrganization = true } }
-                    if !showCustomFields { Button("Custom field", systemImage: "slider.horizontal.3") { showCustomFields = true } }
-                }
-            }
-            if let error { Section { Text(error).foregroundStyle(.red) } }
+            if showIngredients { ingredientsCard }
+            if showSteps { instructionsCard }
+            if showOrganization { organizationCard }
+            if showCustomFields { customFieldsCard }
+            if optionalSectionsRemain { optionalSectionsCard }
         }
-        .scrollContentBackground(.hidden).background(Color.creamWhite)
+        .disabled(store.scope != originalScope)
         .navigationTitle(draft.recipeID == nil ? "New recipe" : "Edit recipe")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-            ToolbarItem(placement: .primaryAction) { EditButton() }
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        .safeAreaInset(edge: .bottom) { saveBar }
+        .task {
+            guard store.scope == originalScope else { return }
+            library = HomeLibraryStore.shared.load(in: originalScope)
         }
-        .safeAreaInset(edge: .bottom) {
-            Button("Save recipe") { save() }
-                .buttonStyle(PrimaryButtonStyle())
-                .frame(maxWidth: .infinity)
-                .disabled(draft.content.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("home.recipe.save")
-                .padding(.horizontal, DesignSystem.Space.md)
-                .padding(.vertical, DesignSystem.Space.sm)
-                .background(.ultraThinMaterial)
-        }
-        .scrollDismissesKeyboard(.interactively)
+        .onChange(of: store.scope) { _, scope in if scope != originalScope { dismiss() } }
         .onChange(of: draft) { _, value in
             autosaveTask?.cancel()
             autosaveTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(350))
-                guard !Task.isCancelled, store.scope == originalScope else { return }
+                guard !Task.isCancelled, !didSave, store.scope == originalScope else { return }
                 do { try store.saveDraft(value) } catch { self.error = error.localizedDescription }
             }
         }
@@ -257,41 +80,315 @@ struct HomeRecipeEditorView: View {
             guard !didSave, store.scope == originalScope else { return }
             do {
                 if draft.content.hasMeaningfulDraftContent { try store.saveDraft(draft) }
-                else { try store.discardRecipeDraft(id: draft.id) }
+                else { try store.discardRecipeDraft(id: draft.id, expectedScope: originalScope) }
             } catch { self.error = error.localizedDescription }
         }
         .sheet(item: $linkedPicker) { _ in
             HomeRecipeLinkPicker(store: store, excluding: draft.recipeID) { record, version in
+                guard store.scope == originalScope else { return }
                 draft.content.ingredients.append(HomeRecipeIngredient(name: version.content.name,
                     amount: 1, unit: "serving", recipe: HomeRecipeReference(recipeID: record.id, versionID: version.id)))
             }
         }
     }
+
+    private var identityCard: some View {
+        HomeEditorSection("The recipe", symbol: draft.content.template.symbol) {
+            HomeEditorField("Recipe name", text: $draft.content.name, placeholder: "Give it a name", identifier: "home.recipe.name")
+                .font(.title3.weight(.semibold))
+            Picker("Recipe type", selection: Binding(get: { draft.content.template }, set: changeTemplate)) {
+                ForEach(HomeRecipeTemplate.allCases.filter { $0 != .coffee }) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.menu).frame(minHeight: 44)
+            DisclosureGroup("Inspiration & credit", isExpanded: $sourceExpanded) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HomeEditorField("Source link", text: $draft.content.sourceURL, placeholder: "Instagram, TikTok or a website")
+                        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                    HomeEditorField("Creator credit", text: $draft.content.creatorCredit, placeholder: "Optional")
+                    HomeEditorField("Source text", text: $draft.content.sourceText,
+                        placeholder: "Paste a caption or instructions", axis: .vertical)
+                }.padding(.top, 12)
+            }
+        }
+    }
+
+    private var importCard: some View {
+        HomeEditorSection("Read from your source", symbol: "text.viewfinder",
+                          detail: "Keep the creator’s source with the recipe. Your edits stay in this draft.") {
+            CoffeeAssistanceButton(ownerID: originalScope.userID, task: .recipeImport,
+                evidence: CoffeeAssistanceRecipeImport.source(draft.content), allowsPhoto: true,
+                onAccepted: { result in
+                    guard store.scope == originalScope else { return }
+                    CoffeeAssistanceRecipeImport.apply(result.fields, to: &draft.content)
+                    showIngredients = !draft.content.ingredients.isEmpty
+                    showSteps = !draft.content.steps.isEmpty
+                    sourceExpanded = true
+                })
+        }
+    }
+
+    private var preparationCard: some View {
+        HomeEditorSection("How you make it", symbol: draft.content.method.systemImage) {
+            Picker("Method", selection: Binding(get: { draft.content.method }, set: { method in
+                let previous = draft.content.method
+                draft.content.changeMethod(from: previous, to: method)
+                if method == .pourOver { showSteps = true }
+            })) {
+                ForEach(HomeBrewMethod.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.menu).frame(minHeight: 44)
+            .accessibilityIdentifier("home.recipe.method")
+            if draft.content.method == .other {
+                HomeEditorField("Custom method name", text: $draft.content.customMethodName,
+                    placeholder: "Your way of making it", identifier: "home.recipe.customMethodName")
+                Text("Add any useful text, number, duration or choice fields below.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            }
+            if draft.content.metricConfiguration != nil {
+                HomeConfiguredTargetsEditor(content: $draft.content)
+            } else if draft.content.method != .other {
+                HomeTargetsEditor(targets: $draft.content.targets, method: draft.content.method, advanced: $advanced)
+            }
+            NavigationLink {
+                HomeRecipeFieldConfigurationScreen(content: $draft.content)
+            } label: {
+                Label("Customize preparation fields", systemImage: "slider.horizontal.3").frame(minHeight: 44)
+            }
+        }
+    }
+
+    private var coffeeLibraryCard: some View {
+        HomeEditorSection("Beans & gear", symbol: "kettle", detail: "Optional details for this recipe.") {
+            Menu(draft.content.coffee?.displayName ?? "Choose coffee") {
+                Button("None") { draft.content.coffee = nil }
+                ForEach(library.bags.filter { $0.status.isCurrent }) { bag in
+                    Button(bag.displayName) { draft.content.coffee = bag.safeSnapshot }
+                }
+            }.frame(minHeight: 44)
+            ForEach(library.equipment.filter { $0.archivedAt == nil }) { gear in
+                Toggle(gear.displayName, isOn: Binding(get: { draft.content.equipment.contains(gear.snapshot) }, set: { selected in
+                    draft.content.equipment.removeAll { $0 == gear.snapshot }
+                    if selected { draft.content.equipment.append(gear.snapshot) }
+                })).frame(minHeight: 44)
+            }
+            if library.bags.isEmpty && library.equipment.isEmpty {
+                Text("Your Home library is ready whenever you want to add beans or gear.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            }
+        }
+    }
+
+    private var ingredientsCard: some View {
+        HomeEditorSection("Ingredients", symbol: "list.bullet",
+                          detail: "Use the row menu to reorder or remove an ingredient.") {
+            ForEach(draft.content.ingredients) { item in
+                ingredientRow(item, index: draft.content.ingredients.firstIndex { $0.id == item.id } ?? 0)
+            }
+            Button("Add ingredient", systemImage: "plus") { draft.content.ingredients.append(HomeRecipeIngredient()) }
+                .frame(minHeight: 44).accessibilityIdentifier("home.recipe.addIngredient")
+            Button("Link a saved recipe", systemImage: "link") { linkedPicker = HomeRecipeLinkPickerPresentation() }
+                .frame(minHeight: 44).accessibilityIdentifier("home.recipe.link")
+        }
+    }
+
+    private func ingredientRow(_ item: HomeRecipeIngredient, index: Int) -> some View {
+        let ingredient = HomeEditorBindings.item(item, in: $draft.content.ingredients)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("INGREDIENT \(index + 1)").font(.caption.weight(.bold)).foregroundStyle(Color.mugshotSageText)
+                Spacer()
+                rowActions(label: "Ingredient \(index + 1) actions", removeTitle: "Remove ingredient",
+                    index: index, count: draft.content.ingredients.count, identifier: "home.recipe.ingredient.\(index).actions",
+                    earlier: { moveIngredient(item.id, by: -1) }, later: { moveIngredient(item.id, by: 1) },
+                    remove: { endEditing(); draft.content.ingredients.removeAll { $0.id == item.id } })
+            }
+            HomeEditorField("Ingredient", text: ingredient.name, placeholder: "What goes in?",
+                identifier: "home.recipe.ingredient.\(index).name")
+            HomeNumberField(title: "Amount", value: ingredient.amount)
+            HomeEditorField("Unit", text: ingredient.unit, placeholder: "g, ml, tsp…")
+            if item.recipe != nil {
+                Label("Linked recipe", systemImage: "link").font(.caption).foregroundStyle(Color.secondaryText)
+                Button("Use as plain ingredient") { ingredient.wrappedValue.recipe = nil }.frame(minHeight: 44)
+            }
+        }
+        .padding(14).background(Color.creamWhite.opacity(0.72), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var instructionsCard: some View {
+        HomeEditorSection(draft.content.method == .pourOver ? "Pouring steps" : "Instructions", symbol: "list.number") {
+            ForEach(draft.content.steps) { item in
+                instructionRow(item, index: draft.content.steps.firstIndex { $0.id == item.id } ?? 0)
+            }
+            Button("Add step", systemImage: "plus") { draft.content.steps.append(HomePreparationStep()) }
+                .frame(minHeight: 44).accessibilityIdentifier("home.recipe.addStep")
+        }
+    }
+
+    private func instructionRow(_ item: HomePreparationStep, index: Int) -> some View {
+        let step = HomeEditorBindings.item(item, in: $draft.content.steps)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Step \(index + 1)", systemImage: "circle.fill").font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                Spacer()
+                rowActions(label: "Step \(index + 1) actions", removeTitle: "Remove step",
+                    index: index, count: draft.content.steps.count, identifier: "home.recipe.step.\(index).actions",
+                    earlier: { moveStep(item.id, by: -1) }, later: { moveStep(item.id, by: 1) },
+                    remove: { endEditing(); draft.content.steps.removeAll { $0.id == item.id } })
+            }
+            HomeEditorField("Instruction", text: step.instruction, placeholder: "One clear action", axis: .vertical,
+                identifier: "home.recipe.step.\(index).instruction")
+            Toggle("Show when making", isOn: Binding(get: { step.wrappedValue.isHidden != true }, set: { step.wrappedValue.isHidden = !$0 }))
+                .frame(minHeight: 44)
+            HomeNumberField(title: "Start at (seconds)", value: step.startSeconds)
+            HomeNumberField(title: "Wait (seconds)", value: step.waitSeconds)
+            if draft.content.method == .pourOver {
+                Picker("Water", selection: step.waterMode) {
+                    ForEach(HomeWaterTargetMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                }.frame(minHeight: 44)
+                HomeNumberField(title: "Water (g)", value: step.waterGrams)
+            }
+        }
+        .padding(14).background(Color.creamWhite.opacity(0.72), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var organizationCard: some View {
+        HomeEditorSection("Yield & notes", symbol: "tag") {
+            HStack {
+                Text("Servings").font(.subheadline)
+                Spacer()
+                TextField("Optional", value: $draft.content.servings, format: .number)
+                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(minHeight: 44)
+                    .accessibilityLabel("Servings")
+            }
+            HomeEditorField("Yield", text: $draft.content.yieldDescription, placeholder: "One bottle, two cups…")
+            HomeEditorField("Tags", text: $tagsText, placeholder: "Separate with commas")
+                .onChange(of: tagsText) { _, value in
+                    draft.content.tags = value.split(separator: ",", omittingEmptySubsequences: true)
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                }
+            HomeEditorField("Preparation notes", text: $draft.content.notes, placeholder: "Useful for next time", axis: .vertical)
+        }
+    }
+
+    private var customFieldsCard: some View {
+        HomeEditorSection("Your own details", symbol: "slider.horizontal.3") {
+            ForEach(draft.content.fields) { item in
+                customFieldRow(item, index: draft.content.fields.firstIndex { $0.id == item.id } ?? 0)
+            }
+            Button("Add custom field", systemImage: "plus") { draft.content.fields.append(HomeCustomField()) }
+                .frame(minHeight: 44).accessibilityIdentifier("home.recipe.addField")
+        }
+    }
+
+    private func customFieldRow(_ item: HomeCustomField, index: Int) -> some View {
+        let field = HomeEditorBindings.item(item, in: $draft.content.fields)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("DETAIL \(index + 1)").font(.caption.weight(.bold)).foregroundStyle(Color.mugshotSageText)
+                Spacer()
+                rowActions(label: "Detail \(index + 1) actions", removeTitle: "Remove field",
+                    index: index, count: draft.content.fields.count, identifier: "home.recipe.field.\(index).actions",
+                    earlier: { moveField(item.id, by: -1) }, later: { moveField(item.id, by: 1) },
+                    remove: { endEditing(); draft.content.fields.removeAll { $0.id == item.id } })
+            }
+            HomeEditorField("Field name", text: field.label, placeholder: "A useful detail")
+            Picker("Type", selection: field.kind) {
+                ForEach(HomeCustomFieldKind.allCases, id: \.self) { Text($0.title).tag($0) }
+            }.frame(minHeight: 44)
+            if item.kind == .choice {
+                HomeEditorField("Choices", text: Binding(get: { choicesText[item.id] ?? field.wrappedValue.choices.joined(separator: ", ") }, set: { value in
+                    choicesText[item.id] = value
+                    field.wrappedValue.choices = value.split(separator: ",", omittingEmptySubsequences: true)
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                    if !field.wrappedValue.value.isEmpty, !field.wrappedValue.choices.contains(field.wrappedValue.value) { field.wrappedValue.value = "" }
+                }), placeholder: "Separate with commas")
+                Picker("Value", selection: field.value) {
+                    Text("Not set").tag("")
+                    ForEach(item.choices, id: \.self) { Text($0).tag($0) }
+                }.frame(minHeight: 44)
+            } else {
+                HomeEditorField("Value", text: field.value, placeholder: "Optional")
+                    .keyboardType(item.kind == .number || item.kind == .duration ? .decimalPad : .default)
+                if item.kind == .number { HomeEditorField("Unit", text: field.unit, placeholder: "Optional") }
+                if item.kind == .duration { Text("Duration in seconds").font(.caption).foregroundStyle(Color.secondaryText) }
+            }
+            Toggle("Show when making", isOn: field.isVisible).frame(minHeight: 44)
+        }
+        .padding(14).background(Color.creamWhite.opacity(0.72), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var optionalSectionsCard: some View {
+        HomeEditorSection("Make room for more", symbol: "plus.circle", detail: "Only add the details you need.") {
+            if (draft.content.template == .coffee || draft.content.template == .preparation), draft.content.method.family == .coffee, !showCoffeeLibrary {
+                Button("Beans and equipment", systemImage: "shippingbox") { showCoffeeLibrary = true }.frame(minHeight: 44)
+            }
+            if !showIngredients { Button("Ingredients", systemImage: "list.bullet") { showIngredients = true }.frame(minHeight: 44) }
+            if !showSteps { Button("Instructions", systemImage: "list.number") { showSteps = true }.frame(minHeight: 44) }
+            if !showOrganization { Button("Yield, tags, and notes", systemImage: "tag") { showOrganization = true }.frame(minHeight: 44) }
+            if !showCustomFields { Button("Custom field", systemImage: "slider.horizontal.3") { showCustomFields = true }.frame(minHeight: 44) }
+        }
+    }
+
+    private var saveBar: some View {
+        VStack(spacing: 6) {
+            if let error {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.footnote).foregroundStyle(Color.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Button("Save recipe", action: save)
+                .buttonStyle(PrimaryButtonStyle()).frame(maxWidth: .infinity)
+                .disabled(draft.content.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.scope != originalScope)
+                .accessibilityIdentifier("home.recipe.save")
+            Text("Your edits stay in a draft until you save.").font(.caption).foregroundStyle(Color.secondaryText)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10).background(Color.creamWhite)
+    }
+
+    private func rowActions(label: String, removeTitle: String, index: Int, count: Int, identifier: String,
+                            earlier: @escaping () -> Void, later: @escaping () -> Void, remove: @escaping () -> Void) -> some View {
+        HomeEditorRowActions(label: label, removeTitle: removeTitle, canMoveEarlier: index > 0,
+            canMoveLater: index + 1 < count, identifier: identifier,
+            onMoveEarlier: earlier, onMoveLater: later, onRemove: remove)
+    }
+    private func moveIngredient(_ id: UUID, by amount: Int) {
+        endEditing()
+        guard let index = draft.content.ingredients.firstIndex(where: { $0.id == id }), draft.content.ingredients.indices.contains(index + amount) else { return }
+        draft.content.ingredients.swapAt(index, index + amount)
+    }
+    private func moveStep(_ id: UUID, by amount: Int) {
+        endEditing()
+        guard let index = draft.content.steps.firstIndex(where: { $0.id == id }), draft.content.steps.indices.contains(index + amount) else { return }
+        draft.content.steps.swapAt(index, index + amount)
+    }
+    private func moveField(_ id: UUID, by amount: Int) {
+        endEditing()
+        guard let index = draft.content.fields.firstIndex(where: { $0.id == id }), draft.content.fields.indices.contains(index + amount) else { return }
+        draft.content.fields.swapAt(index, index + amount)
+    }
+    private func endEditing() { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
     private var optionalSectionsRemain: Bool {
         ((draft.content.template == .coffee || draft.content.template == .preparation)
             && draft.content.method.family == .coffee && !showCoffeeLibrary)
-            || !showIngredients || !showSteps
-            || !showOrganization || !showCustomFields
+            || !showIngredients || !showSteps || !showOrganization || !showCustomFields
     }
     private func changeTemplate(to template: HomeRecipeTemplate) {
         guard draft.content.template != template else { return }
         draft.content.template = template
-        if (template == .coffee || template == .preparation),
-           draft.content.method == .other,
-           !draft.content.isActionable {
+        if (template == .coffee || template == .preparation), draft.content.method == .other, !draft.content.isActionable {
             draft.content.method = .espresso
             draft.content.targets = HomeRecipeContent.defaultTargets(for: .espresso)
         }
-        if template == .component || template == .drink {
-            showIngredients = true
-            showSteps = true
-        }
+        if template == .component || template == .drink { showIngredients = true; showSteps = true }
     }
     private func save() {
         guard store.scope == originalScope else {
             error = "Your account changed. This recipe was not moved to another account."
             return
         }
+        endEditing()
+        autosaveTask?.cancel()
         do { let id = try store.saveRecipe(draft); didSave = true; onSaved(id); dismiss() }
         catch { self.error = error.localizedDescription }
     }
@@ -480,28 +577,45 @@ private struct HomeRecipeFieldConfigurationScreen: View {
         }, set: { content.metricConfiguration = $0 })
     }
     var body: some View {
-        List {
-            Section {
-                Text("Rename, hide, or reorder fields for this recipe. Hiding a field keeps its saved value and calculations.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-            ForEach(fields) { $field in
-                VStack(alignment: .leading) {
-                    TextField(field.metric.label, text: $field.label)
-                        .accessibilityLabel("Label for \(field.metric.label)")
-                    Toggle("Show field", isOn: $field.isVisible)
+        HomeEditorCanvas(title: "A setup that fits.",
+            detail: "Rename, hide or reorder details. Hidden fields keep their saved values and calculations.",
+            symbol: "slider.horizontal.3") {
+            HomeEditorSection("Your preparation fields", symbol: "list.bullet") {
+                ForEach(fields.wrappedValue) { item in
+                    metricRow(item)
                 }
             }
-            .onMove { source, destination in
-                var values = content.configuredMetrics
-                values.move(fromOffsets: source, toOffset: destination)
-                content.metricConfiguration = values
-            }
-            Button("Use method defaults") { content.metricConfiguration = nil }
+            Button("Use method defaults", systemImage: "arrow.counterclockwise") { content.metricConfiguration = nil }
+                .frame(minHeight: 44)
         }
-        .navigationTitle("Preparation fields")
-        .toolbar { EditButton() }
-        .scrollContentBackground(.hidden).background(Color.creamWhite)
+        .navigationTitle("Preparation fields").navigationBarTitleDisplayMode(.inline)
+    }
+    private func metricRow(_ item: HomeRecipeMetricConfiguration) -> some View {
+        let field = HomeEditorBindings.item(item, in: fields)
+        let index = fields.wrappedValue.firstIndex { $0.id == item.id } ?? 0
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(item.metric.label).font(.subheadline.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
+                Spacer()
+                Menu {
+                    Button("Move earlier", systemImage: "arrow.up") { move(item.id, by: -1) }.disabled(index == 0)
+                    Button("Move later", systemImage: "arrow.down") { move(item.id, by: 1) }.disabled(index + 1 >= fields.wrappedValue.count)
+                } label: {
+                    Image(systemName: "ellipsis").frame(width: 44, height: 44)
+                        .background(Color.mugshotMint.opacity(0.28), in: Circle())
+                }
+                .accessibilityLabel("\(item.metric.label) field actions")
+            }
+            HomeEditorField("Field label", text: field.label, placeholder: item.metric.label)
+            Toggle("Show field", isOn: field.isVisible).frame(minHeight: 44)
+        }
+        .padding(14).background(Color.creamWhite.opacity(0.72), in: RoundedRectangle(cornerRadius: 16))
+    }
+    private func move(_ id: HomeRecipeMetricConfiguration.ID, by amount: Int) {
+        var values = fields.wrappedValue
+        guard let index = values.firstIndex(where: { $0.id == id }), values.indices.contains(index + amount) else { return }
+        values.swapAt(index, index + amount)
+        fields.wrappedValue = values
     }
 }
 
@@ -526,9 +640,9 @@ struct HomeConfiguredTargetsEditor: View {
             } else if let keyPath = field.metric.numericKeyPath {
                 HomeNumberField(title: label, value: Binding(get: { content.targets[keyPath: keyPath] }, set: { content.targets[keyPath: keyPath] = $0 }))
             } else if field.metric == .grind {
-                TextField(label, text: $content.targets.grind)
+                HomeEditorField(label, text: $content.targets.grind, placeholder: "Optional")
             } else if field.metric == .dilution {
-                TextField(label, text: $content.targets.dilution)
+                HomeEditorField(label, text: $content.targets.dilution, placeholder: "Optional")
             }
         }
     }
@@ -537,14 +651,25 @@ struct HomeConfiguredTargetsEditor: View {
 struct HomeNumberField: View {
     let title: String
     @Binding var value: Double?
+    @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            TextField("Optional", value: $value, format: .number)
-                .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                .accessibilityLabel(title)
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(Color.secondaryText)
+                input.multilineTextAlignment(.leading)
+            }
+        } else {
+            HStack {
+                Text(title)
+                Spacer(minLength: 12)
+                input.multilineTextAlignment(.trailing)
+            }
         }
+    }
+    private var input: some View {
+        TextField("Optional", value: $value, format: .number)
+            .keyboardType(.decimalPad).frame(minHeight: 44)
+            .accessibilityLabel(title)
     }
 }
 
@@ -581,7 +706,7 @@ struct HomeTargetsEditor: View {
         }
         if method == .coldBrew {
             HomeNumberField(title: "Steep duration (hours)", value: Binding(get: { targets.steepSeconds.map { $0 / 3600 } }, set: { targets.steepSeconds = $0.map { $0 * 3600 } }))
-            TextField("Serving dilution (optional)", text: $targets.dilution)
+            HomeEditorField("Serving dilution", text: $targets.dilution, placeholder: "Optional")
         } else if method == .frenchPress || method == .immersion {
             HomeNumberField(title: "Steep time (minutes)", value: Binding(
                 get: { targets.steepSeconds.map { $0 / 60 } },
@@ -593,7 +718,7 @@ struct HomeTargetsEditor: View {
         }
         DisclosureGroup("More details", isExpanded: $advanced) {
             if method == .pod { HomeNumberField(title: "Coffee dose (g)", value: $targets.dose) }
-            TextField("Grinder setting", text: $targets.grind)
+            HomeEditorField("Grinder setting", text: $targets.grind, placeholder: "Optional")
             HomeNumberField(title: "Temperature (°C)", value: $targets.temperature)
             if method == .espresso {
                 HomeNumberField(title: "Preinfusion (seconds)", value: $targets.preinfusion)
@@ -619,7 +744,8 @@ struct HomeRecipeRow: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(content.name).font(.headline).foregroundStyle(Color.espressoBrown)
-                Text(content.summary.isEmpty ? "Saved reference" : content.summary).font(.caption).foregroundStyle(.secondary)
+                Text(HomeRecipeUse.suggested(for: content).title + " · " + content.recipeContentsSummary)
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }.padding(.vertical, 5)
     }

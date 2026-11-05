@@ -1,8 +1,81 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
+
+## Home Journal and controls — November 5 accepted development candidate
+
+Home, cafe and Elsewhere now share Journal image sizing and metadata hierarchy.
+The update adds named Home setups, private-sip edit/delete, one complete draft
+manager, designed editor cards and optional measurements. Deletion retains
+source recipes/other servings and uses owner-bound durable markers plus safe
+private-media cleanup. All 106 native tests and 18 screen paths pass in Simulator
+and on signed hardware; the separate owner read-only existing-recipe check passes.
+Mugshot Luna QA 0.5.3 (8) is installed/launched on iPhone 16 Pro / iOS 27.0.1.
+All 40 original files survive installation unchanged; final owner content and the
+complete recipe workspace remain unchanged, with only a shelf updatedAt refresh.
+The deletion guard is live after 68 hosted contracts and real Auth/Storage probes;
+75 protected fingerprints match and the paid branch is deleted. Fixture apps and
+runners are removed. TestFlight, held Home V4 and draft PR holds remain.
+[Current behavior](HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate),
+[audit and exact evidence](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md).
+
+## Recipe focus and full-screen posted result — November 5
+
+Mugshot Luna QA 0.5.3 (8) now includes cleaner screenshot/caption extraction,
+edit-safe generated-field replacement and a full-screen result for confirmed
+Home, cafe and Elsewhere posts. Share opens the clean artwork preview; See post
+uses the existing owned detail route. Private saves and ordinary non-AI paths remain.
+The provider-only recipe instructions are live as function version 4; the paid
+data-less QA branch is deleted and 75 protected table fingerprints are unchanged.
+The native update is installed/launched, with 52 isolated hardware checks and
+an owner read-only existing-component check passing. The existing PSL saved version
+is preserved, not repaired. Real new-source quality and a newly published owner
+post remain human QA. [Evidence, screenshots and exact gates](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+Parent draft/merge holds and TestFlight remain unchanged.
+
+## Recipe canvas and reusable drink builder — November 4 follow-up
+
+Source implements a cleaner native recipe capture page and a direct recipe-book
+drink builder. Saved components and brews can be combined through immutable links,
+with optional usage amounts and parent-preserving inspection. Existing generic
+syrup records work without rewriting history. The new candidate's validation and
+phone delivery are tracked in the [native design/QA package](design/home-recipe-composer-2026-11-04/README.md);
+the prior source-capture phone receipt below is separate evidence.
+The composition/input gate passes 20 cases twice; final guidance/composer checks
+pass 22/22, followed by largest-text quantity entry and legacy caption-guidance
+checks. On November 5 the same signed candidate is installed as **Mugshot Luna QA
+0.5.3 (8)** on iPhone 16 Pro / iOS 27.0.1. All 27 selected fixture checks and the
+separate owner read-only component check pass. All 43 original Application Support
+files match through installation; the complete recipe workspace remains unchanged
+after launch. [Physical ledger and remaining human QA](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
+Parent draft/merge holds and the separate TestFlight gate remain.
+
+## Recipe-source capture and complete Home QA — November 4 follow-up
+
+The candidate now opens saved recipes before making/logging, reads available
+public Instagram/TikTok captions, and supports screenshot/video-frame text with
+optional on-device spoken instructions. Factual fields fill an editable draft
+automatically; known no-copy guards, explicit Save and ordinary non-AI paths stay
+intact. Full Simulator and physical-device evidence, exact source-access limits
+and the installed package state are maintained in the [source-capture audit](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
+## Home library and Luna simplification — 2026-11-04 candidate
+
+`codex/home-library-flow` builds on the installed Journal fix. Standalone recipe,
+bean and gear management moves into Saved → Home library, with account-local
+preferences. Home offers a short log route and optional making guidance, ending
+in shared reflection/review. Luna reads selected bag photos directly into editable
+fields after one-time account enablement; repeated consent checkboxes are removed.
+Manual entry, on-device scan, source rights and account boundaries remain.
+[Current verification and phone state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md)
+are authoritative; implementation is not a TestFlight acceptance claim.
+After owner unlock, the installed candidate physically launches and renders
+Journal. Saved → Home library, all four sections and manual-bag open/cancel are
+verified on the iPhone through Device Hub. The source-capture follow-up above
+adds the complete synthetic making journey on isolated hardware. Real owner
+scan/save acceptance, merge and TestFlight holds remain unchanged.
 
 ## Journal and bean-entry correction — 2026-11-04
 

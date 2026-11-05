@@ -1,0 +1,24 @@
+{
+  "bundleID": "co.mugshot.app.homeqa",
+  "displayName": "Mugshot Flow QA",
+  "backend": "https://assistance-fixture.invalid",
+  "analytics": false,
+  "appGroups": false,
+  "sharedOwnerKeychain": false,
+  "embeddedExtensions": false,
+  "registeredURLSchemes": false,
+  "sourceSHA256": {
+    "testMugshot/Views/Add/HomeRecipeCaptureView.swift": "0b90979ed89bc78a91999e2d8ab746bfcc24474155996645104958c0a10a2f2c",
+    "testMugshot/Views/Add/LogASipV3ProductionViews.swift": "6919af029397584fed9736508bf40db03361d570b78479acccc78ffc0899af3f",
+    "testMugshot/Services/HomeRecipeMediaReader.swift": "05acaf584c64b4839d0bae51fad99f8ae4e7bb3194111fcc1d0caa61055fdb2d",
+    "testMugshot/Services/HomeRecipeSourceReader.swift": "1351667ceec2eb256392ccc7ab4f44e3a935b2f7e3f6af11eee4ea67bf74c08e",
+    "testMugshotUITests/HomeLibraryFlowUITests.swift": "1a67e3fcdeb3026466b490800bb9e4125da6f449e31f19e8e9a035b94f408188"
+  },
+  "isolatedDataProvider": "PendingPlaceImport default uses private standard defaults in this build snapshot; no owner app-group data.",
+  "sourceTreeKind": "Temporary build snapshot, not a git worktree.",
+  "cleanup": {
+    "temporaryQAApp": "uninstalled",
+    "temporaryQARunner": "uninstalled",
+    "ownerApp": "preserved"
+  }
+}

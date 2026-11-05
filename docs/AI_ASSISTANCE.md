@@ -1,15 +1,30 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
 
 # Optional coffee assistance
 
+## Recipe focus update — November 5
+
+Function version 4 is enabled with the same `gpt-6-luna` model. Recipe instructions
+focus on one selected component/drink, omit page chrome and unrelated recipes,
+join wrapped lines and retain supported amounts/timing. Clean field values use
+short, contiguous exact source quotes. A cropped instruction remains incomplete
+and is identified in the result text. The native capture replaces only untouched
+generated sections, protects user edits/deletions and keeps fallback sections
+when a provider result is insufficient. It never updates an existing saved version.
+
+The fresh data-less QA branch passed 67 hosted contracts, authenticated recipe
+text/image probes and access/quota/erasure checks before provider-only deployment.
+It is deleted. The signed native update is installed and launched on the owner's
+iPhone; new-source fidelity remains human QA. [Exact evidence and limits](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
 ## Delivery state
 
-The `codex/luna-assistance` candidate is production-configured for optional
-`gpt-6-luna` requests. Function version 3 is enabled after 67 hosted contracts,
+The `codex/luna-assistance` stack is production-configured for optional
+`gpt-6-luna` requests. Initial function version 3 was enabled on November 4 after 67 hosted contracts,
 eight authenticated synthetic text/image probes and quota/ownership denial
 checks. Existing data was preserved around the exact additive migration.
 
@@ -26,11 +41,44 @@ records the reported physical Journal crash and installed add/scan controls in
 current Home setup. Corrected Journal opening is now physically verified with the
 existing account; touch navigation and real helper acceptance remain human QA.
 
+## Simpler native access — November 4 candidate
+
+The [Home library candidate](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md) replaces
+per-request consent forms with one short, explicit Enable Luna control, remembered
+per account/device and revocable in Home preferences. Opening the library itself
+makes no AI request. Selecting a bag photo then reads it directly into editable
+fields; invoking another contextual helper requests its result without a second
+Generate step. Recipe idea capture can read selected screenshots/pasted text into
+a draft. The source-capture follow-up below removes its separate copy prompt for
+new factual capture from selected public posts/attachments. Ordinary Save stays
+separate; known protected recipe records retain their no-copy guard.
+The candidate is installed and physically opens Journal and Saved → Home library
+on the owner's iPhone, including all library sections and bag entry/cancel.
+These owner-account checks leave Luna permission unchanged and send no real photo.
+The source-capture follow-up verifies the caption-to-guidance-to-rating/review
+journey in a separate local-only iPhone app. Real owner bag-photo/save acceptance,
+the Photos picker and optional spoken-step recognition remain separate checks.
+
 ## Product behavior
+
+The [recipe canvas and drink builder](design/home-recipe-composer-2026-11-04/README.md)
+reuse the existing extractor. Combining saved parts needs no model request.
+Changing a capture's recipe-use label refreshes the optional source read to focus
+on that component/drink; native parsing still works without Luna. Source caption/image boundaries, remembered Luna
+permission and ordinary Save remain unchanged. Composition links private saved
+versions; it does not copy or publish their instructions automatically.
+
+The [source-capture follow-up](audits/HOME_SOURCE_CAPTURE_2026-11-04.md) adds native
+reads of available public Instagram/TikTok captions and screenshot/video-frame
+OCR before optional Luna structuring. Clear section parsing remains available
+without AI. Chosen source facts fill the new capture draft automatically, without
+a per-recipe legal checkbox. Video speech recognition is optional and on-device;
+raw audio is not sent to OpenAI. Combined text reserves the credit slot inside the existing
+20-item/800-UTF-16-unit evidence limit. The server/model/quota are unchanged.
 
 | Helper | Entry | Existing independent behavior |
 | --- | --- | --- |
-| Bag capture | Add → Home → method → Adjust today’s setup → Beans, gear, and more → Scan bag → photo → Improve this scan | Apple Vision scan, editable fields and ordinary Save |
+| Bag capture | Saved → Home library → Beans → Scan a bag → photo | Apple Vision scan, editable fields and ordinary Save |
 | Recipe capture | Bring in a recipe in the recipe editor | Blank/template entry, source text and normal recipe draft/save |
 | Memory search | Find a memory alongside Journal archive search | Ordinary local search, filters and timeline |
 | Taste observations | Notice a taste pattern in Journal tools after three completed memories | Existing evidence-based Taste Passport |
@@ -40,10 +88,15 @@ existing account; touch navigation and real helper acceptance remain human QA.
 These are five feature groups; capture has separate bag and recipe tasks. There
 is no general chat, autonomous agent, background generation, or AI dependency in
 authentication, save, publication, recipe persistence, search, scoring or recaps.
-Every request starts from a closed helper, previews the exact selected records
-and optional image, and requires an unchecked-by-default per-request consent.
-Recipe extraction also requires the user to confirm source-copying rights.
-Known protected/no-copy recipes cannot use import. Accepted fields update only
+Luna starts disabled for each account on this device. Its short enable control
+names OpenAI and selected photos, recipe text and saved sip details. After explicit
+enablement, the user starts work by selecting a scan/import source or invoking a
+contextual tool. Selected evidence stays inspectable. No passive journal-wide
+background processing occurs.
+The legacy in-editor copy helper retains its source-copying confirmation. New
+public-link/attachment capture automatically fills factual fields, keeps source
+credit and does not assert or expand a source's reuse permission. Known
+protected/no-copy recipes cannot use import. Accepted fields update only
 the editable draft; ordinary Save remains a separate action. Recipe capture
 preserves attribution and existing fields, appends selected literal ingredient
 and instruction text without inventing numeric amounts, and does not change
@@ -59,8 +112,13 @@ drafts. AI reflection text stays out of the existing automatic share card.
 ## Privacy and ownership
 
 - API keys remain server-only; `.env.local` is ignored and never an iOS resource.
-- No cloud call happens on opening a helper. The user reviews details before
-  allowing a request and may leave without sending anything.
+- Opening the library or an unenabled helper makes no AI request. After explicit
+  enablement, choosing a scan source or opening a contextual tool starts that
+  bounded request. Bag reads fill editable identity fields while preserving typing
+  made during the request. Manual save does not wait for a provider.
+- The remembered permission is versioned and account-specific, revocable in Home
+  preferences and erased on deletion. It is never adopted across accounts. A
+  revoked permission invalidates active UI work and clears the result cache.
 - Journal search excludes private notes unless the user enables its explicit
   inclusion control. Single-attempt feedback is visible in the request preview.
 - Only owner-bound completed journal records and saved Home records are used.
@@ -80,10 +138,11 @@ drafts. AI reflection text stays out of the existing automatic share card.
   IDs are needed for linking results. Results can cite only supplied IDs.
 - Responses API uses `store: false`; this does not promise zero provider
   retention. OpenAI's standard abuse-monitoring retention and any organization
-  data-sharing choices still apply. The helper links current provider controls.
+  data-sharing choices still apply. See [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data).
 - The local result cache is memory-only, owner-bound, source-sensitive, limited
-  to 30 items and five minutes. Consent withdrawal clears it. No prompt or result
-  is persisted as journal or recipe content without explicit field acceptance.
+  to 30 items and five minutes. Permission withdrawal clears it. Scan/import
+  results can fill editable capture fields; ordinary Save is required to persist
+  them. Other contextual suggestions retain explicit acceptance.
 - Product analytics records only fixed task/outcome enums. No prompts, images,
   questions, answers, source IDs, private notes or LLM content traces are sent to
   PostHog. Content moderation remains local text rules and report/human review.
@@ -106,7 +165,8 @@ requests retain their reservation. A manual retry uses a new ID and consumes
 another slot. These are request caps, not a claim of exact dollar spending.
 
 The server uses the owner-approved `gpt-6-luna` with reasoning `none`, no tools,
-a strict output schema and 1,000 maximum output tokens. No automatic upgrade or
+a strict output schema and maximum output tokens of 2,400 for recipe imports,
+1,000 for the other tasks. No automatic upgrade or
 fallback model exists. Provider timeout is 20 seconds; native request/resource
 timeouts are 25/30 seconds. Refusals, partial/malformed responses, invented
 references, quota denial, missing configuration and outages return a generic
@@ -133,7 +193,7 @@ separate gates under the [release workflow](SUPABASE_RELEASE_WORKFLOW.md).
 
 Follow [VERIFICATION_POLICY.md](VERIFICATION_POLICY.md). Run the focused Deno
 handler/provider tests with coverage, `node qa/pglite/check-coffee-assistance.mjs`,
-native domain/account/cancellation tests, and the consent/failure/review Simulator
+native domain/account/cancellation tests, and the permission/failure/review and automatic-scan Simulator
 journeys. The paid synthetic provider probe is explicit and separate from CI:
 `scripts/check-coffee-assistance-provider.ts`. It must never receive production
 journal content. Full commands and observed results belong in the evidence ledger.

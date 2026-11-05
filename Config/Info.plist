@@ -67,6 +67,8 @@
 	<string>Mugshot lets you choose photos from your library to attach to coffee visits.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Mugshot saves the Story or Post image you choose from the Share Hub.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Mugshot reads spoken recipe instructions from a video you choose, using on-device recognition.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Mugshot uses your camera so you can capture a coffee visit as it happens.</string>
 	<key>UIApplicationSceneManifest</key>

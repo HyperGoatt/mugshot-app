@@ -1,0 +1,470 @@
+{
+  "date": "2026-11-04",
+  "appVersion": "0.5.3 (8)",
+  "model": "gpt-6-luna",
+  "runs": [
+    {
+      "label": "consolidated-simulator",
+      "resultBundle": "/tmp/mugshot-recipe-capture-final-sim.xcresult",
+      "platform": "Simulator",
+      "model": "iPhone 17 Pro",
+      "os": "27.0",
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "tests": [
+        {
+          "id": "CoffeeAssistanceTests/requestAlwaysEncodesConsentAndNullImageWithBoundedUnicode()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/untrustedReferencesOrWriteFieldsNeverBecomeUsableSuggestions()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/extractionRequiresSourceEvidenceAndIsNeverAnAutomaticSave()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/cacheIsOwnerBoundShortLivedAndSensitiveToSourceChanges()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/noConsentOrChangedOwnerMeansNoTransportCall()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/successfulRequestsReuseExactEvidenceWithoutCallingAgain()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/providerFailureLeavesAnHonestFallbackAndRetryWorks()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/invalidationWhileRequestIsRunningDropsLateResult()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/accountChangesWhileRequestIsRunningDropResultAndCache()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/journalContextRequiresOwnerCompletionAndExplicitPrivateNoteInclusion()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/homeEvidenceExcludesDraftsDuplicatesPlannedTargetsAndRoasterClaims()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/homeExperimentUsesRecordedIngredientAmountsInsteadOfRecipeTargets()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/homeEvidenceRejectsAWorkspaceStillBelongingToAnotherAccount()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/recipeImportPreservesRightsAttributionAndExistingContent()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/recipeSourcePreservesUnicodeWithoutSilentlyDroppingPrintedText()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/localCandidatesPreferRememberedWordsAndQuietWeekHasVerifiedZeroCounts()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/reviewedRecipeFieldsCannotInstallUnsafeLinksOrInventMethodTargets()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/analyticsContainOnlyTaskAndOutcomeEnums()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceTests/selectedImagesLoseMetadataAndAreBoundedJPEGs()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/lunaPermissionIsExplicitRememberedAndAccountScoped()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/permissionErasureDoesNotChangeAnotherAccount()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/oldShelfDecodesWithoutPreferences()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/defaultsPersistWithoutCrossingAccountOrChangingSnapshots()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/archivedOrMissingDefaultsStayUnknown()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/coffeeDefaultsDoNotBecomeTeaOrMatchaIngredients()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/autofillPreservesTypingWhileReadingAndIgnoresBlankFields()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/autofillCannotChangeInventoryOrInventInvalidRoastDate()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/failedSyncPreservesOfflineEditsAndRetryKeepsTheSameID()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/changedAccountDuringFetchCannotMergeOrWrite()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/unchangedRemoteRowsAreNotRewrittenAndForeignRowsAreExcluded()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/anEditDuringUploadWinsOverTheOlderResponse()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/erasureCancelsAReadBeforeItCanRestoreTheShelf()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/photoSyncPreservesTheLocalPhotoAndAcknowledgesThePrivatePath()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/anAccountChangeDuringPhotoUploadCannotWriteBagMetadata()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/gearSyncAcknowledgesOnceAndDoesNotRewriteUnchangedGear()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryExperienceTests/aGearEditDuringSyncSurvivesTheOlderAcknowledgement()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/sourceTransportIsUnauthenticatedAndFailureLeavesAnHonestFallback()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/approvedVideoDataIsBoundedAndStoredOnlyInATemporaryFile()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/replacingAScreenshotKeepsItsCaptionAndUserTyping()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/combinedSourcesReserveTheCreditSlotInsideTheServerEvidenceLimit()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/socialLinksAreCanonicalAndNeverAllowPrivateOrCredentialDestinations()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/captionMetadataPreservesTheSourceAndDoesNotInventVideoUnderstanding()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/tikTokCaptionComesFromTheActualPostNotRecommendations()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/explicitRecipeSectionsWorkWithoutLunaAndPreserveUserEdits()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/blockedOrOversizedSourcesCannotBecomeFabricatedRecipes()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/screenshotsProduceActualTextWithOnDeviceRecognition()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeVideoTests/anActualVideoYieldsFramesWithoutClaimingUnheardSpokenSteps()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeVideoTests/aLongVideoHasAnExplicitFallbackBeforeAnyFramesOrSpeechAreRead()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceUITests/testGeneratedSuggestionDoesNotChangeDraftUntilAccepted()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceUITests/testOnlyExplicitReviewedAcceptanceChangesEditableField()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceUITests/testPermissionAndFailureRemainReachableWithLargestTextAndReduceMotion()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceUITests/testPermissionStartsOffAndClosingNeverChangesOriginal()",
+          "result": "Passed"
+        },
+        {
+          "id": "CoffeeAssistanceUITests/testProviderFailureKeepsOriginalAndCanBeDismissed()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testCaptionRecipeCanGoFromLibraryThroughGuidanceToSharedReviewWithoutAI()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testHomeQuickPathUsesSharedRatingAndReview()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testRecipeDiscoveryCanSaveAnIdeaWithoutStartingASip()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testSavedHasStandaloneBeansAndGear()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testSavedRecipeOpensDetailsBeforeStartingASip()",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "label": "target-card-and-measured-latte-follow-up",
+      "resultBundle": "/tmp/mugshot-empty-target-green.xcresult",
+      "platform": "Simulator",
+      "model": "iPhone 17 Pro",
+      "os": "27.0",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "tests": [
+        {
+          "id": "HomeLibraryFlowUITests/testCaptionRecipeCanGoFromLibraryThroughGuidanceToSharedReviewWithoutAI()",
+          "result": "Passed"
+        },
+        {
+          "id": "LogASipV3CentralHomeUITests/testV4LatteGuidanceActualsAndStandardPrivateDetail()",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "label": "isolated-physical-batch",
+      "resultBundle": "/tmp/mugshot-home-flow-physical.xcresult",
+      "platform": "physical-iPhone",
+      "model": "iPhone 16 Pro",
+      "os": "27.0.1",
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "tests": [
+        {
+          "id": "HomeRecipeSourceTests/sourceTransportIsUnauthenticatedAndFailureLeavesAnHonestFallback()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/approvedVideoDataIsBoundedAndStoredOnlyInATemporaryFile()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/replacingAScreenshotKeepsItsCaptionAndUserTyping()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/combinedSourcesReserveTheCreditSlotInsideTheServerEvidenceLimit()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/socialLinksAreCanonicalAndNeverAllowPrivateOrCredentialDestinations()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/captionMetadataPreservesTheSourceAndDoesNotInventVideoUnderstanding()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/tikTokCaptionComesFromTheActualPostNotRecommendations()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/explicitRecipeSectionsWorkWithoutLunaAndPreserveUserEdits()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/blockedOrOversizedSourcesCannotBecomeFabricatedRecipes()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeSourceTests/screenshotsProduceActualTextWithOnDeviceRecognition()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeVideoTests/anActualVideoYieldsFramesWithoutClaimingUnheardSpokenSteps()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeRecipeVideoTests/aLongVideoHasAnExplicitFallbackBeforeAnyFramesOrSpeechAreRead()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testCaptionRecipeCanGoFromLibraryThroughGuidanceToSharedReviewWithoutAI()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testHomeQuickPathUsesSharedRatingAndReview()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testRecipeDiscoveryCanSaveAnIdeaWithoutStartingASip()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testSavedHasStandaloneBeansAndGear()",
+          "result": "Passed"
+        },
+        {
+          "id": "HomeLibraryFlowUITests/testSavedRecipeOpensDetailsBeforeStartingASip()",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "label": "final-guidance-rating-review-follow-up",
+      "resultBundle": "/tmp/mugshot-empty-target-phone-green2.xcresult",
+      "platform": "physical-iPhone",
+      "model": "iPhone 16 Pro",
+      "os": "27.0.1",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "tests": [
+        {
+          "id": "HomeLibraryFlowUITests/testCaptionRecipeCanGoFromLibraryThroughGuidanceToSharedReviewWithoutAI()",
+          "result": "Passed"
+        }
+      ]
+    }
+  ],
+  "counting": "Follow-up cases repeat relevant earlier cases; do not add counts as distinct tests. Physical batch contains 12 native source/media cases and 5 UI journeys.",
+  "lunaSyntheticImageProbes": {
+    "passed": 2,
+    "log": "/tmp/mugshot-recipe-capture-luna-vision.log",
+    "privateUserMediaUsed": false
+  },
+  "staticFastChecks": {
+    "passed": 7,
+    "failed": 0
+  },
+  "coverage": [
+    {
+      "name": "HomeRecipeSourceReader.swift",
+      "coveredLines": 174,
+      "executableLines": 203,
+      "lineCoverage": 0.8571428571428571
+    },
+    {
+      "name": "HomeRecipeMediaReader.swift",
+      "coveredLines": 105,
+      "executableLines": 212,
+      "lineCoverage": 0.49528301886792453
+    },
+    {
+      "name": "CoffeeAssistanceRecipeImport.swift",
+      "coveredLines": 72,
+      "executableLines": 74,
+      "lineCoverage": 0.972972972972973
+    },
+    {
+      "name": "HomeRecipeCaptureSources.swift",
+      "coveredLines": 17,
+      "executableLines": 17,
+      "lineCoverage": 1
+    },
+    {
+      "name": "HomeRecipeCaptureView.swift",
+      "coveredLines": 308,
+      "executableLines": 453,
+      "lineCoverage": 0.6799116997792495
+    }
+  ],
+  "coreCoverage": {
+    "files": [
+      "HomeRecipeSourceReader.swift",
+      "HomeRecipeCaptureSources.swift",
+      "CoffeeAssistanceRecipeImport.swift"
+    ],
+    "coveredLines": 263,
+    "executableLines": 294,
+    "percent": 89.5,
+    "scope": "These three files only, not the whole app or all media/UI adapters."
+  },
+  "unverified": [
+    "Live Instagram/TikTok success for every source, region or login state",
+    "Photos picker transfer with real owner media",
+    "Optional on-device speech permission, support and transcription quality",
+    "Spoken VoiceOver and full Dynamic Type/Reduce Motion matrix",
+    "Real owner recipe/media import followed by owner save",
+    "TestFlight acceptance"
+  ],
+  "excludedRuns": [
+    {
+      "bundle": "/tmp/mugshot-empty-target-phone-green.xcresult",
+      "reason": "System notification interrupted the Save toolbar tap; no target-card acceptance inferred. Banners explicitly cleared on passing follow-up."
+    },
+    {
+      "bundle": "/tmp/mugshot-owner-recipe-entry2.xcresult",
+      "reason": "Runner opt-in environment was not applied to the v1 plist; one skipped test, not a pass."
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "phone-guidance.png",
+      "sha256": "6da1cd6e1a042e94198a169d36fb9b86e8956e0fa4656f7fb2e106a8c19e3216",
+      "synthetic": true,
+      "visuallyInspected": true,
+      "privateNotifications": false
+    },
+    {
+      "file": "phone-rating.png",
+      "sha256": "b774b80b81817a706d4e73d3c6cfbf4d36cd38f110b7a5dd7886f85ba580139c",
+      "synthetic": true,
+      "visuallyInspected": true,
+      "privateNotifications": false
+    },
+    {
+      "file": "phone-review.png",
+      "sha256": "7abd4a684d02a10cc217f58080399182afff97f5ad9829feb2ec1a017f3f0fcb",
+      "synthetic": true,
+      "visuallyInspected": true,
+      "privateNotifications": false
+    }
+  ],
+  "ownerReadOnlyFinal": {
+    "resultBundle": "/tmp/mugshot-source-owner-final-readonly.xcresult",
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "test": "OwnerHomePhoneUITests/testExistingOwnerRecipeOpensWithoutStartingASip()",
+    "ownerFixtureReset": false,
+    "testArguments": []
+  }
+}

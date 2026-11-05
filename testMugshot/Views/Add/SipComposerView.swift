@@ -19,6 +19,7 @@ struct LogVisitView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.mugshotReduceMotionOverride) private var motionOverride
     @AppStorage(SipComposerExperience.storageKey) private var composerExperienceRaw = SipComposerExperience.defaultExperience.rawValue
     @AppStorage(RoadmapFeatureFlags.cafeSessionsAndPulse) private var cafeSessionsAndPulse = true
 
@@ -54,6 +55,7 @@ struct LogVisitView: View {
     @State private var wantToTryAchievementCafe: Cafe?
     @State private var wantToTryCompletionTask: Task<Void, Never>?
     @State private var showPublishedMugshot = false
+    @State private var dismissedPostResultID: UUID?
     @State private var completedCafeSession: CafeSessionDraft?
     @State private var completedSessionCafe: Cafe?
     @State private var activeContinuationSession: CafeSessionDraft?
@@ -292,12 +294,10 @@ struct LogVisitView: View {
                     }
                 )
             }
-            .sheet(item: $presentedDraftResumePicker) { presentation in
-                SipDraftResumePicker(
-                    drafts: presentation.drafts,
-                    onResume: resumeDraft
-                )
-                .presentationDetents([.medium, .large])
+            .sheet(item: $presentedDraftResumePicker, onDismiss: refreshResumableDrafts) { _ in
+                HomeDraftManagementView(ownerID: authModel.authenticatedUser?.id, excludingSipID: draft.id,
+                    onResumeSip: resumeDraft)
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $isCafeSearchActive) {
@@ -365,10 +365,28 @@ struct LogVisitView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
-            .fullScreenCover(isPresented: $showPublishedMugshot, onDismiss: {
+            .fullScreenCover(isPresented: publishedResultPresentation, onDismiss: {
                 finishSuccessfulSave()
             }) {
-                if let completedRemoteVisit {
+                if !showPublishedMugshot, let summary = v3CompletionSummary, showsFullScreenPostResult {
+                    MugshotShareHubView(summary: summary, receipt: publicationReceipt,
+                        isOpeningMugshot: isLoadingPublishedVisit, statusMessage: completionStatusMessage,
+                        onViewMugshot: viewPublishedMugshot, onViewPassport: viewPassportAfterCompletion,
+                        onFinish: {
+                            if isFirstSipGuidanceEnabled { onFirstSipGuidanceCompleted() }
+                            publishedResultPresentation.wrappedValue = false
+                        }, onStartAnother: nil)
+                        .environment(\.dynamicTypeSize, dynamicTypeSize)
+                        .environment(\.mugshotReduceMotionOverride, motionOverride)
+                        .environment(\.mugshotFeedbackOwnerID, authModel.authenticatedUser?.id)
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if let cafe = wantToTryAchievementCafe {
+                                WantToTryAchievementBanner(cafeName: cafe.consumerDisplayName,
+                                    reduceMotion: reduceMotion, onUndo: undoWantToTryRemoval)
+                                    .padding(.horizontal, 16)
+                            }
+                        }
+                } else if let completedRemoteVisit {
                     RemoteVisitDetailView(
                         visitId: completedRemoteVisit.id,
                         initialSummary: completedRemoteVisit,
@@ -385,6 +403,23 @@ struct LogVisitView: View {
                     )
                 }
             }
+    }
+
+    private var showsFullScreenPostResult: Bool {
+        v3CompletionSummary != nil && publicationReceipt?.id != dismissedPostResultID
+            && MugshotPostCompletionPolicy.shouldPresent(receipt: publicationReceipt,
+                activeOwnerID: authModel.authenticatedUser?.id, hasCompletedSave: showSavedConfirmation)
+    }
+
+    /// The celebration and post detail share one cover, avoiding stacked modal
+    /// presentations. Finishing runs once, after the cover actually dismisses.
+    private var publishedResultPresentation: Binding<Bool> {
+        Binding(get: { showPublishedMugshot || showsFullScreenPostResult }, set: { presented in
+            if !presented {
+                dismissedPostResultID = publicationReceipt?.id
+                showPublishedMugshot = false
+            }
+        })
     }
 
     private var alertedComposer: some View {
@@ -558,6 +593,7 @@ struct LogVisitView: View {
             isOpeningPublishedMugshot: isLoadingPublishedVisit,
             completionStatusMessage: completionStatusMessage,
             completion: showSavedConfirmation ? v3CompletionSummary : nil,
+            completionIsPresentedFullScreen: showsFullScreenPostResult,
             saveReceipt: publicationReceipt,
             wantToTryAchievementCafeName: wantToTryAchievementCafe?.consumerDisplayName,
             showsFirstSipGuidance: isFirstSipGuidanceEnabled,
@@ -567,6 +603,7 @@ struct LogVisitView: View {
                 .names(scope: pinnedContextScope).isEmpty,
             onCancel: cancelComposer,
             onResumeDraft: requestDraftResume,
+            onResumeStoredDraft: resumeDraft,
             onAddPhoto: { showPhotoSourceDialog = true },
             onRemovePhoto: removePhoto,
             onOrganizePhotos: beginOrganizingPhotos,
@@ -2080,13 +2117,7 @@ struct LogVisitView: View {
         persistDraft()
         refreshResumableDrafts()
         guard !resumableDrafts.isEmpty else { return }
-        if resumableDrafts.count == 1, let onlyDraft = resumableDrafts.first {
-            resumeDraft(onlyDraft)
-        } else {
-            presentedDraftResumePicker = SipDraftResumePickerPresentation(
-                drafts: resumableDrafts
-            )
-        }
+        presentedDraftResumePicker = SipDraftResumePickerPresentation()
     }
 
     private func resumeDraft(_ selectedDraft: SipDraft) {
@@ -4998,77 +5029,6 @@ struct LogVisitView: View {
 
 private struct SipDraftResumePickerPresentation: Identifiable {
     let id = UUID()
-    let drafts: [SipDraft]
-}
-
-private struct SipDraftResumePicker: View {
-    let drafts: [SipDraft]
-    let onResume: (SipDraft) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List(drafts) { draft in
-                Button {
-                    onResume(draft)
-                    dismiss()
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: draft.context.systemImage)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.mugshotSage)
-                            .frame(width: 38, height: 38)
-                            .background(Color.mugshotMint.opacity(0.48), in: Circle())
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(draft.drinkName.remoteTrimmedNonEmpty ?? "Untitled sip")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.espressoBrown)
-                                .lineLimit(1)
-                            Text(draftLocation(draft))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Color.secondaryText)
-                                .lineLimit(1)
-                            Text("Saved \(draft.updatedAt.formatted(.relative(presentation: .named)))")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.tertiaryText)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "arrow.right.circle.fill")
-                            .foregroundStyle(Color.mugshotSage)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    "Resume \(draft.drinkName.remoteTrimmedNonEmpty ?? "untitled sip"), saved \(draft.updatedAt.formatted(.relative(presentation: .named)))"
-                )
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.creamWhite)
-            .navigationTitle("Resume a draft")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func draftLocation(_ draft: SipDraft) -> String {
-        switch draft.context {
-        case .cafe:
-            return draft.cafe?.consumerDisplayName ?? "Cafe sip"
-        case .home, .recipe:
-            return draft.locationName.remoteTrimmedNonEmpty ?? "Home sip"
-        case .elsewhere:
-            return draft.locationName.remoteTrimmedNonEmpty ?? "Elsewhere sip"
-        }
-    }
 }
 
 private struct SipCompletionSummary {

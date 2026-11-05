@@ -20,7 +20,17 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-coffee-assistance") {
+            if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-home-drafts") {
+                HomeDraftControlsPreviewHost()
+            } else if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-home-profiles") {
+                HomeDraftControlsPreviewHost(showsProfiles: true)
+            } else if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-home-journal") {
+                HomeJournalPreviewHost()
+            } else if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-home-editor") {
+                HomeEditorPreviewHost()
+            } else if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-post-result") {
+                PostedResultPreviewHost()
+            } else if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-coffee-assistance") {
                 CoffeeAssistancePreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowFirstLaunchOnboardingDesignQA {
                 firstLaunchEducation

@@ -15,6 +15,7 @@ struct MugshotShareHubView: View {
 
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotFeedbackOwnerID) private var feedbackOwnerID
     @State private var selectedFormat: MugshotShareFormat = .story
     @State private var selectedTemplate: MugshotShareTemplate = .fullBleed
     @State private var selectedPhotoLayout: MugshotSharePhotoLayout = .singlePhoto
@@ -27,6 +28,7 @@ struct MugshotShareHubView: View {
     @State private var errorMessage: String?
     @State private var isPreparing = false
     @State private var showsShareCustomization = false
+    @State private var preparedVisitID: UUID?
 
     private var content: MugshotShareContent {
         MugshotShareContent(
@@ -61,29 +63,32 @@ struct MugshotShareHubView: View {
             }
     }
 
+    private var showsPostedResult: Bool {
+        isPostPublish && !showsShareCustomization && MugshotPostCompletionPolicy.shouldPresent(
+            receipt: receipt, activeOwnerID: feedbackOwnerID, hasCompletedSave: true)
+    }
+
     var body: some View {
-        ScrollView {
-            if isPostPublish && !showsShareCustomization {
-                postPublishReceipt
+        Group {
+            if showsPostedResult, let receipt {
+                MugshotPostedResultView(receipt: receipt, contextName: summary.contextName,
+                    isOpening: isOpeningMugshot, statusMessage: statusMessage,
+                    onShare: { showsShareCustomization = true }, onSeePost: onViewMugshot, onDone: onFinish)
+            } else if isPostPublish && !showsShareCustomization {
+                ScrollView { postPublishReceipt }
             } else {
-                VStack(alignment: .leading, spacing: 22) {
-                    header
-                    exportPreview
-                    formatAndTemplateControls
-                    if photos.count > 1 {
-                        photoControls
-                    }
-                    if isPostPublish {
-                        completionActions
-                    } else {
-                        Button("Done", action: dismissHub)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .buttonStyle(SecondaryButtonStyle())
+                GeometryReader { geometry in
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            cleanShareHeader
+                            exportPreview
+                                .frame(maxHeight: max(220, min(440, geometry.size.height * 0.58)))
+                            cleanShareControls
+                            if photos.count > 1 { photoControls }
+                        }
+                        .padding(.horizontal, 22).padding(.top, 16).padding(.bottom, 20)
                     }
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 10)
-                .padding(.bottom, 120)
             }
         }
         .background(Color.creamWhite)
@@ -92,7 +97,9 @@ struct MugshotShareHubView: View {
                 bottomAction
             }
         }
-        .task(id: summary.visitID) {
+        .task(id: "\(summary.visitID):\(showsShareCustomization):\(isPostPublish)") {
+            // Artwork/link work begins when Share is chosen, after the moment.
+            guard !isPostPublish || showsShareCustomization else { return }
             await prepareInitialPackage()
         }
         .onChange(of: selectedFormat) { _, newValue in
@@ -150,7 +157,46 @@ struct MugshotShareHubView: View {
             )
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, _ in systemSharePresentation = nil }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("logASipV3.shareHub")
+    }
+
+    private var cleanShareHeader: some View {
+        HStack(spacing: 14) {
+            Button {
+                if isPostPublish { showsShareCustomization = false } else { dismissHub() }
+            } label: {
+                Image(systemName: isPostPublish ? "chevron.left" : "xmark")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(width: 44, height: 44).background(Color.foamWhite, in: Circle())
+            }
+            .accessibilityLabel(isPostPublish ? "Back to celebration" : "Done")
+            .accessibilityIdentifier("mugshot.share.back")
+            Text("Share your sip").font(.title2.weight(.semibold))
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Color.espressoBrown)
+    }
+
+    private var cleanShareControls: some View {
+        HStack(spacing: 16) {
+            Picker("Format", selection: $selectedFormat) {
+                ForEach(MugshotShareFormat.allCases) { format in Text(format.title).tag(format) }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("mugshot.share.format")
+            Menu {
+                Picker("Style", selection: $selectedTemplate) {
+                    ForEach(MugshotShareTemplate.allCases) { template in
+                        Text(template == .fullBleed ? "Photo" : "Journal").tag(template)
+                    }
+                }
+            } label: {
+                Label("Style", systemImage: "slider.horizontal.3").font(.subheadline.weight(.semibold))
+                    .padding(.vertical, 12)
+            }
+        }
+        .foregroundStyle(Color.mugshotSageText)
     }
 
     private var postPublishReceipt: some View {
@@ -280,17 +326,6 @@ struct MugshotShareHubView: View {
 
     private var exportPreview: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Your export")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.espressoBrown)
-                Spacer()
-                Text("\(Int(selectedFormat.pixelSize.width)) × \(Int(selectedFormat.pixelSize.height))")
-                    .font(.system(size: 11, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.tertiaryText)
-            }
-
             Group {
                 if let image = sharePackage?.artwork(for: selectedFormat) {
                     Image(uiImage: image)
@@ -316,6 +351,7 @@ struct MugshotShareHubView: View {
             .accessibilityLabel(
                 "\(selectedTemplate.title) \(selectedFormat.title) preview for \(content.drinkName) at \(content.contextName), rated \(content.rating.formatted(.number.precision(.fractionLength(1)))) out of 5"
             )
+            .accessibilityIdentifier("mugshot.share.preview")
         }
     }
 
@@ -549,7 +585,7 @@ struct MugshotShareHubView: View {
                             ? "Preparing…"
                             : "Share Mugshot post"
                     )
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.headline)
                     Text(
                         content.visibility == .private
                             ? "Artwork only · your post stays Private"
@@ -559,15 +595,14 @@ struct MugshotShareHubView: View {
                                     ? "Artwork + link · friends can open"
                                     : "Artwork + public Mugshot link"
                     )
-                        .font(.system(size: 11, weight: .semibold))
-                        .opacity(0.78)
+                        .font(.caption)
                 }
                 Spacer()
             }
             .foregroundStyle(Color.foamWhite)
             .frame(maxWidth: .infinity, minHeight: 54)
             .padding(.horizontal, 18)
-            .background(Color.mugshotSage)
+            .background(Color.mugshotSageText)
             .clipShape(Capsule())
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
@@ -578,17 +613,26 @@ struct MugshotShareHubView: View {
     }
 
     private func prepareInitialPackage() async {
-        record(.hubViewed)
-        if let coverImage = summary.coverImage,
-           let coverIndex = photos.firstIndex(where: { $0 === coverImage }) {
-            selectedPhotoIndex = coverIndex
+        let visitID = summary.visitID
+        let ownerID = authModel.authenticatedUser?.id
+        if preparedVisitID != visitID {
+            preparedVisitID = visitID
+            publicURL = nil
+            hasAcknowledgedExternalAudience = false
+            record(.hubViewed)
+            if let coverImage = summary.coverImage,
+               let coverIndex = photos.firstIndex(where: { $0 === coverImage }) {
+                selectedPhotoIndex = coverIndex
+            }
+            selectedPhotoLayout = MugshotSharePhotoLayout.defaultLayout(photoCount: photos.count)
+            rebuildPackage()
         }
-        selectedPhotoLayout = MugshotSharePhotoLayout.defaultLayout(photoCount: photos.count)
-        rebuildPackage()
-        if content.mayHavePublicLink,
+        if publicURL == nil, content.mayHavePublicLink, ownerID != nil,
            let client = try? SupabaseClientProvider.shared.client() {
-            publicURL = try? await MugshotShareLinkService(client: client)
-                .createOwnerLink(visitID: content.visitID)
+            let link = try? await MugshotShareLinkService(client: client).createOwnerLink(visitID: visitID)
+            guard !Task.isCancelled, summary.visitID == visitID,
+                  authModel.authenticatedUser?.id == ownerID else { return }
+            publicURL = link
             attachCurrentLinkToPackage()
         }
     }

@@ -1,8 +1,25 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-11-05
 ---
+
+## Full-screen post result and clean sharing — November 5
+
+The installed development candidate presents a confirmed Home, cafe or Elsewhere
+post full screen. Share opens the existing artwork renderer in a cleaner preview;
+See post reuses the existing remote/local owned detail route. One cover owns the
+result and detail, and finishing runs after dismissal. Unconfirmed, private or
+stale-owner results cannot trigger the posted celebration. Private saves remain
+private and existing external-audience acknowledgment/link restrictions apply.
+Opening the celebration does not create a share link or prepare artwork; Share
+starts that work, with cancellation/account guards and retry retaining choices.
+No audience, public-link contract or backend sharing behavior changes.
+
+Four isolated iPhone UI cases verify Home, cafe/Elsewhere, actual accessibility
+text layout and private-save exclusion. Real publication, live post lookup and
+external destination delivery are separate human checks. No fixture post is added
+to the owner's account. [Exact installed state and QA](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
 
 ## Regression repair candidate — 2026-09-14
 

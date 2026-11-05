@@ -44,6 +44,7 @@ enum CommentMentionProfileRouteResolver {
 }
 
 struct RemoteVisitDetailView: View {
+    @EnvironmentObject private var authModel: AppAuthModel
     let visitId: UUID
     let initialSummary: RemoteVisitSummary
     let currentUserId: UUID?
@@ -2112,7 +2113,8 @@ struct RemoteVisitDetailView: View {
 
     @MainActor
     private func deleteVisit() async {
-        guard let currentUserId else {
+        guard let currentUserId, authModel.authenticatedUser?.id == currentUserId,
+              detail?.summary.visit.userId == currentUserId, !isDeletingVisit else {
             return
         }
 
@@ -2121,10 +2123,19 @@ struct RemoteVisitDetailView: View {
 
         do {
             let client = try SupabaseClientProvider.shared.client()
-            try await VisitDeletionService(client: client).deleteVisit(
-                visitId: visitId,
-                userId: currentUserId
-            )
+            let knownPhotoURLs = detail?.photoURLs ?? []
+            let cleansHome = [.home, .recipe].contains(initialSummary.visit.journalContext)
+            try await HomePublishedSipDeletion.perform(owner: currentUserId,
+                currentOwner: { authModel.authenticatedUser?.id }, deleteRemote: {
+                    try await VisitDeletionService(client: client).deleteVisit(visitId: visitId, userId: currentUserId, knownPhotoURLs: knownPhotoURLs)
+                }, recordConfirmed: {
+                    guard cleansHome else { return }
+                    HomeDeletedPostReceipts.record(visitId, owner: currentUserId)
+                    let store = HomeRecipeWorkspaceStore.shared
+                    if store.scope == .user(currentUserId) {
+                        try? store.applyConfirmedPostDeletions(expectedScope: .user(currentUserId))
+                    }
+                })
             dataManager.noteJournalMutation()
             isDeletingVisit = false
             dismiss()

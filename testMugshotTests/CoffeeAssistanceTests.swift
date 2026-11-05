@@ -191,7 +191,9 @@ struct CoffeeAssistanceTests {
         var content = HomeRecipeContent(name: "Source")
         content.sourceText = String(repeating: "👨‍👩‍👧‍👦", count: 300)
         let chunks = CoffeeAssistanceRecipeImport.source(content)
-        #expect(chunks.map(\.detail).joined() == content.sourceText)
+        #expect(chunks.first?.id == "recipe-target")
+        #expect(chunks.first?.detail.contains("Name: Source") == true)
+        #expect(chunks.filter { $0.id.hasPrefix("recipe-source-") }.map(\.detail).joined() == content.sourceText)
         #expect(chunks.allSatisfy { $0.detail.utf16.count <= 800 })
     }
 

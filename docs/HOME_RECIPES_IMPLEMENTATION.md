@@ -1,8 +1,162 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
+
+## Home Journal and flow controls — November 5 candidate
+
+The controls audit and code action plan are recorded in
+[audit](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md) and
+[implementation plan](plans/home-flow-controls-2026-11-05.plan.md).
+The new source candidate uses one Journal row for cafe, Home and Elsewhere:
+92 × 96 cover image, context pin, date, place, drink name and score. Private Home
+entries join recent/archive/date chronology and stay off the map. Published
+counterparts are deduplicated. Older Home records honestly display Home.
+
+Home library Preferences manages optional named Home setups and their gear.
+The chosen nickname is frozen into each new make and shown in publication review;
+removing or renaming a setup does not rewrite history. Names must be unique per
+account; generic Home stays the unspecified option. Guest adoption merges and
+rebinds setups, preserves account defaults and verifies storage before deleting
+the guest copy. Unreadable metadata fails closed.
+
+A single counted Drafts entry replaces expanded Continue stacks. Its manager
+covers sip, recipe, reflection and preparation drafts, deduplicates the same make,
+provides resume/confirmed delete/cancel, and routes interrupted posts through
+existing protected recovery. Empty starter scaffolds are omitted. Deleting a
+sharing draft preserves the saved private sip and uses a fresh ID when shared
+again. Deleting a private saved sip also removes its unfinished representations;
+source recipes, other servings and photos still used elsewhere remain.
+
+Private Home detail now offers Edit sip and Delete sip. Edit has a separate
+recoverable draft and explicit Save changes, updates the original Journal copy
+without changing its identity/date, and preserves recipe versions and any existing
+post. Discarding the edit leaves the original. Owner checks, readable outbox/draft
+state and confirmation protect deletion. Confirmed remote post deletion records
+an owner-bound receipt; failed server operations leave the private entry intact.
+
+Advanced recipes, legacy make/reflection, legacy sharing and gear editing use
+composed Mugshot cards rather than full-page Form shells. Ingredients and steps
+retain add/remove/reorder and keyboard controls. Making or skipping guidance now
+opens capture directly; Measurements is an optional card before the common rating
+and review screens. Nothing unmeasured is inferred. Optional camera/Photos,
+speech, notifications and Luna retain their existing access/denial controls.
+
+Deletion intent is durable in the private workspace, reconciled before conflict
+recovery and preserved by the additive server deletion-normalization migration.
+Draft-only markers never delete a concurrently saved sip. Private photo cleanup
+waits for acknowledged metadata, respects shared references, and retries from a
+durable owner-scoped receipt. Canonical post RLS and audiences remain unchanged.
+
+**Current evidence:** 106 native tests and all 18 selected Home/Journal screen
+paths pass in Simulator and on the signed isolated iPhone fixture app. The
+separate owner read-only recipe check passes in Mugshot Luna QA 0.5.3 (8) on
+iPhone 16 Pro / iOS 27.0.1. Installation and normal launch preserve all 40 original
+files byte-for-byte; after read-only acceptance, the complete recipe workspace
+and owner content remain unchanged (only the shelf updatedAt changes). All 68
+hosted SQL contracts and real Auth/Storage probes pass; the paid QA branch and
+fixture apps/runners are removed. The deletion guard is live at 20261105183000
+with all 75 protected table counts/fingerprints unchanged. Held Home V4, the draft
+PR stack and TestFlight remain separate holds.
+
+## Recipe-only screenshot extraction — November 5
+
+Source capture recognizes preparation sections, joins wrapped ingredient/step
+lines and omits common browser/shop controls, promotions and later recipes.
+Luna receives the selected name/use as bounded evidence and structures one recipe.
+Its clean sections replace untouched generated fallback rows instead of appending
+duplicates. Typed edits and deletions remain protected; missing AI sections keep
+their usable native fallback. Cropped or hidden details are identified in the
+capture status rather than completed from a guess. Ordinary Save and all source
+rights/account boundaries remain separate from extraction.
+
+Saved components, linked drink versions and posted recipes are not rewritten.
+The owner's existing PSL component therefore retains its original imported rows.
+The updated source is installed in Mugshot Luna QA 0.5.3 (8), and the tighter
+server provider is live. [Evidence, limitations and human QA](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
+## Recipe canvas and drink composition — November 4 follow-up
+
+The Add a recipe page is a native ScrollView with source-first input, compact
+screenshot/video choices, editable preview and a simple recipe-use choice.
+Source extraction and Luna remain independent of the UI redesign. The recipe book
+offers **Build a drink**, and a saved brew/component offers **Use in a drink**.
+Saved recipes open immediately after capture. Existing generic syrup preparations
+are discoverable as components by a presentation suggestion; saved versions are
+never backfilled or reclassified.
+
+The drink builder uses existing immutable recipe references. Milk/additions and
+their optional quantities belong to the parent drink; source batch yield, steps,
+credit and history remain independent. Inspecting a part preserves the parent.
+Changing a base identifies it rather than deleting an arbitrary first ingredient.
+Drafts retain existing account-local persistence and explicit final Save.
+No recipe-composition action automatically creates a sip or child preparation.
+Existing guidance, actuals, rating, review and privacy rules remain authoritative.
+Guidance respects an explicitly selected matcha/tea/coffee method. A saved base
+adds its instructions once; an unlinked drink does not repeat its assembly as
+both base and drink steps. Generic legacy drinks retain their espresso fallback
+when a dose exists. Same-base selection retains the drink's adjusted targets.
+[Interview sources, native package and exact acceptance](design/home-recipe-composer-2026-11-04/README.md).
+
+On November 5 this candidate is installed in Mugshot Luna QA 0.5.3 (8) and passes
+27 isolated hardware checks plus an owner read-only existing-component check.
+The complete owner recipe workspace remains unchanged. The [physical ledger](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md)
+includes the exact results, preservation boundaries and owner QA route. This is
+development-device acceptance; TestFlight and parent merges remain held.
+
+## Source capture and recipe-first navigation — November 4 follow-up
+
+Saved recipes open their details before the user chooses Make this or Log a make.
+Guidance omits the target card when no planned measurements exist, while measured
+recipes retain their dose/output/time targets.
+The recipe adder reads available public Instagram/TikTok captions after pasting
+a link, on-device screenshot text, and selected/publicly accessible video clips
+up to 60 seconds. Clips use up to six sampled frames; optional spoken instructions
+require on-device speech support/permission. Raw audio is not sent to OpenAI.
+Blocked links stay saveable and can use a pasted caption, screenshot or saved clip.
+Explicitly labelled sections work without Luna. All imported content is editable;
+known no-copy sources stay protected and Save remains explicit. New public-source
+capture fills factual fields without a separate legal checkbox. Link/video access
+can vary by platform and region, so no all-posts or full-video guarantee is made.
+[Current behavior, limits and physical evidence](audits/HOME_SOURCE_CAPTURE_2026-11-04.md)
+supersede the original link-only capture limitation below.
+
+## Standalone Home library and shorter logging — 2026-11-04 candidate
+
+**Saved → Home library** and **Journal → Keep exploring → Home library** open
+Recipes, Beans, Gear and Preferences without creating a sip. Bags can be added,
+scanned, edited, marked finished/archived and restored. Gear uses the existing
+role-based editor and archive. Recipes keep the existing versioned workspace;
+a link/caption/screenshot can become an idea or editable preparation. Find a
+recipe opens a user-chosen web search, then returns to add the source. It does
+not bypass source restrictions. The follow-up above adds bounded reads of
+available public social captions/media and selected attachments.
+
+Home setup shows latte, espresso, pour-over, matcha, tea and more methods in an
+adaptive grid. **Log this sip** takes the short capture → shared sip reflection
+→ shared review route; **Make with guidance** starts the existing method-aware
+preparation and actuals path, then joins that same finish. Both keep private-first
+review and unknown actuals. Saved recipes retain their own values.
+
+Preferences remember favorite method, go-to bag and active gear on this device,
+scoped to the account or guest. Fresh method setups use safe selected snapshots;
+archived, missing or foreign-owner defaults are ignored. The existing export
+serializes these preferences with the local shelf. Guest shelf adoption may
+carry defaults; it never carries Luna permission.
+
+Luna permission is enabled once per account/device and can be revoked here.
+Selected bag photos are automatically read into the editable bag; fields typed
+while reading remain intact. Scanning failure uses Apple Vision/manual entry.
+Saving a named bag does not wait for a provider. Recipe screenshots/pasted text
+can fill an editable recipe after copying rights are confirmed. No AI result
+publishes or changes a saved recipe, rating or audience automatically.
+
+The shelf remains local-first. Sync serializes writes per account, skips unchanged
+remote rows, retries latest offline edits and blocks late account/erasure results.
+[Audit, tests and actual installation state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md)
+supersede earlier Home entry/control descriptions below. No new backend contract
+or TestFlight gate is promoted by this native change.
 
 ## Current Home bean entry — 2026-11-04
 

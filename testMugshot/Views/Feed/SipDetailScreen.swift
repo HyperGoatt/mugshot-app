@@ -559,7 +559,7 @@ enum SipDetailPresentationAdapter {
             timestamp: SipDetailFormat.timestamp(attempt.savedAt ?? attempt.createdAt),
             visibility: "Private",
             drinkName: attempt.name,
-            locationName: "Home",
+            locationName: attempt.journalLocationName,
             locationSubtitle: nil,
             locationSystemImage: "house.fill",
             score: score,
@@ -3370,57 +3370,80 @@ struct SipDetailErrorView: View {
 struct SipDeleteConfirmationSheet: View {
     let isDeleting: Bool
     let errorMessage: String?
+    var title = "Delete this sip?"
+    var deleteTitle = "Delete Sip"
+    var cancelTitle = "Cancel"
+    var message = "This permanently removes the sip, photos, comments, and reactions. This cannot be undone."
     let onDelete: () -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "trash")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Color.red)
-                .frame(width: 46, height: 46)
-                .background(Color.red.opacity(0.10), in: Circle())
-            Text("Delete this sip?")
-                .font(.system(.title2, design: .default, weight: .bold))
-                .foregroundStyle(Color.espressoBrown)
-            Text("This permanently removes the sip, photos, comments, and reactions. This cannot be undone.")
-                .font(.callout)
-                .foregroundStyle(Color.secondaryText)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.system(.footnote, design: .default, weight: .semibold))
+        ScrollView {
+            VStack(spacing: 14) {
+                Image(systemName: "trash")
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Color.red)
+                    .frame(width: 46, height: 46)
+                    .background(Color.red.opacity(0.10), in: Circle())
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.system(.title2, design: .default, weight: .bold))
+                    .foregroundStyle(Color.espressoBrown)
+                    .accessibilityAddTraits(.isHeader)
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(Color.secondaryText)
                     .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("sip.delete.error")
-            }
-            Button(role: .destructive, action: onDelete) {
-                HStack {
-                    if isDeleting { ProgressView().tint(.white) }
-                    Text("Delete Sip")
-                        .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(.footnote, design: .default, weight: .semibold))
+                        .foregroundStyle(Color.red)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("sip.delete.error")
                 }
-                .font(.system(.body, design: .default, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(height: 50)
-                .background(Color.red, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .disabled(isDeleting)
-            Button("Cancel") { dismiss() }
-                .font(.system(.body, design: .default, weight: .semibold))
-                .foregroundStyle(Color.espressoBrown)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Color.creamWhite)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.mugshotLine, lineWidth: 1)
-                )
+            .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 20)
+            .frame(maxWidth: 680).frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 10) {
+                Button(role: .destructive, action: onDelete) {
+                    HStack(spacing: 10) {
+                        if isDeleting { ProgressView().tint(.white) }
+                        Text(deleteTitle).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .font(.system(.body, design: .default, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Color.red, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain).disabled(isDeleting)
+                .accessibilityIdentifier("sip.delete.confirm")
+                Button { dismiss() } label: {
+                    Text(cancelTitle)
+                        .font(.system(.body, design: .default, weight: .semibold))
+                        .foregroundStyle(Color.espressoBrown)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Color.creamWhite)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.mugshotLine, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain).disabled(isDeleting)
+                .accessibilityIdentifier("sip.delete.cancel")
+            }
+            .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 14)
+            .frame(maxWidth: 680).frame(maxWidth: .infinity)
+            .background(Color.creamWhite)
+            .overlay(alignment: .top) { Divider().foregroundStyle(Color.mugshotLine) }
+        }
         .background(Color.creamWhite)
     }
 }

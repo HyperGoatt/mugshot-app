@@ -14,7 +14,7 @@ struct JournalTabView: View {
         }
         var date: Date {
             switch self {
-            case .privateHome(let attempt): attempt.createdAt
+            case .privateHome(let attempt): attempt.journalDate
             case .published(let visit): visit.visit.createdAtDate
             }
         }
@@ -32,13 +32,14 @@ struct JournalTabView: View {
     @State private var earlierRecipeVersion: UUID?
     @State private var activeProfileSheet: ProfileSheet?
     @State private var showJournalArchive = false
-    @State private var showRecipeBook = false
+    @State private var homeLibraryPresentation: HomeLibraryPresentation?
     @State private var selectedRemoteVisit: RemoteVisitSummary?
     @State private var selectedLocalVisit: Visit?
     @State private var selectedHomeAttempt: HomeAttemptRecord?
     @State private var selectedCafeRoute: CanonicalCafeRoute?
     @State private var journalEntries: [JournalEntryProjection] = []
     @State private var assistanceJournalOwnerID: UUID?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.isMugshotTabActive) private var tabIsActive
     @State private var lastJournalLoad: Date?
     @State private var loadedJournalRevision: Int?
@@ -46,6 +47,8 @@ struct JournalTabView: View {
     @State private var loadError: String?
     @State private var showOwnerProfile = false
     @State private var localDrafts: [SipDraft] = []
+    @State private var draftReadNeedsAttention = false
+    @State private var showsDraftManager = false
     @State private var cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     @State private var selectedReflection: JournalReflectionSummary?
     @State private var peopleByReflectionPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:]
@@ -125,7 +128,7 @@ struct JournalTabView: View {
 
     private var recentPrivateHomeAttempts: [HomeAttemptRecord] {
         guard selectedFilter == .all || selectedFilter == .home else { return [] }
-        return Array(privateHomeAttempts.prefix(3))
+        return Array(privateHomeAttempts.prefix(4))
     }
 
     private var reflectionHomeAttempts: [HomeAttemptRecord] {
@@ -134,14 +137,15 @@ struct JournalTabView: View {
     }
 
     private var privateHomeAttempts: [HomeAttemptRecord] {
-        let publishedVisitIDs = Set(remoteVisits.map(\.id))
-        return homeStore.workspace.attempts
-            .filter { attempt in
-                attempt.publicationStatus != .published
-                    && (attempt.publicationStatus != nil || attempt.publicationDraftID == nil)
-                    && (attempt.publicationDraftID.map { !publishedVisitIDs.contains($0) } ?? true)
-            }
-            .sorted { $0.createdAt > $1.createdAt }
+        HomeJournalProjection.privateEntries(in: homeStore.workspace, scope: homeStore.scope,
+            expectedScope: localAccountScope, publishedIDs: Set(remoteVisits.map(\.id)),
+            removedPublicationIDs: localAccountScope.userID.map { HomeDeletedPostReceipts.ids(for: $0) } ?? [])
+    }
+
+    private var draftCount: Int {
+        let sips = localDrafts.filter { $0.ownerUserID == localAccountScope.userID }
+        return HomeDraftCatalogue(sipDrafts: sips,
+            workspace: homeStore.scope == localAccountScope ? homeStore.workspace : HomeRecipeWorkspace()).count
     }
 
     private var recentSips: [RecentSip] {
@@ -246,17 +250,14 @@ struct JournalTabView: View {
                         onShare: { shareHomeAttempt(selectedHomeAttempt) },
                         onMakeAgain: { repeatHomeAttempt(selectedHomeAttempt) },
                         onDone: { self.selectedHomeAttempt = nil },
-                        onHistory: { showRecipeBook = true },
+                        onHistory: openHomeLibrary,
                         onLogServing: { logHomeServing(from: selectedHomeAttempt) }
                     )
                 }
             }
-            .navigationDestination(isPresented: $showRecipeBook) {
-                HomeRecipeExperienceView(
-                    ownerID: authModel.authenticatedUser?.id,
-                    initialCollection: "Recipes",
-                    onShare: onComposeDraft
-                )
+            .sheet(item: $homeLibraryPresentation) { presentation in
+                HomeLibraryView(ownerID: presentation.ownerID, onComposeDraft: onComposeDraft, includesSipDrafts: true)
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -294,6 +295,10 @@ struct JournalTabView: View {
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
                 selectedReflection = nil
                 showJournalArchive = false
+                showsDraftManager = false
+                selectedHomeAttempt = nil
+                localDrafts = []
+                draftReadNeedsAttention = false
                 assistanceJournalOwnerID = nil
                 journalEntries = []
                 peopleByReflectionPeriod = [:]
@@ -301,23 +306,29 @@ struct JournalTabView: View {
             .fullScreenCover(isPresented: $showJournalArchive) {
                 JournalArchiveView(
                     entries: journalEntries,
-                    privateHomeAttempts: privateHomeAttempts,
                     homeScope: homeStore.scope,
-                    currentUserID: assistanceJournalOwnerID,
+                    currentUserID: authModel.authenticatedUser?.id,
                     dataManager: dataManager,
                     onComposeDraft: onComposeDraft,
                     onShareHomeAttempt: shareHomeAttempt,
                     onRepeatHomeAttempt: repeatHomeAttempt,
-                    onOpenRecipeBook: { showRecipeBook = true },
+                    onOpenRecipeBook: openHomeLibrary,
                     showsPhase2Tools: phase2CanonicalJournal
                 )
+            }
+            .sheet(isPresented: $showsDraftManager, onDismiss: {
+                refreshJournalDrafts()
+            }) {
+                HomeDraftManagementView(ownerID: authModel.authenticatedUser?.id, onResumeSip: { draft in
+                    showsDraftManager = false
+                    onComposeDraft(draft)
+                })
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(tabIsActive)") {
                 guard tabIsActive else { return }
                 homeStore.activate(localAccountScope)
-                localDrafts = SipDraftStore.shared
-                    .allDrafts(in: localAccountScope)
-                    .sorted { $0.updatedAt > $1.updatedAt }
+                refreshJournalDrafts()
                 if let lastJournalLoad, Date().timeIntervalSince(lastJournalLoad) < 60, loadedJournalRevision == dataManager.journalRevision { return }
                 await loadJournal()
             }
@@ -354,7 +365,7 @@ struct JournalTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
 
-                if phase2CanonicalJournal, !localDrafts.isEmpty {
+                if phase2CanonicalJournal, draftCount > 0 || draftReadNeedsAttention {
                     draftSection
                         .padding(.top, 14)
                 }
@@ -376,55 +387,33 @@ struct JournalTabView: View {
         passportRouter.consume(requestID)
     }
 
+    private func refreshJournalDrafts() {
+        let report = SipDraftStore.shared.readReport(in: localAccountScope)
+        localDrafts = report.drafts.sorted { $0.updatedAt > $1.updatedAt }
+        draftReadNeedsAttention = !report.isComplete
+    }
+
     private var draftSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Drafts")
-                    .mugshotDisplay(size: 24)
-                    .foregroundColor(.espressoBrown)
-                Spacer()
-                Text("\(localDrafts.count)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.mugshotSage)
-            }
-
-            ForEach(localDrafts.prefix(3)) { draft in
-                HStack(spacing: 12) {
-                    Button {
-                        onComposeDraft(draft)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: draft.context.systemImage)
-                                .foregroundColor(.mugshotSage)
-                                .frame(width: 34, height: 34)
-                                .background(Color.mugshotMint.opacity(0.55), in: Circle())
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(draft.drinkName.remoteTrimmedNonEmpty ?? "Untitled sip")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.espressoBrown)
-                                    .lineLimit(1)
-                                Text("Saved \(draft.updatedAt.formatted(.relative(presentation: .named)))")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.secondaryText)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(role: .destructive) {
-                        SipDraftStore.shared.remove(draft, in: localAccountScope)
-                        localDrafts.removeAll { $0.id == draft.id }
-                    } label: {
-                        Image(systemName: "trash")
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Discard \(draft.drinkName.remoteTrimmedNonEmpty ?? "draft")")
+        Button { showsDraftManager = true } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.title3).foregroundStyle(Color.mugshotSageText)
+                    .frame(width: 44, height: 44)
+                    .background(Color.mugshotMint.opacity(0.3), in: RoundedRectangle(cornerRadius: 13))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Drafts").font(.headline).foregroundStyle(Color.espressoBrown)
+                    Text(draftReadNeedsAttention ? "Some drafts need attention" : "\(draftCount) unfinished · resume or manage")
+                        .font(.subheadline).foregroundStyle(Color.secondaryText)
                 }
-                .padding(12)
-                .cardStyle()
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Color.mugshotSageText)
             }
+            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.mugshotLine))
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("journal.drafts.manage")
         .padding(.horizontal, 16)
     }
 
@@ -465,6 +454,10 @@ struct JournalTabView: View {
         .accessibilityLabel("Open your profile")
     }
 
+    private func openHomeLibrary() {
+        homeLibraryPresentation = HomeLibraryPresentation(ownerID: authModel.authenticatedUser?.id)
+    }
+
     private var journalToolsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Keep exploring")
@@ -472,14 +465,14 @@ struct JournalTabView: View {
                 .foregroundColor(.espressoBrown)
 
             if homeRecipesEnabled {
-                Button { showRecipeBook = true } label: {
+                Button(action: openHomeLibrary) {
                     HStack(spacing: 12) {
                         Image(systemName: "book.closed")
                             .frame(width: 42, height: 42)
                             .background(Color.mugshotMint.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Recipe Book").font(.headline)
-                            Text("Your drinks, components and preparations")
+                            Text("Home library").font(.headline)
+                            Text("Recipes, beans, gear & preferences")
                                 .font(.caption).foregroundStyle(Color.secondaryText)
                         }
                         Spacer()
@@ -747,32 +740,9 @@ struct JournalTabView: View {
                     ForEach(recentSips) { item in
                         switch item {
                         case .privateHome(let attempt):
-                        Button { selectedHomeAttempt = attempt } label: {
-                            HStack(spacing: 12) {
-                                Group {
-                                    if let photo = attempt.photoNames.first.flatMap({ homeStore.photo($0) }) {
-                                        Image(uiImage: photo).resizable().scaledToFill()
-                                    } else {
-                                        HomeMethodIconView(method: attempt.preparation?.method ?? .other, size: 28)
-                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                            .background(Color.mugshotMint.opacity(0.55))
-                                    }
-                                }
-                                .frame(width: 56, height: 56).clipped()
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(attempt.name).font(.system(size: 15, weight: .semibold))
-                                    Text("Home · \(attempt.resolvedRating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text(attempt.createdAt, style: .date).font(.caption).foregroundStyle(.secondary)
+                            HomeJournalEntryRow(attempt: attempt, scope: localAccountScope) {
+                                selectedHomeAttempt = attempt
                             }
-                            .foregroundStyle(Color.espressoBrown)
-                            .padding(14)
-                            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
-                        }
-                        .buttonStyle(.plain)
                         case .published(let visit):
                         RemoteJournalRow(
                             visit: visit,
@@ -805,14 +775,17 @@ struct JournalTabView: View {
     }
 
     private func shareHomeAttempt(_ attempt: HomeAttemptRecord) {
+        guard homeStore.scope == localAccountScope,
+              let attempt = homeStore.workspace.attempts.first(where: { $0.id == attempt.id }) else { return }
         do {
             let images = attempt.photoNames.compactMap { homeStore.photo($0) }
             guard images.count == attempt.photoNames.count else {
                 throw HomeRecipeWorkspaceError.invalid("A photo is unavailable. Your private sip is safe; restore it before sharing.")
             }
-            let publicationID = attempt.publicationDraftID ?? UUID()
-            if let existing = SipDraftStore.shared.load(id: publicationID, in: homeStore.scope),
-               existing.draft.launchContext.homeAttemptID == attempt.id {
+            let resolved = try HomeSharingDraftResolver.resolve(attemptID: attempt.id,
+                previousID: attempt.publicationDraftID, scope: localAccountScope)
+            let publicationID = resolved.id
+            if let existing = resolved.existing {
                 onComposeDraft(existing.draft)
                 return
             }
@@ -830,7 +803,7 @@ struct JournalTabView: View {
                 id: publicationID,
                 ownerUserID: authModel.authenticatedUser?.id,
                 context: .home,
-                locationName: "Home",
+                locationName: attempt.journalLocationName,
                 drinkName: attempt.name,
                 overallScore: attempt.resolvedRating ?? 0,
                 socialCaption: attempt.reaction,
@@ -842,6 +815,7 @@ struct JournalTabView: View {
                 homeWorkbenchPhase: .publish
             )
             draft.launchContext.homeAttemptID = attempt.id
+            draft.homeCoffeeBagID = attempt.homeCoffeeBagID
             draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
             draft.launchContext.homeRecipeVersionID = attempt.recipe?.versionID
             draft.launchContext.homeRecipeAttachmentMode = .nameOnly
@@ -854,6 +828,8 @@ struct JournalTabView: View {
     }
 
     private func repeatHomeAttempt(_ attempt: HomeAttemptRecord) {
+        guard homeStore.scope == localAccountScope,
+              let attempt = homeStore.workspace.attempts.first(where: { $0.id == attempt.id }) else { return }
         let current = attempt.recipe.flatMap { reference in
             homeStore.workspace.recipes.first { $0.id == reference.recipeID }?.current
         }
@@ -861,6 +837,7 @@ struct JournalTabView: View {
         var draft = SipDraft(
             ownerUserID: authModel.authenticatedUser?.id,
             context: .home,
+            locationName: attempt.journalLocationName,
             drinkType: content.method.drinkType,
             drinkName: content.name.remoteTrimmedNonEmpty ?? attempt.name,
             brewMethod: content.methodDisplayName,
@@ -872,6 +849,7 @@ struct JournalTabView: View {
             homeWorkbenchPhase: .workbench
         )
         draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
+        draft.homeCoffeeBagID = attempt.homeCoffeeBagID
         draft.launchContext.homeRecipeVersionID = current?.id
         draft.homeSetupContent = content
         if content.template == .drink, content.targets.dose != nil {
@@ -882,6 +860,8 @@ struct JournalTabView: View {
     }
 
     private func logHomeServing(from batch: HomeAttemptRecord) {
+        guard homeStore.scope == localAccountScope,
+              let batch = homeStore.workspace.attempts.first(where: { $0.id == batch.id }) else { return }
         guard batch.batchID != nil, batch.batchSourceAttemptID == nil else { return }
         let content = batch.preparation ?? batch.targets ?? HomeRecipeContent(
             name: batch.name, template: .preparation, method: .coldBrew
@@ -889,7 +869,7 @@ struct JournalTabView: View {
         var draft = SipDraft(
             ownerUserID: authModel.authenticatedUser?.id,
             context: .home,
-            locationName: "Home",
+            locationName: batch.journalLocationName,
             drinkType: content.method.drinkType,
             drinkName: "\(batch.name) · serving",
             brewMethod: content.methodDisplayName,
@@ -900,6 +880,7 @@ struct JournalTabView: View {
             homeWorkbenchPhase: .quickCapture
         )
         draft.homeSipPath = .quick
+        draft.homeCoffeeBagID = batch.homeCoffeeBagID
         draft.homeSetupContent = content
         draft.launchContext.sourceRecipeIdentityID = batch.recipe?.recipeID
         draft.launchContext.homeRecipeVersionID = batch.recipe?.versionID
@@ -1197,9 +1178,8 @@ private struct ProfileTopCafeCard: View {
     }
 }
 
-private struct JournalArchiveView: View {
+struct JournalArchiveView: View {
     let entries: [JournalEntryProjection]
-    let privateHomeAttempts: [HomeAttemptRecord]
     let homeScope: LocalAccountScope
     let currentUserID: UUID?
     @ObservedObject var dataManager: DataManager
@@ -1209,6 +1189,7 @@ private struct JournalArchiveView: View {
     let onOpenRecipeBook: () -> Void
     let showsPhase2Tools: Bool
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var homeStore = HomeRecipeWorkspaceStore.shared
 
     @State private var selection: JournalTabView.JournalFilter = .all
     @State private var query = ""
@@ -1224,7 +1205,6 @@ private struct JournalArchiveView: View {
 
     init(
         entries: [JournalEntryProjection],
-        privateHomeAttempts: [HomeAttemptRecord],
         homeScope: LocalAccountScope,
         currentUserID: UUID?,
         dataManager: DataManager,
@@ -1235,7 +1215,6 @@ private struct JournalArchiveView: View {
         showsPhase2Tools: Bool
     ) {
         self.entries = entries
-        self.privateHomeAttempts = privateHomeAttempts
         self.homeScope = homeScope
         self.currentUserID = currentUserID
         self.dataManager = dataManager
@@ -1258,7 +1237,7 @@ private struct JournalArchiveView: View {
                 }
             }
             .filter { entry in
-                guard let selectedCoffeeBagID else { return true }
+                guard let selectedCoffeeBagID = activeCoffeeBagID else { return true }
                 return entry.summary.visit.homeCoffeeBagID == selectedCoffeeBagID
             }
             .filter { !showsBookmarksOnly || bookmarkedIDs.contains($0.id) }
@@ -1268,12 +1247,39 @@ private struct JournalArchiveView: View {
 
     private var filteredPrivateHomeAttempts: [HomeAttemptRecord] {
         guard selection == .all || selection == .home,
-              !showsBookmarksOnly,
-              selectedCoffeeBagID == nil else { return [] }
-        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return privateHomeAttempts.filter {
-            search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)
+              !showsBookmarksOnly else { return [] }
+        return scopedHomeAttempts.filter { attempt in
+            guard HomeJournalSearch.matches(attempt, query: query) else { return false }
+            guard let selectedCoffeeBagID = activeCoffeeBagID else { return true }
+            return HomeJournalSearch.matchesCoffee(attempt, id: selectedCoffeeBagID, legacySnapshot: selectedCoffeeSnapshot)
         }
+    }
+
+    private var activeCoffeeBagID: UUID? {
+        selection == .all || selection == .home ? selectedCoffeeBagID : nil
+    }
+
+    private var contextSelection: Binding<JournalTabView.JournalFilter> {
+        Binding(get: { selection }, set: { next in
+            if next != .all && next != .home { selectedCoffeeBagID = nil }
+            selection = next
+        })
+    }
+
+    private var scopedHomeAttempts: [HomeAttemptRecord] {
+        guard homeScope == .forUserID(currentUserID) else { return [] }
+        return HomeJournalProjection.privateEntries(in: homeStore.workspace, scope: homeStore.scope,
+            expectedScope: homeScope, publishedIDs: Set(entries.map(\.id)),
+            removedPublicationIDs: currentUserID.map { HomeDeletedPostReceipts.ids(for: $0) } ?? [])
+    }
+
+    private var selectedCoffeeSnapshot: CoffeeBagSnapshot? {
+        guard let selectedCoffeeBagID = activeCoffeeBagID else { return nil }
+        if let remote = entries.first(where: { $0.summary.visit.homeCoffeeBagID == selectedCoffeeBagID }) {
+            return remote.summary.visit.structuredBrewDetails.coffeeBag
+        }
+        let attempt = scopedHomeAttempts.first { $0.homeCoffeeBagID == selectedCoffeeBagID }
+        return (attempt?.preparation ?? attempt?.targets)?.coffee
     }
 
     private var coffeeBagOptions: [JournalCoffeeBagOption] {
@@ -1285,13 +1291,18 @@ private struct JournalArchiveView: View {
                 ?? details.beans?.remoteTrimmedNonEmpty
                 ?? entry.summary.visit.drinkDisplayName
         }
+        for attempt in scopedHomeAttempts {
+            guard let id = attempt.homeCoffeeBagID else { continue }
+            labels[id] = (attempt.preparation ?? attempt.targets)?.coffee?.displayName ?? attempt.name
+        }
         return labels.map(JournalCoffeeBagOption.init(id:label:))
             .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
     }
 
     private var timelineGroups: [JournalArchiveMonthGroup] {
         let calendar = Calendar.current
-        return Dictionary(grouping: filteredEntries) { entry in
+        let items = JournalHistoryProjection.ordered(entries: filteredEntries, privateHome: filteredPrivateHomeAttempts)
+        return Dictionary(grouping: items) { entry in
             calendar.date(from: calendar.dateComponents([.year, .month], from: entry.date)) ?? entry.date
         }
         .map { JournalArchiveMonthGroup(month: $0.key, entries: $0.value.sorted { $0.date > $1.date }) }
@@ -1302,7 +1313,7 @@ private struct JournalArchiveView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: 14) {
-                    JournalFilterBar(selection: $selection)
+                    JournalFilterBar(selection: contextSelection)
 
                     if let ownerID = currentUserID {
                         VStack(alignment: .leading, spacing: 8) {
@@ -1312,13 +1323,13 @@ private struct JournalArchiveView: View {
                                 evidence: CoffeeAssistanceContext.candidates(
                                     CoffeeAssistanceContext.journal(entries, ownerID: ownerID,
                                         includePrivateNotes: includePrivateNotesInAssistance)
-                                    + CoffeeAssistanceContext.home(privateHomeAttempts,
+                                    + CoffeeAssistanceContext.home(scopedHomeAttempts,
                                         scope: homeScope, ownerID: ownerID,
                                         canonicalIDs: Set(entries.map(\.id)), includePrivateNotes: includePrivateNotesInAssistance),
                                     query: query),
                                 query: query, onOpenEvidence: { id in
                                     if id.hasPrefix("home-"), let uuid = UUID(uuidString: String(id.dropFirst(5))) {
-                                        selectedPrivateHomeAttempt = privateHomeAttempts.first { $0.id == uuid }
+                                        selectedPrivateHomeAttempt = scopedHomeAttempts.first { $0.id == uuid }
                                     } else if let uuid = UUID(uuidString: id) {
                                         selectedVisit = entries.first { $0.id == uuid && $0.summary.visit.userId == ownerID }?.summary
                                     }
@@ -1341,45 +1352,17 @@ private struct JournalArchiveView: View {
                         JournalArchiveModePicker(selection: $mode)
                     }
 
-                    if !filteredPrivateHomeAttempts.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Private Home sips")
-                                .font(.headline)
-                                .foregroundStyle(Color.espressoBrown)
-                            ForEach(filteredPrivateHomeAttempts) { attempt in
-                                Button { selectedPrivateHomeAttempt = attempt } label: {
-                                    HStack(spacing: 12) {
-                                        HomeMethodIconView(method: attempt.preparation?.method ?? .other, size: 28)
-                                            .frame(width: 48, height: 48)
-                                            .background(Color.mugshotMint.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(attempt.name).font(.subheadline.weight(.semibold))
-                                            Text(attempt.createdAt, style: .date)
-                                                .font(.caption).foregroundStyle(Color.secondaryText)
-                                        }
-                                        Spacer()
-                                        Text(attempt.resolvedRating.map { HomeRecipeContent.number($0) + " / 5" } ?? "Unrated")
-                                            .font(.caption).foregroundStyle(Color.secondaryText)
-                                    }
-                                    .foregroundStyle(Color.espressoBrown)
-                                    .padding(12)
-                                    .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-
                     if filteredEntries.isEmpty && filteredPrivateHomeAttempts.isEmpty {
                         JournalEmptyState(filter: selection.rawValue)
-                    } else if !filteredEntries.isEmpty {
+                    } else {
                         switch mode {
                         case .timeline:
                             ForEach(timelineGroups) { group in
                                 JournalTimelineMonthSection(
                                     group: group,
                                     bookmarkedIDs: bookmarkedIDs,
-                                    onSelect: { selectedVisit = $0.summary },
+                                    homeScope: homeScope,
+                                    onSelect: selectHistoryItem,
                                     onCafeTap: { selectedCafeRoute = $0.summary.canonicalCafeRoute },
                                     onToggleBookmark: toggleBookmark
                                 )
@@ -1392,8 +1375,10 @@ private struct JournalArchiveView: View {
                         case .calendar:
                             JournalCalendarView(
                                 entries: filteredEntries,
+                                privateHomeAttempts: filteredPrivateHomeAttempts,
+                                homeScope: homeScope,
                                 selectedDate: $selectedDate,
-                                onSelect: { selectedVisit = $0.summary },
+                                onSelect: selectHistoryItem,
                                 onCafeTap: { selectedCafeRoute = $0.summary.canonicalCafeRoute }
                             )
                         case .map:
@@ -1407,15 +1392,11 @@ private struct JournalArchiveView: View {
                 .padding(16)
                 .padding(.bottom, 30)
             }
+            .accessibilityIdentifier("journal.archive.entries")
             .background(Color.creamWhite)
             .navigationTitle("Your Journal")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Search drinks, cafes, notes, or equipment")
-            .onChange(of: selection) { _, selection in
-                if selection == .cafe {
-                    selectedCoffeeBagID = nil
-                }
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -1501,6 +1482,13 @@ private struct JournalArchiveView: View {
         }
     }
 
+    private func selectHistoryItem(_ item: JournalHistoryItem) {
+        switch item {
+        case .published(let entry): selectedVisit = entry.summary
+        case .privateHome(let attempt): selectedPrivateHomeAttempt = attempt
+        }
+    }
+
     private func toggleBookmark(_ entry: JournalEntryProjection) {
         guard let currentUserID else { return }
         let wasBookmarked = bookmarkedIDs.contains(entry.id)
@@ -1564,29 +1552,36 @@ private struct JournalCoffeeBagFilterBar: View {
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(selection == id ? Color.foamWhite : Color.espressoBrown)
                 .padding(.horizontal, 12)
-                .frame(minHeight: 36)
+                .frame(minHeight: 44)
                 .background(selection == id ? Color.mugshotSage : Color.sandBeige.opacity(0.56))
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("journal.coffee.\(id?.uuidString.lowercased() ?? "all")")
         .accessibilityAddTraits(selection == id ? .isSelected : [])
     }
 }
 
 private struct JournalArchiveMonthGroup: Identifiable {
     let month: Date
-    let entries: [JournalEntryProjection]
+    let entries: [JournalHistoryItem]
 
     var id: Date { month }
-    var photoEntries: [JournalEntryProjection] {
-        Array(entries.filter { $0.summary.visit.posterPhotoURL?.remoteTrimmedNonEmpty != nil }.prefix(8))
+    var photoEntries: [JournalHistoryItem] {
+        Array(entries.filter { item in
+            switch item {
+            case .published(let entry): entry.summary.visit.posterPhotoURL?.remoteTrimmedNonEmpty != nil
+            case .privateHome(let attempt): !attempt.photoNames.isEmpty
+            }
+        }.prefix(8))
     }
 }
 
 private struct JournalTimelineMonthSection: View {
     let group: JournalArchiveMonthGroup
     let bookmarkedIDs: Set<UUID>
-    let onSelect: (JournalEntryProjection) -> Void
+    let homeScope: LocalAccountScope
+    let onSelect: (JournalHistoryItem) -> Void
     let onCafeTap: (JournalEntryProjection) -> Void
     let onToggleBookmark: (JournalEntryProjection) -> Void
 
@@ -1594,71 +1589,65 @@ private struct JournalTimelineMonthSection: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text(group.month.formatted(.dateTime.month(.wide).year()))
-                    .mugshotDisplay(size: 23)
-                    .foregroundColor(.espressoBrown)
+                    .mugshotDisplay(size: 23).foregroundStyle(Color.espressoBrown)
                 Spacer()
                 Text("\(group.entries.count) \(group.entries.count == 1 ? "memory" : "memories")")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
+                    .font(.caption.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
             }
+            if !group.photoEntries.isEmpty { photoStrip }
+            ForEach(group.entries) { item in historyRow(item) }
+        }
+    }
 
-            if !group.photoEntries.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 8) {
-                        ForEach(group.photoEntries) { entry in
-                            Button { onSelect(entry) } label: {
-                                RemotePhotoImageView(
-                                    urlString: entry.summary.visit.posterPhotoURL,
-                                    placeholderSystemName: "cup.and.saucer.fill",
-                                    contentMode: .fill
-                                )
-                                .frame(width: 102, height: 126)
-                                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-                                .overlay(alignment: .bottomLeading) {
-                                    Text(entry.summary.visit.drinkDisplayName)
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.foamWhite)
-                                        .lineLimit(1)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 6)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(.black.opacity(0.46))
-                                }
+    private var photoStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                ForEach(group.photoEntries) { item in
+                    Button { onSelect(item) } label: {
+                        historyPhoto(item)
+                            .frame(width: 102, height: 126).clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
+                            .overlay(alignment: .bottomLeading) {
+                                Text(item.drinkName).font(.caption2.weight(.bold))
+                                    .foregroundStyle(Color.foamWhite).lineLimit(1)
+                                    .padding(.horizontal, 8).padding(.vertical, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(.black.opacity(0.46))
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Open \(entry.summary.visit.drinkDisplayName) from \(entry.date.formatted(date: .abbreviated, time: .omitted))")
-                        }
-                    }
-                }
-            }
-
-            ForEach(group.entries) { entry in
-                RemoteJournalRow(
-                    visit: entry.summary,
-                    onOpen: { onSelect(entry) },
-                    onCafeTap: { onCafeTap(entry) }
-                )
-                .contextMenu {
-                    Button { onToggleBookmark(entry) } label: {
-                        Label(
-                            bookmarkedIDs.contains(entry.id) ? "Remove Bookmark" : "Bookmark Sip",
-                            systemImage: bookmarkedIDs.contains(entry.id) ? "bookmark.slash" : "bookmark"
-                        )
-                    }
-                }
-                .overlay(alignment: .topTrailing) {
-                    Button { onToggleBookmark(entry) } label: {
-                        Image(systemName: bookmarkedIDs.contains(entry.id) ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.mugshotSage)
-                            .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(bookmarkedIDs.contains(entry.id) ? "Remove bookmark" : "Bookmark sip")
+                    .accessibilityLabel("Open \(item.drinkName) from \(item.date.formatted(date: .abbreviated, time: .omitted))")
                 }
             }
         }
     }
+
+    @ViewBuilder private func historyPhoto(_ item: JournalHistoryItem) -> some View {
+        switch item {
+        case .published(let entry):
+            RemotePhotoImageView(urlString: entry.summary.visit.posterPhotoURL,
+                placeholderSystemName: "cup.and.saucer.fill", contentMode: .fill)
+        case .privateHome(let attempt):
+            HomeJournalPhotoThumbnail(attempt: attempt, scope: homeScope)
+        }
+    }
+
+    @ViewBuilder private func historyRow(_ item: JournalHistoryItem) -> some View {
+        switch item {
+        case .privateHome(let attempt):
+            HomeJournalEntryRow(attempt: attempt, scope: homeScope) { onSelect(item) }
+        case .published(let entry):
+            RemoteJournalRow(visit: entry.summary, onOpen: { onSelect(item) }, onCafeTap: { onCafeTap(entry) },
+                onToggleBookmark: { onToggleBookmark(entry) }, isBookmarked: bookmarkedIDs.contains(entry.id))
+                .contextMenu {
+                    Button { onToggleBookmark(entry) } label: {
+                        Label(bookmarkedIDs.contains(entry.id) ? "Remove Bookmark" : "Bookmark Sip",
+                              systemImage: bookmarkedIDs.contains(entry.id) ? "bookmark.slash" : "bookmark")
+                    }
+                }
+        }
+    }
+
 }
 
 private enum JournalArchiveMode: String, CaseIterable, Identifiable {
@@ -1685,42 +1674,38 @@ private struct JournalArchiveModePicker: View {
 
 private struct JournalCalendarView: View {
     let entries: [JournalEntryProjection]
+    let privateHomeAttempts: [HomeAttemptRecord]
+    let homeScope: LocalAccountScope
     @Binding var selectedDate: Date
-    let onSelect: (JournalEntryProjection) -> Void
+    let onSelect: (JournalHistoryItem) -> Void
     let onCafeTap: (JournalEntryProjection) -> Void
 
-    private var entriesForDay: [JournalEntryProjection] {
-        entries.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
+    private var entriesForDay: [JournalHistoryItem] {
+        JournalHistoryProjection.onDay(selectedDate,
+            items: JournalHistoryProjection.ordered(entries: entries, privateHome: privateHomeAttempts))
     }
 
     var body: some View {
         VStack(spacing: 14) {
-            DatePicker(
-                "Journal date",
-                selection: $selectedDate,
-                in: ...Date(),
-                displayedComponents: .date
-            )
-            .datePickerStyle(.graphical)
-            .tint(.mugshotSage)
-            .padding(10)
-            .cardStyle()
-
+            DatePicker("Journal date", selection: $selectedDate, in: ...Date(), displayedComponents: .date)
+                .datePickerStyle(.graphical).tint(.mugshotSage)
+                .padding(10).cardStyle()
             if entriesForDay.isEmpty {
                 Text("No sips remembered on this day.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondaryText)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 22)
+                    .font(.subheadline).foregroundStyle(Color.secondaryText)
+                    .frame(maxWidth: .infinity).padding(.vertical, 22)
             } else {
-                ForEach(entriesForDay) { entry in
-                    RemoteJournalRow(
-                        visit: entry.summary,
-                        onOpen: { onSelect(entry) },
-                        onCafeTap: { onCafeTap(entry) }
-                    )
-                }
+                ForEach(entriesForDay) { item in calendarRow(item) }
             }
+        }
+    }
+
+    @ViewBuilder private func calendarRow(_ item: JournalHistoryItem) -> some View {
+        switch item {
+        case .published(let entry):
+            RemoteJournalRow(visit: entry.summary, onOpen: { onSelect(item) }, onCafeTap: { onCafeTap(entry) })
+        case .privateHome(let attempt):
+            HomeJournalEntryRow(attempt: attempt, scope: homeScope) { onSelect(item) }
         }
     }
 }
@@ -1730,11 +1715,13 @@ private struct JournalMapSummaryView: View {
     let onSelect: (JournalEntryProjection) -> Void
 
     private var mappedEntries: [JournalEntryProjection] {
-        entries.filter { $0.summary.cafe?.latitude != nil && $0.summary.cafe?.longitude != nil }
+        entries.filter { $0.context == .cafe && $0.summary.cafe?.latitude != nil && $0.summary.cafe?.longitude != nil }
     }
 
     var body: some View {
         VStack(spacing: 14) {
+            Text("Home sips stay off the map.")
+                .font(.caption).foregroundStyle(Color.secondaryText)
             if mappedEntries.isEmpty {
                 Text("Cafe sips with saved locations will appear here.")
                     .font(.system(size: 13, weight: .medium))
@@ -1798,6 +1785,7 @@ private struct JournalFilterBar: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, minHeight: 44)
+                .accessibilityIdentifier("journal.context.\(filter.rawValue.lowercased())")
                 .accessibilityAddTraits(selection == filter ? .isSelected : [])
             }
         }
@@ -1914,105 +1902,24 @@ struct RemoteJournalRow: View {
     let visit: RemoteVisitSummary
     var onOpen: (() -> Void)? = nil
     var onCafeTap: (() -> Void)? = nil
+    var onToggleBookmark: (() -> Void)? = nil
+    var isBookmarked = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            openControl(label: "Open \(visit.visit.drinkDisplayName)") {
-                thumbnail
-            }
-            .frame(width: 92, height: 96)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.control, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 5) {
-                openControl(label: "Open \(visit.visit.drinkDisplayName)") {
-                    HStack(spacing: 5) {
-                        Image(systemName: visit.visit.journalContext.systemImage)
-                        Text(visit.visit.journalContext == .cafe ? "Cafe Sip" : visit.visit.journalContext.rawValue)
-                        Text("·")
-                        Text(visit.visit.createdAtDate, style: .date)
-                    }
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.mugshotSage)
-                }
-
-                if visit.visit.journalContext == .cafe, let onCafeTap {
-                    Button(action: onCafeTap) {
-                        HStack(spacing: 5) {
-                            Text(visit.locationTitle)
-                                .mugshotDisplay(size: 19)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundColor(.espressoBrown)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("journal.cafe.\(visit.canonicalCafeRoute?.cafeID.uuidString ?? visit.id.uuidString)")
-                    .accessibilityLabel("Open \(visit.locationTitle) cafe details")
-                    .accessibilityHint("Opens this cafe")
+        JournalSipRow(content: JournalSipRowContent(id: "visit-\(visit.id)", context: visit.visit.journalContext,
+            date: visit.visit.createdAtDate, locationName: visit.locationTitle,
+            drinkName: visit.visit.drinkDisplayName, score: visit.displayedMugshotScore,
+            locationControlID: "journal.cafe.\(visit.canonicalCafeRoute?.cafeID.uuidString ?? visit.id.uuidString)"),
+            onOpen: onOpen, onLocationTap: visit.visit.journalContext == .cafe ? onCafeTap : nil,
+            trailingSymbol: isBookmarked ? "bookmark.fill" : "bookmark",
+            trailingLabel: isBookmarked ? "Remove bookmark" : "Bookmark sip", trailingAction: onToggleBookmark) {
+                if visit.visit.posterPhotoURL != nil {
+                    RemotePhotoImageView(urlString: visit.visit.posterPhotoURL,
+                        placeholderSystemName: "cup.and.saucer.fill", contentMode: .fill)
                 } else {
-                    openControl(label: "Open \(visit.visit.drinkDisplayName)") {
-                        Text(visit.locationTitle)
-                            .mugshotDisplay(size: 19)
-                            .foregroundColor(.espressoBrown)
-                            .lineLimit(1)
-                    }
-                }
-
-                openControl(label: "Open \(visit.visit.drinkDisplayName)") {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(visit.visit.drinkDisplayName)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.secondaryText)
-                            .lineLimit(1)
-                        Label(String(format: "%.1f", visit.displayedMugshotScore), systemImage: "star.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.mugshotSage)
-                    }
+                    RemoteVisitNoPhotoThumbnail(usesMugsyFallback: visit.usesMugsyPhotoFallback, stableID: visit.id.uuidString)
                 }
             }
-
-            Spacer(minLength: 4)
-            openControl(label: "Open \(visit.visit.drinkDisplayName)") {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.tertiaryText)
-                    .frame(width: 36, height: 44)
-            }
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .contain)
-    }
-
-    @ViewBuilder
-    private var thumbnail: some View {
-        if visit.visit.posterPhotoURL != nil {
-            RemotePhotoImageView(
-                urlString: visit.visit.posterPhotoURL,
-                placeholderSystemName: "cup.and.saucer.fill",
-                contentMode: .fill
-            )
-        } else {
-            RemoteVisitNoPhotoThumbnail(
-                usesMugsyFallback: visit.usesMugsyPhotoFallback,
-                stableID: visit.id.uuidString
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func openControl<Content: View>(
-        label: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        if let onOpen {
-            Button(action: onOpen, label: content)
-                .buttonStyle(.plain)
-                .accessibilityLabel(label)
-                .accessibilityHint("Opens this Mugshot")
-        } else {
-            content()
-        }
     }
 }
 

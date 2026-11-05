@@ -1,8 +1,85 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-05
 ---
+
+## Home Journal, drafts and owner controls — November 5 candidate
+
+- `Models/HomeJourneyControls.swift`: deletion union/projection, draft index,
+  owner deletion receipts and selected-cover order.
+- `Models/HomePlaceProfile.swift`, `HomeLibraryPreferences.swift`,
+  `Services/HomeLibraryStore.swift`: optional named setups and safe guest adoption.
+- `Views/Profile/JournalSipRow.swift`: shared Journal row and mixed history model.
+- `Views/Add/HomeDraftManagementView.swift`, `HomePlaceProfileViews.swift`,
+  `HomeEditorCanvas.swift`: complete drafts, setups and composed editor controls.
+- `Services/HomeRecipeWorkspaceStore.swift` and Supabase media/workspace services:
+  owner-fenced edit/delete, durable markers and acknowledged private-photo cleanup.
+- `supabase/migrations/20261105183000_home_workspace_deletion_controls.sql`:
+  additive deletion-preservation trigger; live at 20261105183000 after isolated QA
+  and unchanged protected fingerprints. Held Home V4 remains undeployed.
+- `HomeJourneyControlTests`, `HomeWorkspaceDeletionBoundaryTests`,
+  `HomePlaceProfileControlTests`, `SipDraftDiscardTests`, `HomeJournalHistoryTests`
+  and isolated Home Journal/draft/editor UI suites cover the new boundaries.
+- [Audit and current verification](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md).
+
+## Recipe focus and full-screen post result — 2026-11-05
+
+- `Services/HomeRecipeSourceReader.swift`: preparation headings, wrapped-line
+  grouping and page/other-recipe exclusion without AI.
+- `Models/CoffeeAssistanceRecipeImport.swift`: bounded selection evidence and
+  draft-owned replacement that protects edits/deletions and partial fallbacks.
+- `supabase/functions/coffee-assistance/provider.ts`: one-recipe instructions,
+  exact contiguous source quotes and a recipe-only output budget.
+- `Views/Sharing/MugshotPostedResultView.swift`, `MugshotShareHubView.swift` and
+  `Views/Add/SipComposerView.swift`: confirmed-owner full-screen result, focused
+  sharing and existing post routing within one cover.
+- `Design/MugshotPolishPresentation.swift`: pure receipt/owner/completion policy;
+  `Views/Developer/PostedResultPreviewHost.swift`: Debug fictional preview only.
+- `HomeRecipeSourceTests`, `CompletionChoreographyTests`, `CoffeeAssistanceTests`
+  and `PostedResultUITests`: source, replacement, owner/cancellation and native
+  result/share/privacy boundaries. [Evidence and gallery](design/recipe-focus-post-celebration-2026-11-05/README.md).
+
+## Recipe canvas and drink builder — November 4 follow-up
+
+- `Models/HomeRecipeComposition.swift`: presentation use suggestions and parent-only
+  drink composition with immutable references and safe base replacement.
+- `Views/Add/HomeDrinkBuilderView.swift`: native mix editor, saved-part/base picker,
+  optional amounts, parent-preserving inspection and account-scoped draft Save.
+- `HomeDrinkBuilderView.swift` includes a native numeric control that preserves
+  its editing buffer during draft updates. `HomeRecipeWorkspaceStore.shared`
+  isolates/reset Debug UI fixtures in a separate Home workspace.
+- `HomeDrinkComposition.guidance` resolves explicit or linked base methods and
+  de-duplicates assembly for the shared Home Make surface.
+- [Interview-grounded native package](design/home-recipe-composer-2026-11-04/README.md).
+- [November 5 installation, physical acceptance and owner preservation](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
+
+## Recipe source capture — November 4 follow-up
+
+- `Views/Add/HomeRecipeCaptureView.swift`: link/caption/screenshot/video capture,
+  editable recipe filling, cancellation and ordinary Save.
+- `Services/HomeRecipeSourceReader.swift`: bounded social URL/metadata reading,
+  deterministic labelled sections and ephemeral unauthenticated transport.
+- `Services/HomeRecipeMediaReader.swift`: actual image/video-frame OCR and optional
+  on-device speech, with temporary clip import and explicit media bounds.
+- `Models/HomeRecipeCaptureSources.swift`: distinct source contributions that
+  preserve captions and user typing when another attachment changes.
+- [ECC evidence and physical acceptance](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
+## Home library and remembered Luna access — 2026-11-04
+
+- `Views/Add/HomeLibraryView.swift`: standalone Recipes/Beans/Gear/Preferences,
+  existing editors, source discovery and saved-sip composer handoff.
+- `Models/HomeLibraryPreferences.swift`: account-safe defaults and scan autofill
+  that preserves edits made during a read.
+- `Services/CoffeeAssistancePermissionStore.swift` and
+  `Views/Shared/LunaPermissionControl.swift`: explicit remembered account choice
+  and a short inline enable control; no repeated consent form.
+- `Services/HomeLibrarySynchronizer.swift`: originating-account transport,
+  serialized latest-edit sync, offline retry and erasure invalidation.
+- `HomeLibraryExperienceTests`, `HomeLibraryFlowUITests`, existing helper and
+  Journal/bean tests: ownership, fallback, persistence and actual native journeys.
+- [Audit, captured before/after and acceptance](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
 
 ## Journal navigation and current Home beans — 2026-11-04
 
