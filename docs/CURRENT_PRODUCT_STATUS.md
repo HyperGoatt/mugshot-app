@@ -4,6 +4,23 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home Journal and controls — November 5 accepted development candidate
+
+Home, cafe and Elsewhere now share Journal image sizing and metadata hierarchy.
+The update adds named Home setups, private-sip edit/delete, one complete draft
+manager, designed editor cards and optional measurements. Deletion retains
+source recipes/other servings and uses owner-bound durable markers plus safe
+private-media cleanup. All 106 native tests and 18 screen paths pass in Simulator
+and on signed hardware; the separate owner read-only existing-recipe check passes.
+Mugshot Luna QA 0.5.3 (8) is installed/launched on iPhone 16 Pro / iOS 27.0.1.
+All 40 original files survive installation unchanged; final owner content and the
+complete recipe workspace remain unchanged, with only a shelf updatedAt refresh.
+The deletion guard is live after 68 hosted contracts and real Auth/Storage probes;
+75 protected fingerprints match and the paid branch is deleted. Fixture apps and
+runners are removed. TestFlight, held Home V4 and draft PR holds remain.
+[Current behavior](HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate),
+[audit and exact evidence](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md).
+
 ## Recipe focus and full-screen posted result — November 5
 
 Mugshot Luna QA 0.5.3 (8) now includes cleaner screenshot/caption extraction,

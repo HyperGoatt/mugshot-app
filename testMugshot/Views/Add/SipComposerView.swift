@@ -294,12 +294,10 @@ struct LogVisitView: View {
                     }
                 )
             }
-            .sheet(item: $presentedDraftResumePicker) { presentation in
-                SipDraftResumePicker(
-                    drafts: presentation.drafts,
-                    onResume: resumeDraft
-                )
-                .presentationDetents([.medium, .large])
+            .sheet(item: $presentedDraftResumePicker, onDismiss: refreshResumableDrafts) { _ in
+                HomeDraftManagementView(ownerID: authModel.authenticatedUser?.id, excludingSipID: draft.id,
+                    onResumeSip: resumeDraft)
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $isCafeSearchActive) {
@@ -605,6 +603,7 @@ struct LogVisitView: View {
                 .names(scope: pinnedContextScope).isEmpty,
             onCancel: cancelComposer,
             onResumeDraft: requestDraftResume,
+            onResumeStoredDraft: resumeDraft,
             onAddPhoto: { showPhotoSourceDialog = true },
             onRemovePhoto: removePhoto,
             onOrganizePhotos: beginOrganizingPhotos,
@@ -2118,13 +2117,7 @@ struct LogVisitView: View {
         persistDraft()
         refreshResumableDrafts()
         guard !resumableDrafts.isEmpty else { return }
-        if resumableDrafts.count == 1, let onlyDraft = resumableDrafts.first {
-            resumeDraft(onlyDraft)
-        } else {
-            presentedDraftResumePicker = SipDraftResumePickerPresentation(
-                drafts: resumableDrafts
-            )
-        }
+        presentedDraftResumePicker = SipDraftResumePickerPresentation()
     }
 
     private func resumeDraft(_ selectedDraft: SipDraft) {
@@ -5036,77 +5029,6 @@ struct LogVisitView: View {
 
 private struct SipDraftResumePickerPresentation: Identifiable {
     let id = UUID()
-    let drafts: [SipDraft]
-}
-
-private struct SipDraftResumePicker: View {
-    let drafts: [SipDraft]
-    let onResume: (SipDraft) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List(drafts) { draft in
-                Button {
-                    onResume(draft)
-                    dismiss()
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: draft.context.systemImage)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.mugshotSage)
-                            .frame(width: 38, height: 38)
-                            .background(Color.mugshotMint.opacity(0.48), in: Circle())
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(draft.drinkName.remoteTrimmedNonEmpty ?? "Untitled sip")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.espressoBrown)
-                                .lineLimit(1)
-                            Text(draftLocation(draft))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Color.secondaryText)
-                                .lineLimit(1)
-                            Text("Saved \(draft.updatedAt.formatted(.relative(presentation: .named)))")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Color.tertiaryText)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "arrow.right.circle.fill")
-                            .foregroundStyle(Color.mugshotSage)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    "Resume \(draft.drinkName.remoteTrimmedNonEmpty ?? "untitled sip"), saved \(draft.updatedAt.formatted(.relative(presentation: .named)))"
-                )
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.creamWhite)
-            .navigationTitle("Resume a draft")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func draftLocation(_ draft: SipDraft) -> String {
-        switch draft.context {
-        case .cafe:
-            return draft.cafe?.consumerDisplayName ?? "Cafe sip"
-        case .home, .recipe:
-            return draft.locationName.remoteTrimmedNonEmpty ?? "Home sip"
-        case .elsewhere:
-            return draft.locationName.remoteTrimmedNonEmpty ?? "Elsewhere sip"
-        }
-    }
 }
 
 private struct SipCompletionSummary {

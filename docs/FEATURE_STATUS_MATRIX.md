@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home controls — November 5 accepted development candidate
+
+Journal parity, named setups, private-sip edit/delete, complete counted drafts,
+composed editors and optional measurements are implemented and verified. All
+106 focused native tests and 18 selected UI paths pass in Simulator and on signed
+iPhone 16 Pro / iOS 27.0.1; the separate owner read-only recipe check passes.
+Mugshot Luna QA 0.5.3 (8) is installed/launched with owner content preserved. The
+additive deletion guard is live after 68 hosted contracts and real Auth/Storage
+probes, with 75 protected fingerprints unchanged. Paid QA and fixture apps/runners
+are removed; held Home V4 and TestFlight remain separate.
+[Current behavior and gates](HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate).
+
 ## Recipe focus and posted-result follow-up — 2026-11-05
 
 Implemented, installed and launched: cleaner recipe-only fallback/Luna extraction,

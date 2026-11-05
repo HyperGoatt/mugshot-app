@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home deletion compatibility candidate — November 5
+
+`20261105183000_home_workspace_deletion_controls.sql` adds a private workspace
+deletion-normalization function/trigger. It preserves deletion markers across
+older clients, normalizes UUID casing, retains saved sips against draft-only
+markers, protects existing canonical posts and queues safe private-photo cleanup.
+It changes no public recipe audience or canonical deletion authorization. The
+migration is live at head 20261105183000 (185 live migrations). Approved data-less
+QA replayed all 186 local migrations, passed 68 SQL contracts and real Auth/Storage
+probes, and the paid branch is deleted. The exact live release contained 184
+applied migrations plus this one forward migration; held Home V4 was excluded
+and remains undeployed. A completed physical backup preceded deployment. All
+75 protected table counts/fingerprints and security-advisor counts are unchanged,
+private helpers are unexposed, and the trigger is active. Source/test/native
+checks are separate from client hardware acceptance: the signed isolated phone
+gate passes 106 native cases and all 18 selected UI paths; owner read-only
+acceptance also passes. No TestFlight release or held Home V4 deployment occurred.
+[Audit and current gates](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md).
+
 ## Recipe-only provider update completed — 2026-11-05
 
 The owner approved a fresh data-less QA branch at $0.01344/hour. It aligned all

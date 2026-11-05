@@ -30,7 +30,9 @@ final class HomeEditorControlsUITests: XCTestCase {
         app.buttons["Remove ingredient"].tap()
         XCTAssertEqual(app.textFields["home.recipe.ingredient.0.name"].value as? String, "Milk")
         XCTAssertFalse(app.textFields["home.recipe.ingredient.1.name"].exists)
-        let lastTiming = app.textFields["Wait (seconds)"].lastMatch
+        let timingFields = app.textFields.matching(identifier: "Wait (seconds)").allElementsBoundByIndex
+        XCTAssertFalse(timingFields.isEmpty)
+        guard let lastTiming = timingFields.last else { return }
         reveal(lastTiming, app)
         XCTAssertLessThan(lastTiming.frame.maxY, app.buttons["home.recipe.save"].frame.minY,
             "The final editor input must scroll fully above the fixed Save action.")
@@ -120,6 +122,10 @@ final class HomeEditorControlsUITests: XCTestCase {
         reveal(name, app); replaceText(name, with: "Unfinished variation")
         app.buttons["home.editor.keyboardDone"].tap()
         app.buttons["Cancel"].firstMatch.tap()
+        let continueEditing = app.buttons["Continue editing"].firstMatch
+        XCTAssertTrue(continueEditing.waitForExistence(timeout: 5)); continueEditing.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        app.buttons["Cancel"].firstMatch.tap()
         let keep = app.buttons["Keep draft"].firstMatch
         XCTAssertTrue(keep.waitForExistence(timeout: 5)); keep.tap()
         openPrivateEdit(app, expectsReflection: false)
@@ -159,6 +165,19 @@ final class HomeEditorControlsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Original journal identity kept"].exists)
     }
 
+    @MainActor func testPrivateHomeDeleteRemovesTheSavedSipAndKeepsItsRecipe() {
+        let app = launch(["--ui-testing-home-private-edit"])
+        let more = app.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 8)); more.tap()
+        app.buttons["home.sip.delete"].firstMatch.tap()
+        let confirm = app.buttons["sip.delete.confirm"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
+        XCTAssertTrue(app.staticTexts["0 saved sip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Name: Missing"].exists)
+        XCTAssertTrue(app.staticTexts["Recipe unchanged"].exists)
+        XCTAssertTrue(app.staticTexts["Pending edit drafts: 0"].exists)
+    }
+
     @MainActor private func openPrivateEdit(_ app: XCUIApplication, expectsReflection: Bool = true) {
         let more = app.buttons["More"]
         XCTAssertTrue(more.waitForExistence(timeout: 8)); reveal(more, app); more.tap()
@@ -176,7 +195,7 @@ final class HomeEditorControlsUITests: XCTestCase {
 
     @MainActor private func reveal(_ element: XCUIElement, _ app: XCUIApplication) {
         let scroll = app.scrollViews.firstMatch
-        for _ in 0..<12 {
+        for _ in 0..<24 {
             let frame = element.frame
             let top = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY + 8 : app.frame.minY + 100
             let stickyActions = ["home.recipe.save", "home.log.save", "home.log.reflect"]
@@ -184,9 +203,17 @@ final class HomeEditorControlsUITests: XCTestCase {
             if element.isHittable && stickyActions.isEmpty { return }
             let bottom = stickyActions.map { $0.frame.minY - 12 }.min() ?? app.frame.maxY - 70
             if element.isHittable && frame.minY >= top && frame.maxY <= bottom { return }
-            if element.exists && frame.minY < top && frame != .zero {
-                scroll.swipeDown()
-            } else { scroll.swipeUp() }
+            // Short drags can place a large-text control inside the viewport;
+            // full-screen flicks overshoot and bounce between both ends.
+            let viewport = max(80, bottom - top)
+            let desiredY = top + viewport / 2
+            let requested = frame == .zero ? viewport * 0.7 : frame.midY - desiredY
+            let distance = min(max(requested, -viewport * 0.7), viewport * 0.7)
+            let startY = distance >= 0 ? bottom - 20 : top + 20
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: app.frame.width / 2, dy: startY))
+            let end = origin.withOffset(CGVector(dx: app.frame.width / 2, dy: startY - distance))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
         XCTFail("The control must scroll into the visible editor area above the fixed actions.")
     }

@@ -46,7 +46,7 @@ struct HomeLibraryEntryButton: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("home.library.entry")
         .sheet(item: $presentation) { item in
-            HomeLibraryView(ownerID: item.ownerID, initialSection: item.section, onComposeDraft: onComposeDraft)
+            HomeLibraryView(ownerID: item.ownerID, initialSection: item.section, onComposeDraft: onComposeDraft, includesSipDrafts: true)
                 .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
     }
@@ -57,6 +57,7 @@ struct HomeLibraryView: View {
     let ownerID: UUID?
     var initialSection: HomeLibrarySection = .recipes
     var onComposeDraft: (SipDraft) -> Void = { _ in }
+    var includesSipDrafts = false
     var onSelectRecipe: ((HomeRecipeRecord, HomeRecipeVersion) -> Void)? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var authModel: AppAuthModel
@@ -78,10 +79,21 @@ struct HomeLibraryView: View {
     @State private var showsArchived = false
     @State private var query = ""
     @State private var error: String?
+    @State private var showsDrafts = false
+    @State private var sipDrafts: [SipDraft] = []
+    @State private var profileEditor: HomePlaceProfile?
+    @State private var profileRemoval: HomePlaceProfile?
 
     private var scope: LocalAccountScope { .forUserID(ownerID) }
     private var isCurrentOwner: Bool { authModel.authenticatedUser?.id == ownerID }
     private var preferences: HomeLibraryPreferences { library.preferences ?? HomeLibraryPreferences() }
+    private var availableSections: [HomeLibrarySection] {
+        includesSipDrafts || onSelectRecipe != nil ? HomeLibrarySection.allCases : [initialSection]
+    }
+    private var draftCount: Int {
+        guard workspace.scope == scope else { return 0 }
+        return HomeDraftCatalogue(sipDrafts: includesSipDrafts ? sipDrafts : [], workspace: workspace.workspace).count
+    }
     private var recipes: [HomeRecipeRecord] {
         guard workspace.scope == scope else { return [] }
         return workspace.workspace.recipes.filter {
@@ -96,22 +108,7 @@ struct HomeLibraryView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(heading).font(.system(size: 32, weight: .semibold, design: .serif))
-                    Text(subtitle).font(.subheadline).foregroundStyle(Color.secondaryText)
-                    sectionPicker
-                    sectionContent
-                    if let ownerID, let message = synchronizer.messages[ownerID] {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(message).font(.footnote)
-                            Button("Retry sync") { Task { await synchronize() } }
-                        }.foregroundStyle(Color.secondaryText)
-                    }
-                    if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-                }.padding(20)
-            }
-            .background(Color.creamWhite)
+            AnyView(libraryContent)
             .navigationTitle("Home library").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -128,7 +125,7 @@ struct HomeLibraryView: View {
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
                 if !isCurrentOwner {
                     bagEditor = nil; gearEditor = nil; recipe = nil; pendingRecipe = nil
-                    drinkDraft = nil; addsRecipe = false; dismiss()
+                    drinkDraft = nil; addsRecipe = false; profileEditor = nil; profileRemoval = nil; showsDrafts = false; dismiss()
                 }
             }
             .sheet(item: $bagEditor) { configuration in
@@ -167,9 +164,52 @@ struct HomeLibraryView: View {
                 HomeRecipeDiscoveryView { addsAfterDiscovery = true; findsRecipes = false }
                     .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
+            .sheet(isPresented: $showsDrafts, onDismiss: reload) {
+                HomeDraftManagementView(ownerID: ownerID, includesSipDrafts: includesSipDrafts, onResumeSip: { draft in
+                    showsDrafts = false; dismiss(); onComposeDraft(draft)
+                }).environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
+            .sheet(item: $profileEditor, onDismiss: reload) { profile in
+                HomePlaceProfileEditorView(ownerID: ownerID, profile: profile) { _ in reload() }
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
+            .sheet(isPresented: Binding(
+                get: { profileRemoval != nil }, set: { if !$0 { profileRemoval = nil } }
+            )) {
+                SipDeleteConfirmationSheet(isDeleting: false, errorMessage: nil,
+                    title: "Remove this Home setup?", deleteTitle: "Remove setup", cancelTitle: "Keep setup",
+                    message: "Earlier sips keep their recorded Home name. Your gear and recipes stay in your library.") {
+                    guard isCurrentOwner, let profileRemoval else { return }
+                    do { library = try HomeLibraryStore.shared.removeHomeProfile(id: profileRemoval.id, in: scope) }
+                    catch { self.error = "Couldn’t remove this setup. Try again." }
+                    self.profileRemoval = nil
+                }
+                .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+            }
         }
         .tint(Color.mugshotSageText)
         .disabled(!isCurrentOwner)
+    }
+
+    private var libraryContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(heading).font(.system(size: 32, weight: .semibold, design: .serif))
+                Text(subtitle).font(.subheadline).foregroundStyle(Color.secondaryText)
+                if availableSections.count > 1 { sectionPicker }
+                if section == .recipes && includesSipDrafts {
+                    HomeDraftSummaryButton(count: draftCount) { showsDrafts = true }
+                }
+                sectionContent
+                if let ownerID, let message = synchronizer.messages[ownerID] {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(message).font(.footnote)
+                        Button("Retry sync") { Task { await synchronize() } }
+                    }.foregroundStyle(Color.secondaryText)
+                }
+                if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+            }.padding(20)
+        }.background(Color.creamWhite)
     }
 
     private var heading: String {
@@ -191,7 +231,7 @@ struct HomeLibraryView: View {
     private var sectionPicker: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                ForEach(HomeLibrarySection.allCases) { item in
+                ForEach(availableSections) { item in
                     Button { section = item; query = "" } label: {
                         Text(item.rawValue)
                             .font(.subheadline.weight(.semibold)).padding(.horizontal, 12).frame(minHeight: 44)
@@ -226,11 +266,6 @@ struct HomeLibraryView: View {
             }
             Button("Find your next recipe", systemImage: "safari") { findsRecipes = true }
                 .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
-            ForEach(workspace.workspace.recipeDrafts.filter { $0.content.template == .drink && $0.content.name.remoteTrimmedNonEmpty != nil }) { draft in
-                Button { drinkDraft = draft } label: {
-                    shelfRow("Continue \(draft.content.name)", detail: "Your recipe draft", symbol: "pencil")
-                }.buttonStyle(.plain)
-            }
             TextField("Search your recipes", text: $query).textFieldStyle(.roundedBorder)
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
@@ -301,6 +336,38 @@ struct HomeLibraryView: View {
 
     private var preferencesForm: some View {
         VStack(alignment: .leading, spacing: 20) {
+            HomeEditorSection("Your Home setups", symbol: "house", detail: "A familiar nickname and the tools for that spot.") {
+                let profiles = (preferences.homeProfiles ?? []).filter { $0.ownerUserID == ownerID }
+                if profiles.isEmpty {
+                    Text("Home is ready to use. Add a named setup whenever you like.")
+                        .font(.subheadline).foregroundStyle(Color.secondaryText)
+                }
+                ForEach(profiles) { profile in
+                    HStack(spacing: 8) {
+                        Button { profileEditor = profile } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(profile.name).font(.headline)
+                                Text(preferences.defaultHomeProfileID == profile.id ? "Default Home setup" : (profile.equipmentIDs.count == 1 ? "1 saved tool" : "\(profile.equipmentIDs.count) saved tools"))
+                                    .font(.caption).foregroundStyle(Color.secondaryText)
+                            }.frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                        }.buttonStyle(.plain).accessibilityLabel("Edit \(profile.name) Home setup")
+                        Menu {
+                            Button("Use as default", systemImage: "pin") { updatePreferences { $0.defaultHomeProfileID = profile.id } }
+                            Button("Edit setup", systemImage: "pencil") { profileEditor = profile }
+                            Button("Remove setup", systemImage: "trash", role: .destructive) { profileRemoval = profile }
+                        } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+                        .accessibilityLabel("Actions for \(profile.name)")
+                    }
+                }
+                Button {
+                    profileEditor = HomePlaceProfile(ownerUserID: ownerID, name: "")
+                } label: { Label("Add a Home setup", systemImage: "plus").frame(minHeight: 44) }
+                .accessibilityIdentifier("home.profile.add")
+                if preferences.defaultHomeProfileID != nil {
+                    Button("Use Home without a saved setup") { updatePreferences { $0.defaultHomeProfileID = nil } }
+                        .font(.subheadline).frame(minHeight: 44)
+                }
+            }
             VStack(alignment: .leading, spacing: 14) {
                 Text("For a fresh setup").font(.headline)
                 Menu(preferences.preferredMethod.map { "Favorite method: \($0.title)" } ?? "Choose a favorite method") {
@@ -351,6 +418,7 @@ struct HomeLibraryView: View {
     private func reload() {
         guard isCurrentOwner else { return }
         library = HomeLibraryStore.shared.load(in: scope)
+        sipDrafts = includesSipDrafts ? SipDraftStore.shared.allDrafts(in: scope) : []
     }
     private func updatePreferences(_ update: (inout HomeLibraryPreferences) -> Void) {
         guard isCurrentOwner else { return }

@@ -4,6 +4,8 @@ struct HomeLibraryPreferences: Codable, Equatable, Sendable {
     var preferredMethod: HomeBrewMethod?
     var defaultBagID: UUID?
     var defaultEquipmentIDs: Set<UUID> = []
+    var homeProfiles: [HomePlaceProfile]?
+    var defaultHomeProfileID: UUID?
 }
 
 struct HomeLibraryDefaults {
@@ -17,7 +19,8 @@ extension HomeLibrarySnapshot {
         return HomeLibraryDefaults(
             bag: usesCoffee ? currentBags.first { $0.id == preferences?.defaultBagID && $0.ownerUserID == ownerID } : nil,
             equipment: activeEquipment.filter {
-                $0.ownerUserID == ownerID && preferences?.defaultEquipmentIDs.contains($0.id) == true
+                let selected = selectedHomeProfile(for: ownerID)?.equipmentIDs ?? preferences?.defaultEquipmentIDs ?? []
+                return $0.ownerUserID == ownerID && selected.contains($0.id)
             }
         )
     }

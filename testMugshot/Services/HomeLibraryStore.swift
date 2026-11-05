@@ -95,6 +95,41 @@ final class HomeLibraryStore {
     }
 
     @discardableResult
+    func upsertHomeProfile(_ value: HomePlaceProfile, in scope: LocalAccountScope) throws -> HomeLibrarySnapshot {
+        guard value.ownerUserID == nil || value.ownerUserID == scope.userID else {
+            throw HomeRecipeWorkspaceError.invalid("This Home setup belongs to another account.")
+        }
+        if let message = value.validationMessage { throw HomeRecipeWorkspaceError.invalid(message) }
+        return try mutate(in: scope) { snapshot in
+            var profile = value
+            profile.ownerUserID = scope.userID
+            profile.name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let available = Set(snapshot.activeEquipment.filter { $0.ownerUserID == scope.userID }.map(\.id))
+            profile.equipmentIDs.formIntersection(available)
+            var preferences = snapshot.preferences ?? HomeLibraryPreferences()
+            var profiles = preferences.homeProfiles ?? []
+            guard !profiles.contains(where: {
+                $0.id != profile.id && $0.ownerUserID == scope.userID &&
+                    $0.name.compare(profile.name, options: .caseInsensitive) == .orderedSame
+            }) else {
+                throw HomeRecipeWorkspaceError.invalid("Choose a different name so your setups are easy to tell apart.")
+            }
+            profiles.removeAll { $0.id == profile.id }; profiles.append(profile)
+            preferences.homeProfiles = profiles; snapshot.preferences = preferences
+        }
+    }
+
+    @discardableResult
+    func removeHomeProfile(id: UUID, in scope: LocalAccountScope) throws -> HomeLibrarySnapshot {
+        try mutate(in: scope) { snapshot in
+            var preferences = snapshot.preferences ?? HomeLibraryPreferences()
+            preferences.homeProfiles?.removeAll { $0.id == id && $0.ownerUserID == scope.userID }
+            if preferences.defaultHomeProfileID == id { preferences.defaultHomeProfileID = nil }
+            snapshot.preferences = preferences
+        }
+    }
+
+    @discardableResult
     func upsert(_ bag: CoffeeBag, in scope: LocalAccountScope) throws -> HomeLibrarySnapshot {
         try mutate(in: scope) { snapshot in
             var bag = bag
@@ -209,13 +244,72 @@ final class HomeLibraryStore {
         defer { lock.unlock() }
         let guestScope = LocalAccountScope.guest
         let destinationScope = LocalAccountScope.user(userID)
-        let guest = load(in: guestScope)
+        func readableShelf(in scope: LocalAccountScope) throws -> HomeLibrarySnapshot {
+            let metadata = metadataURL(for: scope)
+            guard fileManager.fileExists(atPath: metadata.path) else { return .empty }
+            do { return try decoder.decode(HomeLibrarySnapshot.self, from: Data(contentsOf: metadata)) }
+            catch { throw HomeLibraryStoreError.adoptionVerificationFailed }
+        }
+        let guest = try readableShelf(in: guestScope)
         guard !guest.bags.isEmpty || !guest.equipment.isEmpty || !guest.recentSetups.isEmpty || guest.preferences != nil else {
-            return load(in: destinationScope)
+            return try readableShelf(in: destinationScope)
         }
 
-        var destination = load(in: destinationScope)
-        if destination.preferences == nil { destination.preferences = guest.preferences }
+        var destination = try readableShelf(in: destinationScope)
+        let guestProfiles = guest.preferences?.homeProfiles ?? []
+        let accountProfiles = destination.preferences?.homeProfiles ?? []
+        guard (guestProfiles + accountProfiles).allSatisfy({
+            ($0.ownerUserID == nil || $0.ownerUserID == userID) && $0.validationMessage == nil
+        }), Set(guestProfiles.map(\.id)).count == guestProfiles.count,
+            Set(accountProfiles.map(\.id)).count == accountProfiles.count else {
+            throw HomeLibraryStoreError.adoptionVerificationFailed
+        }
+        for profiles in [accountProfiles, guestProfiles] {
+            for (index, profile) in profiles.enumerated() {
+                let name = profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !profiles.prefix(index).contains(where: {
+                    $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .compare(name, options: .caseInsensitive) == .orderedSame
+                }) else { throw HomeLibraryStoreError.adoptionVerificationFailed }
+            }
+        }
+        var mergedProfiles: [HomePlaceProfile] = []
+        // An interrupted adoption can leave the same identity in both scopes.
+        // Keep the account version, including any later nickname or gear edits.
+        for var profile in accountProfiles + guestProfiles {
+            if mergedProfiles.contains(where: { $0.id == profile.id }) { continue }
+            profile.ownerUserID = userID
+            let originalName = profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            profile.name = originalName
+            var suffixNumber = 1
+            // A familiar nickname on each shelf is a normal sign-in case.
+            // Keep both identities while making the adopted name unambiguous.
+            while mergedProfiles.contains(where: {
+                $0.name.compare(profile.name, options: .caseInsensitive) == .orderedSame
+            }) {
+                let suffix = suffixNumber == 1 ? " (from this device)" : " (from this device \(suffixNumber))"
+                profile.name = String(originalName.prefix(60 - suffix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines) + suffix
+                suffixNumber += 1
+            }
+            guard profile.validationMessage == nil else { throw HomeLibraryStoreError.adoptionVerificationFailed }
+            mergedProfiles.append(profile)
+        }
+        if destination.preferences != nil || guest.preferences != nil {
+            var preferences = destination.preferences ?? HomeLibraryPreferences()
+            if preferences.preferredMethod == nil { preferences.preferredMethod = guest.preferences?.preferredMethod }
+            if preferences.defaultBagID == nil { preferences.defaultBagID = guest.preferences?.defaultBagID }
+            if preferences.defaultEquipmentIDs.isEmpty {
+                preferences.defaultEquipmentIDs = guest.preferences?.defaultEquipmentIDs ?? []
+            }
+            if preferences.defaultHomeProfileID == nil {
+                preferences.defaultHomeProfileID = guest.preferences?.defaultHomeProfileID
+            }
+            if preferences.homeProfiles != nil || guest.preferences?.homeProfiles != nil {
+                preferences.homeProfiles = mergedProfiles
+            }
+            destination.preferences = preferences
+        }
         for var bag in guest.bags {
             bag.ownerUserID = userID
             if let relativePath = bag.localPhotoPath?.remoteTrimmedNonEmpty {
@@ -264,7 +358,10 @@ final class HomeLibraryStore {
         guard let verifiedData = try? Data(contentsOf: metadataURL(for: destinationScope)),
               let verified = try? decoder.decode(HomeLibrarySnapshot.self, from: verifiedData),
               Set(guest.bags.map(\.id)).isSubset(of: Set(verified.bags.map(\.id))),
-              Set(guest.equipment.map(\.id)).isSubset(of: Set(verified.equipment.map(\.id))) else {
+              Set(guest.equipment.map(\.id)).isSubset(of: Set(verified.equipment.map(\.id))),
+              verified.preferences == destination.preferences,
+              Set(guestProfiles.map(\.id)).isSubset(of: Set((verified.preferences?.homeProfiles ?? []).map(\.id))),
+              (verified.preferences?.homeProfiles ?? []).allSatisfy({ $0.ownerUserID == userID }) else {
             throw HomeLibraryStoreError.adoptionVerificationFailed
         }
         try fileManager.removeItem(at: scopeDirectory(for: guestScope))
@@ -281,7 +378,7 @@ final class HomeLibraryStore {
 
     private func mutate(
         in scope: LocalAccountScope,
-        _ mutation: (inout HomeLibrarySnapshot) -> Void
+        _ mutation: (inout HomeLibrarySnapshot) throws -> Void
     ) throws -> HomeLibrarySnapshot {
         lock.lock()
         defer { lock.unlock() }
@@ -292,7 +389,7 @@ final class HomeLibraryStore {
         } else {
             snapshot = .empty
         }
-        mutation(&snapshot)
+        try mutation(&snapshot)
         snapshot.updatedAt = .now
         let directory = scopeDirectory(for: scope)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -1618,6 +1618,7 @@ enum HomeBagDateParser {
 struct HomeEquipmentEditorSheet: View {
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     let configuration: HomeEquipmentEditorConfiguration
     let scope: LocalAccountScope
@@ -1648,38 +1649,48 @@ struct HomeEquipmentEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Picker("Role", selection: $equipment.role) {
-                    ForEach(EquipmentRole.allCases) { role in
-                        Label(role.title, systemImage: role.systemImage).tag(role)
+            HomeEditorCanvas(title: configuration.equipment == nil ? "Meet your gear." : "Your familiar favorite.",
+                detail: "Give it a name, choose its role and keep the useful details close. Add it once, use it whenever you make a sip.",
+                symbol: equipment.role.systemImage, eyebrow: "YOUR HOME SETUP") {
+                HomeEditorSection("What does it do?", symbol: equipment.role.systemImage) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 150 : 98), spacing: 10)], spacing: 10) {
+                        ForEach(EquipmentRole.allCases) { role in
+                            Button { equipment.role = role } label: {
+                                VStack(spacing: 8) {
+                                    Image(systemName: role.systemImage).font(.title3)
+                                    Text(role.title).font(.subheadline.weight(.semibold)).multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 78)
+                                .padding(.horizontal, 6).padding(.vertical, 8)
+                                .foregroundStyle(equipment.role == role ? Color.mugshotSageText : Color.secondaryText)
+                                .background(equipment.role == role ? Color.mugshotMint.opacity(0.5) : Color.creamWhite,
+                                    in: RoundedRectangle(cornerRadius: 16))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(equipment.role == role ? Color.mugshotSageText : Color.mugshotLine,
+                                    lineWidth: equipment.role == role ? 1.5 : 1))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(equipment.role == role ? .isSelected : [])
+                            .accessibilityIdentifier("home.gear.role.\(role.rawValue)")
+                        }
                     }
                 }
-                TextField("Nickname", text: $equipment.nickname)
-                    .autocorrectionDisabled()
-                TextField("Brand", text: $equipment.brand)
-                    .autocorrectionDisabled()
-                TextField("Model", text: $equipment.model)
-                    .autocorrectionDisabled()
-                TextField("Private notes", text: $equipment.notes, axis: .vertical)
-                    .lineLimit(2...4)
-
-                if configuration.equipment != nil {
-                    Toggle(
-                        "Archived",
-                        isOn: Binding(
-                            get: { equipment.archivedAt != nil },
-                            set: { equipment.archivedAt = $0 ? .now : nil }
-                        )
-                    )
-                    .tint(Color.mugshotSage)
+                HomeEditorSection("Make it recognizable", symbol: "tag") {
+                    HomeEditorField("Nickname", text: $equipment.nickname, placeholder: "My kitchen kettle", identifier: "home.gear.nickname")
+                        .autocorrectionDisabled()
+                    HomeEditorField("Brand", text: $equipment.brand, placeholder: "Optional").autocorrectionDisabled()
+                    HomeEditorField("Model", text: $equipment.model, placeholder: "Optional").autocorrectionDisabled()
                 }
-
-                if let errorMessage {
-                    Text(errorMessage).foregroundStyle(Color.red)
+                HomeEditorSection("Just for you", symbol: "lock") {
+                    HomeEditorField("Private notes", text: $equipment.notes, placeholder: "A setting or detail worth keeping", axis: .vertical)
+                    if configuration.equipment != nil {
+                        Toggle("Archived", isOn: Binding(get: { equipment.archivedAt != nil }, set: { equipment.archivedAt = $0 ? .now : nil }))
+                            .frame(minHeight: 44)
+                        Text("Archived gear stays in past sips and can be restored later.")
+                            .font(.caption).foregroundStyle(Color.secondaryText)
+                    }
                 }
+                if let errorMessage { HomeEditorError(message: errorMessage) }
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.creamWhite)
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in if !isCurrentOwner { dismiss() } }
             .navigationTitle(configuration.equipment == nil ? "Add gear" : "Edit gear")
             .navigationBarTitleDisplayMode(.inline)
@@ -1691,6 +1702,7 @@ struct HomeEquipmentEditorSheet: View {
                     Button("Save", action: save)
                         .fontWeight(.bold)
                         .disabled(!canSave)
+                        .accessibilityIdentifier("home.gear.save")
                 }
             }
         }

@@ -208,6 +208,7 @@ struct HomeSipV3SetupView: View {
     let onSkipGuidance: () -> Void
     let onQuickLog: () -> Void
     let onResumeSession: (UUID) -> Void
+    var onResumeSip: ((SipDraft) -> Void)? = nil
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var authModel: AppAuthModel
@@ -216,6 +217,9 @@ struct HomeSipV3SetupView: View {
     @State private var sheet: HomeSipSetupSheet?
     @State private var linkedRecipeDetail: HomeLinkedRecipeSheet?
     @State private var didTrackOpen = false
+    @State private var showsDrafts = false
+    @State private var shelf = HomeLibrarySnapshot.empty
+    @State private var sipDrafts: [SipDraft] = []
 
     private var selectedMethod: HomeBrewMethod? {
         guard draft.brewMethod.remoteTrimmedNonEmpty != nil else { return nil }
@@ -245,28 +249,18 @@ struct HomeSipV3SetupView: View {
         selectedRecipe != nil && selectedContent?.isActionable == false
     }
 
-    private var inProgress: [HomePreparationSession] {
-        store.workspace.sessions.filter { $0.currentPhase == .preparing }
+    private var draftCount: Int {
+        guard store.scope == .forUserID(draft.ownerUserID) else { return 0 }
+        return HomeDraftCatalogue(sipDrafts: onResumeSip == nil ? [] : sipDrafts, workspace: store.workspace, excludingSipID: draft.id).count
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if !inProgress.isEmpty {
-                    sectionHeader("Continue", detail: "\(inProgress.count) active")
-                    VStack(spacing: 0) {
-                        ForEach(inProgress) { session in
-                            setupRow(
-                                method: session.attempt.preparation?.method ?? .other,
-                                title: session.attempt.name.isEmpty ? "In-progress Home sip" : session.attempt.name,
-                                detail: sessionProgress(session),
-                                badge: "Resume"
-                            ) { onResumeSession(session.id) }
-                            if session.id != inProgress.last?.id { Divider().padding(.leading, 64) }
-                        }
-                    }
-                    .homeSetupCard()
+                if draftCount > 0 {
+                    HomeDraftSummaryButton(count: draftCount) { showsDrafts = true }
                 }
+                homeProfilePicker
 
                 if let selectedMethod {
                     selectedSetup(method: selectedMethod)
@@ -390,16 +384,25 @@ struct HomeSipV3SetupView: View {
                 })
             }
         }
-        .sheet(item: $libraryPresentation) { item in
-            HomeLibraryView(ownerID: item.ownerID, initialSection: item.section, onSelectRecipe: { recipe, version in
+        .sheet(item: $libraryPresentation, onDismiss: { reloadHomeControls() }) { item in
+            HomeLibraryView(ownerID: item.ownerID, initialSection: item.section,
+                onComposeDraft: { selected in libraryPresentation = nil; onResumeSip?(selected) },
+                includesSipDrafts: onResumeSip != nil, onSelectRecipe: { recipe, version in
                 select(recipe, version: version)
                 libraryPresentation = nil
             }).environment(\.dynamicTypeSize, dynamicTypeSize)
+        }
+        .sheet(isPresented: $showsDrafts, onDismiss: { reloadHomeControls() }) {
+            HomeDraftManagementView(ownerID: draft.ownerUserID, includesSipDrafts: onResumeSip != nil,
+                excludingSipID: draft.id, onResumeSip: { selected in showsDrafts = false; onResumeSip?(selected) },
+                onResumeSession: { id in showsDrafts = false; onResumeSession(id) })
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         .sheet(item: $linkedRecipeDetail) { item in
             HomeLinkedRecipeDetail(store: store, reference: item.reference)
         }
         .onAppear {
+            reloadHomeControls(applyDefaultIfFresh: !didTrackOpen)
             guard !didTrackOpen else { return }
             didTrackOpen = true
             MugshotAnalytics.shared.capture(.homeWorkbench(action: .homeOpened))
@@ -601,10 +604,72 @@ struct HomeSipV3SetupView: View {
 
     private func applyLibraryDefaults(to content: inout HomeRecipeContent) {
         guard authModel.authenticatedUser?.id == draft.ownerUserID else { return }
-        let defaults = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID)).defaults(for: draft.ownerUserID, method: content.method)
+        let library = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID))
+        let defaults = library.defaults(for: draft.ownerUserID, method: content.method)
         content.coffee = defaults.bag?.safeSnapshot
-        content.equipment = defaults.equipment.map(\.snapshot)
+        content.equipment = profileGear(in: library).map(\.snapshot)
         draft.homeCoffeeBagID = defaults.bag?.id
+    }
+
+    private var homeProfilePicker: some View {
+        Menu {
+            Button("Home") { selectHomeProfile(nil) }
+            ForEach((shelf.preferences?.homeProfiles ?? []).filter { $0.ownerUserID == draft.ownerUserID }) { profile in
+                Button(profile.name) { selectHomeProfile(profile) }
+            }
+            Divider()
+            Button("Manage Home setups", systemImage: "slider.horizontal.3") {
+                libraryPresentation = HomeLibraryPresentation(ownerID: draft.ownerUserID, section: .preferences)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "house.fill").foregroundStyle(Color.mugshotSageText)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("MADE AT").font(.caption2.weight(.bold)).foregroundStyle(Color.secondaryText)
+                    Text(draft.locationName.remoteTrimmedNonEmpty ?? "Home").font(.subheadline.weight(.semibold))
+                }
+                Spacer()
+                Image(systemName: "chevron.down").font(.caption.weight(.semibold))
+            }.foregroundStyle(Color.espressoBrown).padding(14).frame(minHeight: 56)
+                .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.mugshotLine))
+        }
+        .disabled(isRecoveryLocked)
+        .accessibilityLabel("Made at \(draft.locationName.remoteTrimmedNonEmpty ?? "Home")")
+        .accessibilityIdentifier("home.profile.choose")
+    }
+
+    private func profileGear(in library: HomeLibrarySnapshot) -> [EquipmentProfile] {
+        let profile = (library.preferences?.homeProfiles ?? []).first {
+            $0.ownerUserID == draft.ownerUserID && $0.name == draft.locationName
+        }
+        let ids = profile?.equipmentIDs ?? library.preferences?.defaultEquipmentIDs ?? []
+        return library.activeEquipment.filter { $0.ownerUserID == draft.ownerUserID && ids.contains($0.id) }
+    }
+
+    private func selectHomeProfile(_ profile: HomePlaceProfile?) {
+        guard authModel.authenticatedUser?.id == draft.ownerUserID, !isRecoveryLocked else { return }
+        draft.locationName = profile?.name ?? "Home"
+        if var content = draft.homeSetupContent {
+            let gear = profileGear(in: shelf)
+            content.equipment = gear.map(\.snapshot)
+            draft.homeSetupContent = content
+            draft.brewDetails.equipmentSnapshots = gear.map(\.snapshot)
+            draft.equipment = gear.map(\.displayName).joined(separator: ", ")
+        }
+        MugshotHaptic.selection.play()
+    }
+
+    private func reloadHomeControls(applyDefaultIfFresh: Bool = false) {
+        guard authModel.authenticatedUser?.id == draft.ownerUserID else { return }
+        shelf = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID))
+        sipDrafts = SipDraftStore.shared.allDrafts(in: .forUserID(draft.ownerUserID))
+        if applyDefaultIfFresh, !isRecoveryLocked, !draft.hasDraftWorthyUserContent,
+           !sipDrafts.contains(where: { $0.id == draft.id }),
+           draft.locationName.remoteTrimmedNonEmpty == nil || draft.locationName == "Home",
+           let profile = shelf.selectedHomeProfile(for: draft.ownerUserID) {
+            draft.locationName = profile.name
+        }
     }
 
     private func selectLatte() {

@@ -29,6 +29,7 @@ struct LogASipV3ProductionView: View {
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
     let onResumeDraft: () -> Void
+    let onResumeStoredDraft: ((SipDraft) -> Void)?
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
@@ -83,6 +84,7 @@ struct LogASipV3ProductionView: View {
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
         onResumeDraft: @escaping () -> Void = {},
+        onResumeStoredDraft: ((SipDraft) -> Void)? = nil,
         onAddPhoto: @escaping () -> Void,
         onRemovePhoto: @escaping (Int) -> Void,
         onOrganizePhotos: @escaping () -> Void,
@@ -121,6 +123,7 @@ struct LogASipV3ProductionView: View {
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
         self.onResumeDraft = onResumeDraft
+        self.onResumeStoredDraft = onResumeStoredDraft
         self.onAddPhoto = onAddPhoto
         self.onRemovePhoto = onRemovePhoto
         self.onOrganizePhotos = onOrganizePhotos
@@ -425,7 +428,7 @@ struct LogASipV3ProductionView: View {
                     onSkipGuidance: {
                         draft.homeSipPath = .guided
                         MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationSkipped))
-                        moveHome(to: homeSipV4RouteEnabled ? .actuals : .capture)
+                        moveHome(to: .capture)
                     },
                     onQuickLog: {
                         draft.homeSipPath = .quick
@@ -433,7 +436,8 @@ struct LogASipV3ProductionView: View {
                         MugshotAnalytics.shared.capture(.homeWorkbench(action: .quickChosen))
                         moveHome(to: .quickCapture)
                     },
-                    onResumeSession: resumeHomeSession
+                    onResumeSession: resumeHomeSession,
+                    onResumeSip: onResumeStoredDraft
                 )
             }
         case .quickCapture:
@@ -444,6 +448,7 @@ struct LogASipV3ProductionView: View {
                 onAddPhoto: onAddPhoto,
                 onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
+                onEditActuals: homeSipV4RouteEnabled ? { presentedSheet = .homeActuals } : nil,
                 onContinue: { moveHome(to: .sip) }
             )
         case .brew:
@@ -478,6 +483,7 @@ struct LogASipV3ProductionView: View {
                 onAddPhoto: onAddPhoto,
                 onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
+                onEditActuals: homeSipV4RouteEnabled ? { presentedSheet = .homeActuals } : nil,
                 onContinue: { moveHome(to: .sip) }
             )
         case .sip:
@@ -660,6 +666,14 @@ struct LogASipV3ProductionView: View {
             }
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        case .homeActuals:
+            NavigationStack {
+                HomeSipV4ActualsView(draft: $draft, content: homeContentFromDraft(),
+                    isRecoveryLocked: isRecoveryLocked, primaryActionID: "home.measurements.done", onContinue: { presentedSheet = nil })
+                    .toolbar { ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { presentedSheet = nil }
+                    } }
+            }
         }
     }
 
@@ -824,15 +838,16 @@ struct LogASipV3ProductionView: View {
         isSavingHomeAttempt = true
         homeSaveError = nil
         let currentDraft = draft
-        let images = photoImages
+        let images = HomeJournalProjection.coverFirstIndices(count: photoImages.count, posterIndex: currentDraft.posterPhotoIndex)
+            .map { photoImages[$0] }
         let originalScope = homeStore.scope
         Task { @MainActor in
+            var photoNames: [String] = []
             do {
                 guard homeStore.scope == originalScope,
                       originalScope == .forUserID(currentDraft.ownerUserID) else {
                     throw HomeRecipeWorkspaceError.invalid("Your account changed. This sip was not moved to another account.")
                 }
-                var photoNames: [String] = []
                 for image in images {
                     guard let data = image.jpegData(compressionQuality: 0.9) else { continue }
                     photoNames.append(try await homeStore.savePhotoAsync(data, attemptID: currentDraft.id))
@@ -847,6 +862,8 @@ struct LogASipV3ProductionView: View {
                 let selected = selectedHomeRecipeVersion
                 let content = homeContentFromDraft()
                 var attempt = HomeAttemptRecord(id: currentDraft.id, name: name)
+                attempt.locationName = currentDraft.locationName.remoteTrimmedNonEmpty
+                attempt.homeCoffeeBagID = currentDraft.homeCoffeeBagID
                 attempt.recipe = selected.map {
                     HomeRecipeReference(recipeID: $0.recipe.id, versionID: $0.version.id)
                 }
@@ -898,6 +915,7 @@ struct LogASipV3ProductionView: View {
                 }
                 Task { await homeStore.synchronize() }
             } catch {
+                for name in photoNames { try? homeStore.removeUnreferencedPhoto(name, in: originalScope) }
                 homeSaveError = error.localizedDescription
             }
             isSavingHomeAttempt = false
@@ -908,9 +926,9 @@ struct LogASipV3ProductionView: View {
         guard let attemptID = draft.launchContext.homeAttemptID,
               let attempt = homeStore.workspace.attempts.first(where: { $0.id == attemptID }) else { return }
         do {
-            if let publicationDraftID = attempt.publicationDraftID,
-               let existing = SipDraftStore.shared.load(id: publicationDraftID, in: homeStore.scope),
-               existing.draft.launchContext.homeAttemptID == attemptID {
+            let resolved = try HomeSharingDraftResolver.resolve(attemptID: attemptID,
+                previousID: attempt.publicationDraftID, scope: homeStore.scope)
+            if let existing = resolved.existing {
                 SipDraftStore.shared.remove(draft, in: homeStore.scope)
                 draft = existing.draft
                 photoImages = existing.images
@@ -919,7 +937,7 @@ struct LogASipV3ProductionView: View {
                 return
             }
 
-            let publicationDraftID = attempt.publicationDraftID ?? UUID()
+            let publicationDraftID = resolved.id
             var publicDetails = (attempt.preparation ?? attempt.targets)?.asBrewDetails(
                 recipeID: attempt.recipe?.recipeID,
                 versionNumber: attempt.recipe.flatMap { homeStore.workspace.version($0)?.number }
@@ -946,7 +964,7 @@ struct LogASipV3ProductionView: View {
                 ownerUserID: draft.ownerUserID,
                 launchContext: launch,
                 context: .home,
-                locationName: "Home",
+                locationName: attempt.journalLocationName,
                 drinkType: draft.drinkType,
                 customDrinkType: draft.customDrinkType,
                 drinkName: attempt.name,
@@ -1043,6 +1061,8 @@ struct LogASipV3ProductionView: View {
         let content = homeContentFromDraft()
         let selected = selectedHomeRecipeVersion
         var attempt = HomeAttemptRecord(id: draft.id, name: draft.drinkName.remoteTrimmedNonEmpty ?? content.name)
+        attempt.locationName = draft.locationName.remoteTrimmedNonEmpty
+        attempt.homeCoffeeBagID = draft.homeCoffeeBagID
         attempt.recipe = selected.map { HomeRecipeReference(recipeID: $0.recipe.id, versionID: $0.version.id) }
         attempt.targets = selected?.version.content
         attempt.preparation = content
@@ -1085,7 +1105,7 @@ struct LogASipV3ProductionView: View {
             }
         }
         MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationCompleted))
-        moveHome(to: homeSipV4RouteEnabled ? .actuals : .capture)
+        moveHome(to: .capture)
     }
 
     private func restoreHomeDraft(from attempt: HomeAttemptRecord, id: UUID) {
@@ -2148,6 +2168,7 @@ private struct LogASipV3HomeCaptureSurface: View {
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
+    var onEditActuals: (() -> Void)? = nil
     let onContinue: () -> Void
     @ObservedObject private var homeStore = HomeRecipeWorkspaceStore.shared
     @State private var showsRecipePicker = false
@@ -2177,7 +2198,7 @@ private struct LogASipV3HomeCaptureSurface: View {
 
     var body: some View {
         LogASipV3ScrollableSurface(
-            actionTitle: "Continue to sip",
+            actionTitle: "Rate this sip",
             actionSubtitle: canContinue
                 ? "Your finished sip is ready for reflection."
                 : "Name the sip to continue. Photos stay optional.",
@@ -2193,7 +2214,7 @@ private struct LogASipV3HomeCaptureSurface: View {
             }
 
             Label(
-                ["Home", HomeBrewMethod(storedValue: draft.brewMethod).title, draft.homeSourceRecipeVersion.map { "Recipe \($0)" }]
+                [draft.locationName.remoteTrimmedNonEmpty ?? "Home", HomeBrewMethod(storedValue: draft.brewMethod).title, draft.homeSourceRecipeVersion.map { "Recipe \($0)" }]
                     .compactMap { $0 }
                     .joined(separator: " · "),
                 systemImage: "house.fill"
@@ -2204,6 +2225,26 @@ private struct LogASipV3HomeCaptureSurface: View {
             .frame(minHeight: 34)
             .background(Color.mugshotMint.opacity(0.18), in: Capsule())
             .padding(.horizontal, DesignSystem.Space.md)
+
+            if let onEditActuals {
+                Button(action: onEditActuals) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "slider.horizontal.3").foregroundStyle(Color.mugshotSage)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Measurements").font(.subheadline.weight(.bold))
+                            Text(draft.homeAttemptActuals == HomeAttemptActuals() ? "Optional · record what you measured" : "Your recorded measurements · tap to edit")
+                                .font(.caption).foregroundStyle(Color.secondaryText)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(Color.mugshotSage)
+                    }
+                    .padding(16).frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 20))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("home.capture.measurements")
+                .padding(.horizontal, DesignSystem.Space.md)
+            }
 
             VStack(alignment: .leading, spacing: 10) {
                 LogASipV3SectionHeader(
@@ -5563,11 +5604,13 @@ private struct LogASipV3Avatar: View {
 
 private enum LogASipV3Sheet: Identifiable {
     case flavors
+    case homeActuals
     case addCriterion(LogASipV3CriterionTarget)
 
     var id: String {
         switch self {
         case .flavors: return "flavors"
+        case .homeActuals: return "home-actuals"
         case .addCriterion(let target): return "criterion-\(target.rawValue)"
         }
     }

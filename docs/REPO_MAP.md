@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home Journal, drafts and owner controls — November 5 candidate
+
+- `Models/HomeJourneyControls.swift`: deletion union/projection, draft index,
+  owner deletion receipts and selected-cover order.
+- `Models/HomePlaceProfile.swift`, `HomeLibraryPreferences.swift`,
+  `Services/HomeLibraryStore.swift`: optional named setups and safe guest adoption.
+- `Views/Profile/JournalSipRow.swift`: shared Journal row and mixed history model.
+- `Views/Add/HomeDraftManagementView.swift`, `HomePlaceProfileViews.swift`,
+  `HomeEditorCanvas.swift`: complete drafts, setups and composed editor controls.
+- `Services/HomeRecipeWorkspaceStore.swift` and Supabase media/workspace services:
+  owner-fenced edit/delete, durable markers and acknowledged private-photo cleanup.
+- `supabase/migrations/20261105183000_home_workspace_deletion_controls.sql`:
+  additive deletion-preservation trigger; live at 20261105183000 after isolated QA
+  and unchanged protected fingerprints. Held Home V4 remains undeployed.
+- `HomeJourneyControlTests`, `HomeWorkspaceDeletionBoundaryTests`,
+  `HomePlaceProfileControlTests`, `SipDraftDiscardTests`, `HomeJournalHistoryTests`
+  and isolated Home Journal/draft/editor UI suites cover the new boundaries.
+- [Audit and current verification](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md).
+
 ## Recipe focus and full-screen post result — 2026-11-05
 
 - `Services/HomeRecipeSourceReader.swift`: preparation headings, wrapped-line

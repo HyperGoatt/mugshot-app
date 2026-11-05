@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home editors and shared Journal row — November 5 candidate
+
+`HomeEditorCanvas` composes a cream background, Mugshot section cards, clear field
+labels, keyboard Done and accessible add/remove/reorder controls for advanced
+recipes, legacy make/share and gear. Saved private Home and canonical Journal
+entries share `JournalSipRow` with a 92 × 96 image and common metadata hierarchy.
+Destructive confirmation keeps scrollable explanation separate from reachable,
+growing confirm/cancel controls. Largest-text delete cancellation and editor
+actions pass in Simulator; [native captures](design/home-flow-controls-2026-11-05/README.md)
+record regular/large-text controls. The same 18 selected screen paths pass on signed hardware.
+[Controls audit](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md).
+
 # Canonical Mugsy Design System
 
 Status: approved model, motion, and product-placement implementation

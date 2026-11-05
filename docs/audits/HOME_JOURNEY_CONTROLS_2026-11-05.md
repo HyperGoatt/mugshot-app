@@ -1,9 +1,12 @@
 ---
 document_type: historical
-status: audit-complete-implementation-pending
+status: implemented-physically-accepted
 ---
 
 # Home journey, Journal parity and controls audit
+
+> Current behavior: [Home implementation](../HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate).
+> Baseline findings below remain historical; the follow-up entries record implementation and acceptance.
 
 Audit baseline: `7775365`, `codex/home-library-flow`, November 5, 2026.
 This follows the owner's request to audit, plan, then implement. No owner record
@@ -188,3 +191,108 @@ Menu-item duplicates, a text field under the fixed Save bar, covered-root filter
 queries and a measurement-sheet action identifier require targeted native/harness
 corrections; assertions remain. The regular quick-log path must be included by
 its exact test name in the next run (the first command requested an absent name).
+
+The follow-up native/UI batch confirms visible cancel controls, largest-text
+delete cancellation, edit-save identity/date preservation, edit keep/resume/
+discard, recipe amount125/reorder/remove/save, archive filtering, scope changes
+and the quick private-save path. One large-text scroll helper overshoots targets,
+and a Journal label assertion queries a separate static label instead of its
+combined VoiceOver control. Both are being corrected without removing the
+geometry/content checks. A media-race regression also exposes an unnecessary
+extra acknowledgment caused by changing absent optional sets into empty sets;
+union now preserves absence. Current receipt:
+`/tmp/mugshot-home-controls-green3-2026-11-05.xcresult`.
+
+All 68 hosted contracts and real Auth/Storage probes completed, and the approved
+paid QA branch was deleted; branch inventory confirms only main remains. The
+reviewed live dry run contains only
+`20261105183000_home_workspace_deletion_controls.sql`, excluding held Home V4.
+A fresh 40-file Application Support backup and Preferences backup are protected
+locally before phone installation. No owner deletion was performed.
+
+### Native GREEN checkpoint
+
+The final focused batch passes **106 native tests** in eight suites plus both
+corrected UI cases, with zero failures:
+`/tmp/mugshot-home-controls-green4-2026-11-05.xcresult`. Combined with the 15
+unchanged passing UI3 cases, all **17 selected Home/Journal UI paths** pass.
+The largest-text helper now uses controlled short drags instead of overshooting
+flicks; Journal assertions verify combined VoiceOver labels as well as identical
+actual 92 × 96 thumbnail frames. Both regular input125/reorder/remove/save and
+large-text instruction controls are verified.
+
+Extra focused boundaries cover completed edit replay/late autosave, source
+deletion with older-client field omission, batch linkage, hostile filenames,
+abandoned writes after discard/account change, shared-media deletion races and
+conflict recovery with fresh media identity. Sharing-draft resolution never
+overwrites a draft converted to another context. These paths use no AI.
+
+[Native review captures](../design/home-flow-controls-2026-11-05/README.md) are
+fictional fixtures. Signed owner and isolated phone builds are separate; physical
+acceptance and live deployment remain pending at this checkpoint.
+
+### Production guard and owner installation
+
+The completed November 5 physical backup preceded the exact 185-file live
+release. Only `20261105183000_home_workspace_deletion_controls.sql` was applied;
+live history is 185, held Home V4 remains absent, the trigger is enabled, and
+neither client role can execute the private helpers. Fresh before/after counts
+and whole-row fingerprints match across all 75 protected tables. The capability
+RPC is readable and security-advisor counts are unchanged (no new deletion-helper
+finding). The exact release log is
+`/tmp/mugshot-home-controls-live-deploy-2026-11-05.log`.
+
+The signed Mugshot Luna QA 0.5.3 (8), `co.mugshot.app.dev`, is installed on the
+owner iPhone. All 40 pre-install Application Support files remain byte-identical.
+A launch attempt times out while iOS reports passcode-required; a physical unlock
+request is pending, and the isolated hardware runner is ready. The app signature,
+entitlements and real-key exclusion pass; its analytics remains disabled. The
+separate fixture package targets invalid backend, no owner groups/URL schemes/
+embedded extensions, and has a verified development signature. No owner deletion
+or TestFlight action was performed.
+
+### Physical acceptance and preservation — final November 5 gate
+
+Mugshot Luna QA **0.5.3 (8)** is installed and launched on iPhone 16 Pro /
+iOS 27.0.1 with its existing development/sandbox signing and unchanged
+entitlements. All **106 native tests** pass on hardware. The standard UI-target
+launch configuration returned CoreDevice10004; the documented installed-artifact
+configuration resolves the launch and retains every functional assertion. Optional
+UI-target launch diagnostics are off in that test configuration only. No new app
+crash report appears and direct launches succeed.
+
+All **18 distinct fixture screen paths** pass: Journal geometry/metadata, calendar/
+filters/scope, complete draft resume/delete/cancel, profile add/remove-cancel,
+recipe ingredient125/reorder/remove/save, large-text instruction/confirmation
+controls, gear, legacy capture/share, saved-sip edit/save/keep/resume/discard,
+confirmed private deletion preserving its recipe, and guided/quick private saves.
+A system notification covered the Home-profile Save control in the first combined
+run; the isolated unchanged test then passes. No owner content is the delete fixture.
+
+Receipts:
+
+- 106 hardware native tests: `/tmp/mugshot-home-controls-phone-2026-11-05.xcresult`
+  (its UI-launch failures are tooling evidence, not passing screen acceptance).
+- Journal geometry/metadata: `/tmp/mugshot-home-controls-phone-installed-smoke-2026-11-05.xcresult`
+  — 1/1 passes.
+- Remaining hardware matrix: `/tmp/mugshot-home-controls-phone-ui-final-2026-11-05.xcresult`
+  — 16/17 pass; the notification-interrupted profile case passes 1/1 in
+  `/tmp/mugshot-home-controls-phone-profile-retry-2026-11-05.xcresult`.
+- Separate owner read-only existing-recipe acceptance:
+  `/tmp/mugshot-home-controls-owner-readonly-2026-11-05.xcresult` — 1/1 passes.
+- Confirmed private-delete Simulator path:
+  `/tmp/mugshot-home-controls-delete-ui-2026-11-05.xcresult` — 1/1 passes, bringing
+  cumulative selected Simulator coverage to all 18 paths.
+
+All 40 original Application Support files remain byte-identical through install
+and normal launch. After owner read-only acceptance, all 40 remain present; the
+complete recipe workspace and every owner content field are unchanged. One shelf
+file changes only its updatedAt timestamp. The final preservation receipt is
+`/tmp/mugshot-home-controls-owner-final-preservation-2026-11-05.json`. The paid
+QA branch, isolated fixture app and both task-specific test runners are deleted;
+normal Mugshot, Mugshot Luna QA and unrelated Motion QA remain. TestFlight, held
+Home V4 and draft-stack merge holds remain.
+
+Focused coverage is collected, not app-wide: Home controls94.7%, profiles95.2%,
+editor canvas96.5% in the final focused batch; broader legacy workspace/store
+coverage is reported separately in the xcresult archives. [Native captures](../design/home-flow-controls-2026-11-05/README.md).

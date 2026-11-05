@@ -3,6 +3,23 @@ import Testing
 @testable import testMugshot
 
 struct SipDraftDiscardTests {
+    @Test func sharingAfterDiscardOrContextConversionNeverOverwritesAnotherDraft() throws {
+        let root = temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = SipDraftStore(baseDirectory: root, protectedSubmissionIDs: { _ in [] })
+        let attemptID = UUID(); var draft = SipDraft(context: .home, drinkName: "Latte")
+        draft.launchContext.homeAttemptID = attemptID
+        _ = try store.save(draft, images: [], in: .guest)
+        let first = try HomeSharingDraftResolver.resolve(attemptID: attemptID, previousID: draft.id, scope: .guest, store: store)
+        #expect(first.id == draft.id && first.existing?.draft == store.load(id: draft.id, in: .guest)?.draft)
+        draft.context = .elsewhere; draft.drinkName = "Another sip"
+        _ = try store.save(draft, images: [], in: .guest)
+        let converted = try HomeSharingDraftResolver.resolve(attemptID: attemptID, previousID: draft.id, scope: .guest, store: store)
+        #expect(converted.id != draft.id && converted.existing == nil)
+        #expect(store.load(id: draft.id, in: .guest)?.draft.drinkName == "Another sip")
+        try store.discard(draft, in: .guest)
+        let discarded = try HomeSharingDraftResolver.resolve(attemptID: attemptID, previousID: draft.id, scope: .guest, store: store)
+        #expect(discarded.id != draft.id && discarded.existing == nil)
+    }
     @Test func confirmedDiscardSurvivesRelaunchAndRejectsLateAutosave() throws {
         let root = temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
         let store = SipDraftStore(baseDirectory: root, protectedSubmissionIDs: { _ in [] })

@@ -9,7 +9,7 @@ const db = new PGlite();
 await db.exec(`
 create role anon; create role authenticated;
 create schema auth; create schema private;
-create table auth.users(id uuid primary key);
+create table auth.users(id uuid primary key,email text);
 create table public.visits(id uuid primary key,user_id uuid references auth.users,upload_state text default 'complete',brew_details jsonb default '{}'::jsonb);
 create function auth.uid() returns uuid language sql stable as $$
  select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
@@ -40,6 +40,7 @@ grant usage on schema public,auth to authenticated;
 const migration = await readFile(new URL('../../supabase/migrations/20260915212702_home_recipe_workspace.sql', import.meta.url), 'utf8');
 await db.exec(migration);
 await db.exec(await readFile(new URL('../../supabase/migrations/20260916020417_home_recipe_http_conflicts.sql', import.meta.url), 'utf8'));
+await db.exec(await readFile(new URL('../../supabase/migrations/20261105183000_home_workspace_deletion_controls.sql', import.meta.url), 'utf8'));
 const projected = (await db.query('select private.home_recipe_public_content_v1($1) content', [{
   name: 'Safe recipe', privateNote: 'private', targets: { dose: 18, privateNote: 'private' },
   ingredients: [{ name: 'Syrup', recipe: { recipeID: randomUUID(), versionID: randomUUID(), instructions: 'private' }, privatePhotoPath: 'private' }],
@@ -160,7 +161,7 @@ const controlDocument = { ...beforeControls.document,
 };
 const withControls = await save(beforeControls.revision, controlDocument);
 const deletedControls = await save(withControls.revision, { ...controlDocument,
-  deletions: { attempts: [makeID], attemptDrafts: [draftID], recipeDrafts: [recipeDraftID], publications: [] }
+  deletions: { attempts: [makeID.toUpperCase()], attemptDrafts: [draftID.toUpperCase()], recipeDrafts: [recipeDraftID.toUpperCase()], publications: [] }
 });
 assert.deepEqual(deletedControls.document.attempts.map(x => x.id), [servingID], 'deleted Home sip must be removed without erasing its serving');
 assert.equal(deletedControls.document.attemptDrafts.length, 0);
@@ -176,5 +177,137 @@ assert.ok(oldClientSave.document.deletions.photoNames.includes(sharedPhoto));
 await assert.rejects(save(oldClientSave.revision, { ...oldClientSave.document,
   deletions: { attempts: ['not-a-uuid'] } }), /Invalid Home deletion/);
 assert.equal((await db.query('select public.get_home_workspace_v1($1) result', [owner])).rows[0].result.revision, oldClientSave.revision);
+
+// Independent review regressions run in the same empty, in-memory database.
+// Collect failures so RED identifies each data boundary, not only the first one.
+await db.exec('reset role');
+const reviewFailures = [];
+const reviewCase = async (name, check) => {
+  try { await check(); console.log(`PASS ${name}`); }
+  catch (error) { reviewFailures.push({ name, error }); console.error(`FAIL ${name}: ${error.message}`); }
+};
+const applyDeletions = async (prior, incoming) => (await db.query(
+  'select private.home_workspace_apply_deletions_v1($1,$2) result', [prior, incoming])).rows[0].result;
+const emptyWorkspace = () => ({ schemaVersion: 1, recipes: [], attempts: [], attemptDrafts: [],
+  sessions: [], recipeDrafts: [], attemptConflicts: [], preparationConflicts: [] });
+await db.exec(`create temp table home_deletion_review_workspaces(user_id uuid,document jsonb);
+create trigger home_deletion_review before insert or update of document on home_deletion_review_workspaces
+for each row execute function private.home_workspace_preserve_deletions_v1();`);
+
+await reviewCase('draft deletion preserves a concurrently saved sip and its publication draft', async () => {
+  const id = randomUUID(), publication = randomUUID();
+  const saved = { id, name: 'Already saved', publicationDraftID: publication };
+  const prior = { ...emptyWorkspace(), attempts: [saved], attemptDrafts: [{ id, name: 'Stale unfinished copy' }] };
+  const incoming = { ...prior, deletions: { attemptDrafts: [id.toUpperCase()] } };
+  const result = await applyDeletions(prior, incoming);
+  assert.deepEqual(result.attempts, [saved], 'a draft marker must not become saved-sip deletion');
+  assert.equal(result.attemptDrafts.length, 0);
+  assert.ok(!result.deletions.publicationDrafts.includes(publication), 'the retained saved sip keeps its publication draft');
+});
+
+await reviewCase('deleting a source sip also removes distinct private edit drafts and their media references', async () => {
+  const source = randomUUID(), edit = randomUUID(), otherSource = randomUUID(), unrelated = randomUUID();
+  const editPhoto = `${randomUUID().toUpperCase()}-${randomUUID().toUpperCase()}.jpg`;
+  const editing = { id: edit, editingAttemptID: source.toUpperCase(), photoNames: [editPhoto] };
+  const kept = { id: unrelated, editingAttemptID: otherSource };
+  const prior = { ...emptyWorkspace(), attempts: [{ id: source }], attemptDrafts: [editing, kept],
+    sessions: [{ id: randomUUID(), attempt: editing }], attemptConflicts: [editing],
+    preparationConflicts: [{ id: randomUUID(), attempt: editing }] };
+  const result = await applyDeletions(prior, { ...prior, deletions: { attempts: [source] } });
+  assert.deepEqual(result.attemptDrafts, [kept]);
+  assert.equal(result.sessions.length, 0); assert.equal(result.attemptConflicts.length, 0);
+  assert.equal(result.preparationConflicts.length, 0);
+  assert.ok(result.deletions.attemptDrafts.includes(edit));
+  assert.ok(result.deletions.photoNames.includes(editPhoto), 'case-sensitive filenames must stay unchanged');
+  const oldClient = await applyDeletions(result, prior);
+  assert.deepEqual(oldClient.attemptDrafts, [kept], 'an old client cannot restore the deleted edit draft');
+});
+
+await reviewCase('live post protection includes explicit publication-draft markers', async () => {
+  await assert.rejects(db.query('insert into home_deletion_review_workspaces values ($1,$2)',
+    [owner, { ...emptyWorkspace(), deletions: { publicationDrafts: [postID.toUpperCase()] } }]),
+  /Delete the posted sip/);
+});
+
+await reviewCase('live post protection follows incoming-only draft and session publication links', async () => {
+  for (const section of ['attemptDrafts', 'sessions', 'preparationConflicts']) {
+    const id = randomUUID(), attempt = { id, publicationDraftID: postID.toUpperCase() };
+    const records = section === 'attemptDrafts' ? [attempt] : [{ id: randomUUID(), attempt }];
+    await assert.rejects(db.query('insert into home_deletion_review_workspaces values ($1,$2)',
+      [owner, { ...emptyWorkspace(), [section]: records, deletions: { attemptDrafts: [id] } }]),
+    /Delete the posted sip/, `${section} must not bypass canonical post recovery`);
+  }
+});
+
+await reviewCase('discarding an obsolete draft preserves its already posted saved counterpart', async () => {
+  const saved = { id: postID, name: 'Canonical saved sip', publicationDraftID: postID };
+  const result = (await db.query('insert into home_deletion_review_workspaces values ($1,$2) returning document',
+    [owner, { ...emptyWorkspace(), attempts: [saved], attemptDrafts: [{ id: postID }],
+      deletions: { attemptDrafts: [postID.toUpperCase()] } }])).rows[0].document;
+  assert.deepEqual(result.attempts, [saved]);
+  assert.equal(result.attemptDrafts.length, 0);
+});
+
+await reviewCase('photo cleanup markers accept only two canonical UUIDs and preserve valid casing', async () => {
+  const malformed = `${'a'.repeat(36)}-${'b'.repeat(36)}.jpg`;
+  await assert.rejects(applyDeletions({}, { ...emptyWorkspace(), deletions: { photoNames: [malformed] } }), /Invalid Home deletion/);
+  const valid = `${randomUUID().toUpperCase()}-${randomUUID().toUpperCase()}.jpg`;
+  const result = await applyDeletions({}, { ...emptyWorkspace(), deletions: { photoNames: [valid] } });
+  assert.deepEqual(result.deletions.photoNames, [valid]);
+});
+
+await reviewCase('missing optional publication links preserve unrelated private records', async () => {
+  const attempt = { id: randomUUID() }, draft = { id: randomUUID() }, recipeDraft = randomUUID();
+  const prior = { ...emptyWorkspace(), attempts: [attempt], attemptDrafts: [draft],
+    sessions: [{ id: randomUUID(), attempt: draft }], attemptConflicts: [attempt],
+    preparationConflicts: [{ id: randomUUID(), attempt: draft }], recipeDrafts: [{ id: recipeDraft }] };
+  const result = await applyDeletions(prior, { ...prior, deletions: { recipeDrafts: [recipeDraft] } });
+  for (const section of ['attempts', 'attemptDrafts', 'sessions', 'attemptConflicts', 'preparationConflicts']) {
+    assert.deepEqual(result[section], prior[section], `${section} must survive an unrelated deletion`);
+  }
+});
+
+await reviewCase('retired private photos cannot acquire new references after deletion acknowledgment', async () => {
+  const id = randomUUID(), name = `${randomUUID()}-${randomUUID()}.jpg`;
+  const original = { ...emptyWorkspace(), attempts: [{ id, photoNames: [name] }] };
+  const retired = await applyDeletions(original, { ...original, deletions: { attempts: [id] } });
+  for (const section of ['attempts', 'attemptDrafts', 'attemptConflicts', 'sessions', 'preparationConflicts']) {
+    const attempt = { id: randomUUID(), photoNames: [name] };
+    const rows = ['sessions', 'preparationConflicts'].includes(section) ? [{ id: randomUUID(), attempt }] : [attempt];
+    await assert.rejects(applyDeletions(retired, { ...emptyWorkspace(), [section]: rows }),
+      /retired private photo/, `${section} must not publish a newly missing photo reference`);
+  }
+  const oldClient = await applyDeletions(retired, original);
+  assert.equal(oldClient.attempts.length, 0, 'stale references on deleted records are filtered, not promoted');
+});
+
+await reviewCase('photos shared before deletion remain valid for retained and additional sips', async () => {
+  const removed = randomUUID(), retained = randomUUID(), added = randomUUID();
+  const name = `${randomUUID().toUpperCase()}-${randomUUID().toUpperCase()}.jpg`;
+  const prior = { ...emptyWorkspace(), attempts: [{ id: removed, photoNames: [name] }, { id: retained, photoNames: [name] }] };
+  const shared = await applyDeletions(prior, { ...prior, deletions: { attempts: [removed] } });
+  const result = await applyDeletions(shared, { ...shared, attempts: [...shared.attempts, { id: added, photoNames: [name] }] });
+  assert.deepEqual(result.attempts.map(x => x.id), [retained, added]);
+});
+if (reviewFailures.length) {
+  await db.close();
+  throw new AggregateError(reviewFailures.map(({ name, error }) => new Error(`${name}: ${error.message}`)),
+    `${reviewFailures.length} Home deletion review regressions failed`);
+}
+// The same rollback-only contract is discovered by run-remote-contracts.mjs's
+// all-SQL glob. Its public fixture reads are admitted by exact .invalid IDs.
+const fixtureOwner = '00000000-0000-4000-8000-000000000101';
+const fixtureOther = '00000000-0000-4000-8000-000000000102';
+await db.query('insert into auth.users(id,email) values ($1,$2),($3,$4)',
+  [fixtureOwner, 'alpha-fixture-1@example.invalid', fixtureOther, 'alpha-fixture-2@example.invalid']);
+await db.query('insert into public.visits(id,user_id) values ($1,$2)',
+  ['20000000-0000-4000-8000-000000000101', fixtureOwner]);
+await db.query("select set_config('mugshot.qa_contract','isolated',false)");
+const hostedContract = await readFile(new URL('../../supabase/tests/home_workspace_deletion_controls.sql', import.meta.url), 'utf8');
+try { await db.exec(hostedContract.replace(/^\s*\\[^\n]*(?:\n|$)/gm, '')); }
+catch (error) { throw new Error(`Home deletion hosted contract ${error.code}: ${error.message}; ${error.where ?? ''}`); }
+assert.equal((await db.query("select to_regclass('pg_temp.home_deletion_contract_workspaces') relation")).rows[0].relation, null,
+  'the hosted contract must roll back every temporary write');
+console.log('PASS rollback-only Home deletion hosted contract and private helper permissions');
 await db.close();
 console.log('PASS Home recipe owner isolation, immutable versions, CAS, retries, linked privacy, source rights, deletion retention and old-client recovery');

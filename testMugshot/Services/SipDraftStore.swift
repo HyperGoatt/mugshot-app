@@ -51,10 +51,15 @@ final class SipDraftStore {
     private let legacyActiveDraftIDURL: URL
     private let legacyDraftURL: URL
     private let lock = NSRecursiveLock()
+    private let protectedSubmissionIDs: (UUID) throws -> Set<UUID>
     private var activeScope: LocalAccountScope = .guest
 
-    init(fileManager: FileManager = .default, baseDirectory: URL? = nil) {
+    init(fileManager: FileManager = .default, baseDirectory: URL? = nil,
+         protectedSubmissionIDs: @escaping (UUID) throws -> Set<UUID> = { owner in
+             Set(try PendingVisitSubmissionStore.shared.loadAll(userId: owner).map(\.id))
+         }) {
         self.fileManager = fileManager
+        self.protectedSubmissionIDs = protectedSubmissionIDs
         self.baseDirectory = baseDirectory ?? fileManager.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -81,6 +86,9 @@ final class SipDraftStore {
         try migrateLegacyDataIfNeeded()
         guard draftBelongsToScope(draft, scope: scope) else {
             throw SipDraftStoreError.ownerMismatch
+        }
+        guard try !discardedIDs(in: scope).contains(draft.id) else {
+            throw SipDraftStoreError.alreadyDiscarded
         }
 
         let scopeDirectory = directory(for: scope)
@@ -198,6 +206,42 @@ final class SipDraftStore {
         }
     }
 
+    /// Explicit user discard is different from trusted publication cleanup.
+    /// Record intent before removing bytes so a late autosave cannot recreate it.
+    func discard(_ draft: SipDraft, in scope: LocalAccountScope) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        try migrateLegacyDataIfNeeded()
+        guard draftBelongsToScope(draft, scope: scope) else { throw SipDraftStoreError.ownerMismatch }
+        var removed = try discardedIDs(in: scope)
+        let folder = directory(for: draft.id, in: scope)
+        if !removed.contains(draft.id) {
+            let protected = try scope.userID.map(protectedSubmissionIDs) ?? []
+            let latest = loadDraft(id: draft.id, in: scope)
+            guard !fileManager.fileExists(atPath: folder.path) || latest != nil else {
+                throw SipDraftStoreError.discardUnavailable
+            }
+            guard HomeJourneyControlPolicy.canDiscard(latest ?? draft, in: scope,
+                hasProtectedSubmission: protected.contains(draft.id)) else {
+                throw SipDraftStoreError.protectedSubmission
+            }
+            removed.insert(draft.id)
+            try fileManager.createDirectory(at: directory(for: scope), withIntermediateDirectories: true)
+            try JSONEncoder().encode(removed).write(to: discardedIDsURL(in: scope),
+                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+        if fileManager.fileExists(atPath: folder.path) { try fileManager.removeItem(at: folder) }
+        if activeDraftID(in: scope) == draft.id {
+            try? fileManager.removeItem(at: activeDraftIDURL(in: scope))
+        }
+    }
+
+    func isDiscarded(id: UUID, in scope: LocalAccountScope) throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return try discardedIDs(in: scope).contains(id)
+    }
+
     /// Moves current guest work into an authenticated account without ever
     /// deleting the guest copy before a complete destination write can be read
     /// back. The caller supplies the in-memory draft so the last edit is not
@@ -308,6 +352,9 @@ final class SipDraftStore {
         guard fileManager.fileExists(atPath: scopeDirectory.path) else {
             return SipDraftReadReport(drafts: [], issues: [])
         }
+        let discarded: Set<UUID>
+        do { discarded = try discardedIDs(in: scope) }
+        catch { return SipDraftReadReport(drafts: [], issues: [.scopeDirectoryUnavailable]) }
 
         let urls: [URL]
         do {
@@ -338,6 +385,12 @@ final class SipDraftStore {
             guard isDirectory else { continue }
             guard let id = UUID(uuidString: url.lastPathComponent) else {
                 issues.append(.unreadableDraftMetadata(nil))
+                continue
+            }
+            if discarded.contains(id) {
+                // A previous filesystem interruption may leave unreferenced
+                // bytes. Retain the deletion marker and retry only that folder.
+                try? fileManager.removeItem(at: url)
                 continue
             }
             guard let draft = loadDraft(id: id, in: scope) else {
@@ -380,11 +433,22 @@ final class SipDraftStore {
     }
 
     private func loadDraft(id: UUID, in scope: LocalAccountScope) -> SipDraft? {
-        guard let data = try? Data(contentsOf: draftMetadataURL(for: id, in: scope)),
+        guard let discarded = try? discardedIDs(in: scope), !discarded.contains(id),
+              let data = try? Data(contentsOf: draftMetadataURL(for: id, in: scope)),
               let draft = try? JSONDecoder.mugshotDraftDecoder.decode(SipDraft.self, from: data),
               draft.id == id,
               draftBelongsToScope(draft, scope: scope) else { return nil }
         return draft
+    }
+
+    private func discardedIDsURL(in scope: LocalAccountScope) -> URL {
+        directory(for: scope).appendingPathComponent("discarded-drafts-v1.json")
+    }
+
+    private func discardedIDs(in scope: LocalAccountScope) throws -> Set<UUID> {
+        let url = discardedIDsURL(in: scope)
+        guard fileManager.fileExists(atPath: url.path) else { return [] }
+        return try JSONDecoder().decode(Set<UUID>.self, from: Data(contentsOf: url))
     }
 
     private func stored(_ draft: SipDraft, in scope: LocalAccountScope) -> StoredSipDraft {
@@ -599,6 +663,9 @@ enum SipDraftStoreError: LocalizedError {
     case adoptionVerificationFailed
     case photoEncodingFailed
     case ownerMismatch
+    case alreadyDiscarded
+    case protectedSubmission
+    case discardUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -608,6 +675,12 @@ enum SipDraftStoreError: LocalizedError {
             return "One selected photo could not be preserved in this draft."
         case .ownerMismatch:
             return "This draft belongs to a different local account."
+        case .alreadyDiscarded:
+            return "That draft was deleted. Start a new sip to keep editing."
+        case .protectedSubmission:
+            return "This sip has an interrupted post. Resume it to finish or discard it safely."
+        case .discardUnavailable:
+            return "This draft could not be verified. Its files were left untouched."
         }
     }
 }

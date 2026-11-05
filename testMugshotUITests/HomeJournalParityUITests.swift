@@ -23,8 +23,8 @@ final class HomeJournalParityUITests: XCTestCase {
             XCTAssertEqual(homePhoto.frame.width, photo.frame.width, accuracy: 0.5)
             XCTAssertEqual(homePhoto.frame.height, photo.frame.height, accuracy: 0.5)
         }
-        XCTAssertTrue(app.staticTexts["Kitchen counter"].exists)
-        XCTAssertTrue(app.staticTexts["Cinnamon latte"].exists)
+        XCTAssertTrue(app.buttons["Open Cinnamon latte at Kitchen counter"].exists)
+        XCTAssertGreaterThan(app.buttons.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "journal.open.\(home)", "Cinnamon latte")).count, 0)
         app.buttons["journal.open.\(home)"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Opened Cinnamon latte"].waitForExistence(timeout: 3))
         capture(app, "01-journal-card-parity")
@@ -46,10 +46,11 @@ final class HomeJournalParityUITests: XCTestCase {
         let photo = app.descendants(matching: .any)["journal.thumbnail.\(home)"].firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["journal.open.\(home)"].firstMatch.isHittable)
+        XCTAssertTrue(app.buttons["Open Cinnamon latte at Kitchen counter"].exists)
         capture(app, "03-journal-largest-text")
         for _ in 0..<5 where !app.buttons["journal.fixture.switchScope"].isHittable { app.swipeUp() }
         app.buttons["journal.fixture.switchScope"].tap()
-        XCTAssertFalse(app.staticTexts["Kitchen counter"].exists)
+        XCTAssertFalse(app.buttons["Open Cinnamon latte at Kitchen counter"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["journal.thumbnail.\(home)"].firstMatch.exists)
     }
 

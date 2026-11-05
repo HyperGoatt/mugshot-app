@@ -211,6 +211,26 @@ struct HomeWorkspaceDeletionBoundaryTests {
         #expect(transport.deleted == [oldName] && store.workspace.pendingOperationID == nil)
     }
 
+    @Test func conflictWithAnotherDevicesDeletedPhotoPreservesNewLocalServingWithFreshMedia() async throws {
+        let root = temporaryRoot(); defer { try? FileManager.default.removeItem(at: root) }
+        let owner = UUID(); let transport = DeletionTransport()
+        let store = HomeRecipeWorkspaceStore(root: root, transport: transport); store.activate(.user(owner))
+        let first = try photoAttempt(store); try store.saveAttempt(first); await store.synchronize()
+        let second = HomeAttemptRecord(name: "A new local serving", photoNames: first.photoNames)
+        try store.saveAttempt(second)
+        var otherDevice = transport.remote
+        otherDevice.deletions = .init(attempts: [first.id], photoNames: Set(first.photoNames))
+        otherDevice.applyDeletions(); otherDevice.remoteRevision += 1; transport.remote = otherDevice
+        transport.saveConflict = true; await store.synchronize()
+        #expect(store.hasRemoteConflict)
+        try store.useRemoteAfterConflict(); transport.saveConflict = false
+        await store.synchronize()
+        let retained = try #require(store.workspace.attempts.first { $0.id == second.id })
+        #expect(store.workspace.attempts.count == 1 && retained.photoNames != first.photoNames)
+        #expect(store.photo(retained.photoNames[0]) != nil && transport.uploads.contains(retained.photoNames[0]))
+        #expect(store.workspace.pendingOperationID == nil)
+    }
+
     private func temporaryRoot() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("HomeDeletionBoundary-\(UUID())") }
     private func photoAttempt(_ store: HomeRecipeWorkspaceStore) throws -> HomeAttemptRecord {
         var attempt = HomeAttemptRecord(name: "Photo coffee")
@@ -226,12 +246,14 @@ struct HomeWorkspaceDeletionBoundaryTests {
 private final class DeletionTransport: HomeRecipeWorkspaceTransport {
     var remote = HomeRecipeWorkspace()
     var failSave = false; var failDelete = false
+    var saveConflict = false
     var deleted: [String] = []; var onSave: (() -> Void)?
     var uploads: [String] = []; var onDelete: (() -> Void)?
     func fetch(ownerID: UUID) async throws -> HomeRecipeWorkspace { remote }
     func synchronize(_ workspace: HomeRecipeWorkspace, ownerID: UUID) async throws -> HomeRecipeWorkspace {
         onSave?()
         if failSave { throw URLError(.notConnectedToInternet) }
+        if saveConflict { throw NSError(domain: "HOME_WORKSPACE_CONFLICT", code: 409) }
         if workspace.pendingOperationID != nil { remote = workspace; remote.pendingOperationID = nil; remote.remoteRevision += 1 }
         return remote
     }

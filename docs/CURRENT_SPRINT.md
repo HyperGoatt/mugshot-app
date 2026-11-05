@@ -4,6 +4,20 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home controls audit → plan → implementation — November 5 accepted candidate
+
+The [Home controls plan](plans/home-flow-controls-2026-11-05.plan.md) is implemented:
+shared Journal rows, named setups, edit/delete, protected complete drafts, composed
+editors and optional measurements. All 106 native tests and 18 selected UI paths
+pass in Simulator and on the isolated signed iPhone app; the separate owner
+read-only existing-recipe check passes. Mugshot Luna QA 0.5.3 (8) is installed and
+launched. Forty original files are preserved through install; final owner content
+and complete recipe workspace are unchanged (only shelf updatedAt refreshes).
+The reviewed deletion migration is live after 68 hosted contracts and real
+Auth/Storage probes; protected fingerprints are unchanged and the paid branch
+and disposable fixture apps/runners are deleted. Publish the reviewed code/docs
+checkpoint to held draft PR #109; preserve parent/Home V4/TestFlight holds.
+
 ## Recipe focus and post celebration — November 5 follow-up
 
 Cleaner screenshot extraction and a full-screen confirmed-post result are installed

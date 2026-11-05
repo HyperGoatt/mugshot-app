@@ -30,9 +30,13 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     private var canWrite = false
     private var remoteConflict: HomeRecipeWorkspace?
     private var syncTaskID: UUID?
+    private var activationID = UUID()
+    private let photoWriter: (@Sendable (Data, URL) async throws -> Void)?
 
-    init(root: URL? = nil, transport: (any HomeRecipeWorkspaceTransport)? = nil) {
+    init(root: URL? = nil, transport: (any HomeRecipeWorkspaceTransport)? = nil,
+         photoWriter: (@Sendable (Data, URL) async throws -> Void)? = nil) {
         self.transport = transport
+        self.photoWriter = photoWriter
         self.root = root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MugshotHomeRecipes", isDirectory: true)
     }
@@ -54,6 +58,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     func activate(_ newScope: LocalAccountScope) {
         guard !loaded || scope != newScope else { return }
         scope = newScope
+        activationID = UUID()
         workspace = HomeRecipeWorkspace()
         errorMessage = nil
         hasRemoteConflict = false
@@ -67,6 +72,9 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 workspace = try JSONDecoder().decode(HomeRecipeWorkspace.self, from: Data(contentsOf: file(scope)))
             }
             canWrite = true
+            if let owner = scope.userID, !HomeDeletedPostReceipts.ids(for: owner).isEmpty {
+                try applyConfirmedPostDeletions(expectedScope: scope)
+            }
         } catch {
             errorMessage = HomeRecipeWorkspaceError.corruptData.localizedDescription
         }
@@ -101,6 +109,8 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         }
         let knownReferences = Set((account.savedReferences ?? []).map(\.id))
         account.savedReferences = (account.savedReferences ?? []) + (guest.savedReferences ?? []).filter { !knownReferences.contains($0.id) }
+        account.deletions = (account.deletions ?? HomeWorkspaceDeletions()).union(guest.deletions ?? HomeWorkspaceDeletions())
+        account.applyDeletions()
         try FileManager.default.createDirectory(at: directory(target), withIntermediateDirectories: true)
         for source in try FileManager.default.contentsOfDirectory(at: directory(.guest), includingPropertiesForKeys: nil)
             where source.pathExtension == "jpg" {
@@ -120,6 +130,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     func removeAll(ownerUserID: UUID) throws {
         let target = LocalAccountScope.user(ownerUserID)
         if FileManager.default.fileExists(atPath: directory(target).path) { try FileManager.default.removeItem(at: directory(target)) }
+        HomeDeletedPostReceipts.erase(owner: ownerUserID)
         if scope == target { loaded = false; activate(.guest) }
     }
 
@@ -129,10 +140,61 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         // Reconciliation reads the latest local workspace, including these saves.
         var next = workspace
         try change(&next)
+        if let owner = scope.userID {
+            for id in HomeDeletedPostReceipts.ids(for: owner) { next.removeConfirmedPublication(id) }
+        }
+        next.applyDeletions()
+        // A retired cloud object may not gain a new reference under the same
+        // name. Preserve available bytes with a fresh identity instead.
+        let copiedNames = try rekeyRetiredPhotos(in: &next, priorReferences: workspace.referencedPhotoNames)
         guard next != workspace else { return }
         next.pendingOperationID = UUID()
-        try write(next, scope: scope)
+        do { try write(next, scope: scope) }
+        catch {
+            for name in copiedNames { try? FileManager.default.removeItem(at: directory(scope).appendingPathComponent(name)) }
+            throw error
+        }
         workspace = next
+        do { try cleanupUnreferencedLocalPhotos() }
+        catch { errorMessage = "Your change is saved. Some photo cleanup needs another try." }
+    }
+
+    private func rekeyRetiredPhotos(in value: inout HomeRecipeWorkspace, priorReferences: Set<String>) throws -> [String] {
+        let retiredReferences = value.referencedPhotoNames.subtracting(priorReferences).intersection(value.deletions?.photoNames ?? [])
+        var copied: [String] = []
+        do {
+            for name in retiredReferences {
+                guard HomeRecipeMediaService.isValidName(name) else { throw HomeRecipeWorkspaceError.corruptData }
+                let replacement = "\(UUID())-\(UUID()).jpg"
+                let bytes = try Data(contentsOf: directory(scope).appendingPathComponent(name))
+                try bytes.write(to: directory(scope).appendingPathComponent(replacement),
+                    options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                copied.append(replacement)
+                value.replacePhotoReference(name, with: replacement)
+            }
+            return copied
+        } catch {
+            for name in copied { try? FileManager.default.removeItem(at: directory(scope).appendingPathComponent(name)) }
+            throw error
+        }
+    }
+
+    private func cleanupUnreferencedLocalPhotos() throws {
+        for name in workspace.deletions?.photoNames ?? [] where !workspace.referencedPhotoNames.contains(name) {
+            try removeUnreferencedPhoto(name, in: scope)
+        }
+    }
+
+    func removeUnreferencedPhoto(_ name: String, in capturedScope: LocalAccountScope) throws {
+        guard HomeRecipeMediaService.isValidName(name) else { return }
+        let snapshot: HomeRecipeWorkspace
+        if capturedScope == scope { snapshot = workspace }
+        else if FileManager.default.fileExists(atPath: file(capturedScope).path) {
+            snapshot = try JSONDecoder().decode(HomeRecipeWorkspace.self, from: Data(contentsOf: file(capturedScope)))
+        } else { snapshot = HomeRecipeWorkspace() }
+        guard !snapshot.referencedPhotoNames.contains(name) else { return }
+        let location = directory(capturedScope).appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: location.path) { try FileManager.default.removeItem(at: location) }
     }
 
     func saveRecipe(_ draft: HomeRecipeEditorDraft) throws -> UUID {
@@ -166,6 +228,9 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func saveDraft(_ draft: HomeRecipeEditorDraft) throws {
+        guard workspace.deletions?.recipeDrafts.contains(draft.id) != true else {
+            throw HomeRecipeWorkspaceError.invalid("That recipe draft was deleted. Start a new draft to keep editing.")
+        }
         try mutate { state in
             state.recipeDrafts.removeAll { $0.id == draft.id }
             state.recipeDrafts.append(draft)
@@ -173,6 +238,8 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func saveAttemptDraft(_ attempt: HomeAttemptRecord) throws {
+        try requireLiveMake(attempt.id)
+        if let originalID = attempt.editingAttemptID { try requireLiveMake(originalID) }
         try mutate { state in
             state.attemptDrafts.removeAll { $0.id == attempt.id }
             state.attemptDrafts.append(attempt)
@@ -180,6 +247,10 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func saveAttempt(_ attempt: HomeAttemptRecord, updateRecipe: Bool = false) throws {
+        if let originalID = attempt.editingAttemptID,
+           workspace.attempts.first(where: { $0.id == originalID })?.lastEditedDraftID == attempt.id { return }
+        try requireLiveMake(attempt.id)
+        if let originalID = attempt.editingAttemptID { try requireLiveMake(originalID) }
         guard !attempt.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw HomeRecipeWorkspaceError.invalid("Name what you made before saving.")
         }
@@ -202,10 +273,48 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
               }) else {
             throw HomeRecipeWorkspaceError.invalid("Check your measurements and rating.")
         }
-        if let message = attempt.preparation?.validationMessage {
+        if attempt.editingAttemptID == nil, let message = attempt.preparation?.validationMessage {
             throw HomeRecipeWorkspaceError.invalid(message)
         }
         try mutate { state in
+            if let originalID = attempt.editingAttemptID {
+                guard originalID != attempt.id,
+                      let index = state.attempts.firstIndex(where: { $0.id == originalID }),
+                      state.attempts[index].publicationStatus != .posting else {
+                    throw HomeRecipeWorkspaceError.invalid("This saved sip is unavailable for editing. Your draft is still safe.")
+                }
+                let original = state.attempts[index]
+                var updated = attempt
+                updated.id = original.id
+                updated.createdAt = original.createdAt
+                updated.savedAt = original.savedAt
+                updated.editingAttemptID = nil
+                updated.lastEditedDraftID = attempt.id
+                updated.resumeAtReflection = nil
+                updated.publicationDraftID = original.publicationDraftID
+                updated.publicationStatus = original.publicationStatus
+                // Editing a journal copy never rewrites a source recipe or a post.
+                updated.recipe = original.recipe
+                updated.targets = original.targets
+                updated.preparation = original.preparation
+                updated.batchID = original.batchID
+                updated.batchSourceAttemptID = original.batchSourceAttemptID
+                updated.pendingKeptIngredientIDs = original.pendingKeptIngredientIDs
+                updated.keptRecipeVersionID = original.keptRecipeVersionID
+                let removedPhotos = Set(original.photoNames).subtracting(updated.photoNames).filter(HomeRecipeMediaService.isValidName)
+                if !removedPhotos.isEmpty {
+                    var removed = state.deletions ?? HomeWorkspaceDeletions()
+                    removed.photoNames = (removed.photoNames ?? []).union(removedPhotos)
+                    state.deletions = removed
+                }
+                state.attempts[index] = updated
+                var completed = state.deletions ?? HomeWorkspaceDeletions()
+                completed.attemptDrafts.insert(attempt.id)
+                state.deletions = completed
+                state.attemptDrafts.removeAll { $0.id == attempt.id }
+                state.sessions.removeAll { $0.attempt.id == attempt.id }
+                return
+            }
             // An interrupted save can safely be retried with the same ID.
             if state.attempts.contains(where: { $0.id == attempt.id }) {
                 state.attemptDrafts.removeAll { $0.id == attempt.id }
@@ -307,6 +416,8 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func saveSession(_ session: HomePreparationSession) throws {
+        try requireLiveMake(session.attempt.id)
+        if let originalID = session.attempt.editingAttemptID { try requireLiveMake(originalID) }
         try mutate { state in
             state.sessions.removeAll { $0.id == session.id }
             state.sessions.append(session)
@@ -340,25 +451,109 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         return attempt
     }
 
-    func discardAttemptDraft(id: UUID) throws {
+    func discardAttemptDraft(id: UUID, expectedScope: LocalAccountScope? = nil) throws {
+        try requireScope(expectedScope)
+        guard !workspace.attempts.contains(where: { $0.id == id }) else {
+            throw HomeRecipeWorkspaceError.invalid("This sip is already saved. Open it in Journal to delete it.")
+        }
+        try requireUnsubmittedMake(id)
         let names = workspace.attemptDrafts.first(where: { $0.id == id })?.photoNames
             ?? workspace.sessions.first(where: { $0.attempt.id == id })?.attempt.photoNames ?? []
         let reminderIDs = workspace.sessions.filter { $0.attempt.id == id }.map {
             "home-preparation-\(scope.storageComponent)-\($0.id)"
         }
         try mutate { state in
-            state.attemptDrafts.removeAll { $0.id == id }
-            state.sessions.removeAll { $0.attempt.id == id && $0.currentPhase != .saved }
+            var removed = state.deletions ?? HomeWorkspaceDeletions()
+            removed.attemptDrafts.insert(id); state.deletions = removed
         }
-        for name in names where !workspace.referencedPhotoNames.contains(name) {
+        for name in names where HomeRecipeMediaService.isValidName(name) && !workspace.referencedPhotoNames.contains(name) {
             let url = directory(scope).appendingPathComponent(name)
             if FileManager.default.fileExists(atPath: url.path) { try? FileManager.default.removeItem(at: url) }
         }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: reminderIDs)
     }
 
-    func discardRecipeDraft(id: UUID) throws {
-        try mutate { $0.recipeDrafts.removeAll { $0.id == id } }
+    func discardRecipeDraft(id: UUID, expectedScope: LocalAccountScope? = nil) throws {
+        try requireScope(expectedScope)
+        try mutate {
+            var removed = $0.deletions ?? HomeWorkspaceDeletions()
+            removed.recipeDrafts.insert(id); $0.deletions = removed
+            $0.recipeDrafts.removeAll { $0.id == id }
+        }
+    }
+
+    func deleteAttempt(id: UUID, expectedScope: LocalAccountScope) throws {
+        try requireScope(expectedScope)
+        guard let attempt = workspace.attempts.first(where: { $0.id == id }) else { return }
+        guard attempt.publicationStatus != .posting, attempt.publicationStatus != .published else {
+            throw HomeRecipeWorkspaceError.invalid("Open the posted sip or its interrupted post to delete it safely.")
+        }
+        try requireUnsubmittedMake(id)
+        let names = Set(attempt.photoNames + workspace.attemptDrafts.filter { $0.id == id }.flatMap(\.photoNames)
+            + workspace.sessions.filter { $0.attempt.id == id }.flatMap { $0.attempt.photoNames })
+        let reminders = workspace.sessions.filter { $0.attempt.id == id }.map { "home-preparation-\(scope.storageComponent)-\($0.id)" }
+        try mutate {
+            var removed = $0.deletions ?? HomeWorkspaceDeletions()
+            removed.attempts.insert(id); $0.deletions = removed
+        }
+        for name in names where !workspace.referencedPhotoNames.contains(name) {
+            guard HomeRecipeMediaService.isValidName(name) else { continue }
+            try? FileManager.default.removeItem(at: directory(scope).appendingPathComponent(name))
+        }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: reminders)
+    }
+
+    func applyConfirmedPostDeletions(expectedScope: LocalAccountScope) throws {
+        try requireScope(expectedScope)
+        guard let owner = scope.userID else { return }
+        let ids = HomeDeletedPostReceipts.ids(for: owner)
+        guard !ids.isEmpty else { return }
+        let names = workspace.referencedPhotoNames
+        try mutate { value in for id in ids { value.removeConfirmedPublication(id) } }
+        for name in names.subtracting(workspace.referencedPhotoNames) where HomeRecipeMediaService.isValidName(name) {
+            try? FileManager.default.removeItem(at: directory(scope).appendingPathComponent(name))
+        }
+    }
+
+    private func requireScope(_ expected: LocalAccountScope?) throws {
+        guard expected == nil || expected == scope else {
+            throw HomeRecipeWorkspaceError.invalid("Your account changed. Nothing was deleted.")
+        }
+    }
+
+    private func requireLiveMake(_ id: UUID) throws {
+        guard workspace.deletions?.attempts.contains(id) != true,
+              workspace.deletions?.attemptDrafts.contains(id) != true else {
+            throw HomeRecipeWorkspaceError.invalid("That Home sip was deleted. Start a new sip to keep editing.")
+        }
+    }
+
+    private func requireUnsubmittedMake(_ id: UUID) throws {
+        guard let owner = scope.userID else { return }
+        // A failed read is not an empty outbox. Protected work keeps its existing
+        // remote-aware discard/retry path instead of becoming an ordinary draft.
+        var records = workspace.attempts + workspace.attemptDrafts
+        records.append(contentsOf: workspace.sessions.map(\.attempt))
+        records.append(contentsOf: workspace.attemptConflicts ?? [])
+        records.append(contentsOf: (workspace.preparationConflicts ?? []).map(\.attempt))
+        var linkedIDs: Set<UUID> = [id]
+        let matches = records.filter { $0.id == id || $0.editingAttemptID == id }
+        linkedIDs.formUnion(matches.map(\.id))
+        linkedIDs.formUnion(matches.compactMap(\.publicationDraftID))
+        let pending = try PendingVisitSubmissionStore.shared.loadAll(userId: owner)
+        guard !pending.contains(where: { linkedIDs.contains($0.id) || $0.homeAttemptID.map(linkedIDs.contains) == true }) else {
+            throw HomeRecipeWorkspaceError.invalid("This sip has an interrupted post. Resume it to finish or discard it safely.")
+        }
+        let report = SipDraftStore.shared.readReport(in: scope)
+        guard report.isComplete else {
+            throw HomeRecipeWorkspaceError.invalid("Your saved drafts could not be checked. Nothing was deleted; please try again.")
+        }
+        guard !report.drafts.contains(where: {
+            ($0.context == .home && ($0.launchContext.homeAttemptID.map(linkedIDs.contains) == true || linkedIDs.contains($0.id)))
+                && !HomeJourneyControlPolicy.canDiscard($0, in: scope, hasProtectedSubmission: false)
+        }) else {
+            throw HomeRecipeWorkspaceError.invalid("This sip is preparing a post. Resume it to finish or discard it safely.")
+        }
     }
 
     func setPublicationDraft(_ draftID: UUID, for attemptID: UUID) throws {
@@ -421,18 +616,37 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func savePhotoAsync(_ data: Data, attemptID: UUID) async throws -> String {
-        let targetDirectory = directory(scope)
+        try requireLiveMake(attemptID)
+        let capturedScope = scope
+        let capturedActivation = activationID
+        let targetDirectory = directory(capturedScope)
         let name = "\(attemptID)-\(UUID()).jpg"
-        return try await Task.detached(priority: .userInitiated) {
-            guard let image = UIImage(data: data),
-                  let jpeg = image.resizedForVisitUpload(maxDimension: 1600).jpegData(compressionQuality: 0.84) else {
-                throw HomeRecipeWorkspaceError.invalid("That photo could not be opened.")
+        let destination = targetDirectory.appendingPathComponent(name)
+        do {
+            if let photoWriter { try await photoWriter(data, destination) }
+            else {
+                try await Task.detached(priority: .userInitiated) {
+                    guard let image = UIImage(data: data),
+                          let jpeg = image.resizedForVisitUpload(maxDimension: 1600).jpegData(compressionQuality: 0.84) else {
+                        throw HomeRecipeWorkspaceError.invalid("That photo could not be opened.")
+                    }
+                    try FileManager.default.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
+                    try jpeg.write(to: destination, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                }.value
             }
-            try FileManager.default.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
-            try jpeg.write(to: targetDirectory.appendingPathComponent(name),
-                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            try Task.checkCancellation()
+            guard scope == capturedScope, activationID == capturedActivation,
+                  !workspace.attempts.contains(where: { $0.id == attemptID }) else {
+                throw HomeRecipeWorkspaceError.invalid("This sip changed while its photo was loading. Please select the photo again.")
+            }
+            try requireLiveMake(attemptID)
             return name
-        }.value
+        } catch {
+            // This unique filename has not yet been returned to a caller, so it
+            // cannot be a committed reference in any workspace.
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
     }
 
     private static func validateAttribution(_ content: HomeRecipeContent, previous: HomeRecipeContent?) throws {
@@ -500,9 +714,18 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 uploaded.insert(name)
                 try JSONEncoder().encode(uploaded).write(to: receiptURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             }
-            let remote = try await remoteTransport.synchronize(captured, ownerID: owner)
+            var remote = try await remoteTransport.synchronize(captured, ownerID: owner)
             try Task.checkCancellation()
             guard scope == capturedScope, syncTaskID == taskID else { return }
+            // Preserve local intent even if an older server/client omits markers.
+            // Cleanup waits for metadata acknowledgment rather than deleting media
+            // while another workspace still refers to it.
+            let acknowledged = remote
+            if captured.deletions != nil || remote.deletions != nil {
+                remote.deletions = (remote.deletions ?? HomeWorkspaceDeletions()).union(captured.deletions ?? HomeWorkspaceDeletions())
+                remote.applyDeletions()
+            }
+            let requiresDeletionAcknowledgment = remote != acknowledged
             if workspace.pendingOperationID != captured.pendingOperationID {
                 if captured.pendingOperationID == nil, remote.remoteRevision != captured.remoteRevision {
                     remoteConflict = remote
@@ -517,6 +740,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 workspace = latest
                 needsAnotherPass = true
             } else {
+                if requiresDeletionAcknowledgment { remote.pendingOperationID = UUID() }
                 try write(remote, scope: capturedScope)
                 workspace = remote
             }
@@ -536,6 +760,43 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
                 uploaded.insert(name)
                 try JSONEncoder().encode(uploaded).write(to: receiptURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
                 objectWillChange.send()
+            }
+            if !needsAnotherPass, !requiresDeletionAcknowledgment,
+               workspace.pendingOperationID == nil {
+                let deletedReceiptURL = directory(capturedScope).appendingPathComponent("deleted-photos-v1.json")
+                var deleted: Set<String> = []
+                if FileManager.default.fileExists(atPath: deletedReceiptURL.path) {
+                    deleted = try JSONDecoder().decode(Set<String>.self, from: Data(contentsOf: deletedReceiptURL))
+                }
+                let candidates = workspace.deletions?.photoNames ?? []
+                for name in candidates.sorted() where !workspace.referencedPhotoNames.contains(name) {
+                    _ = try HomeRecipeMediaService.path(owner: owner, name: name)
+                    try Task.checkCancellation()
+                    guard scope == capturedScope, syncTaskID == taskID,
+                          workspace.pendingOperationID == nil,
+                          !workspace.referencedPhotoNames.contains(name) else { break }
+                    if !deleted.contains(name) {
+                        try await remoteTransport.deletePhoto(name: name, ownerID: owner)
+                        try Task.checkCancellation()
+                        guard scope == capturedScope, syncTaskID == taskID else { return }
+                        uploaded.remove(name)
+                        try JSONEncoder().encode(uploaded).write(to: receiptURL,
+                            options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                        deleted.insert(name)
+                        try JSONEncoder().encode(deleted).write(to: deletedReceiptURL,
+                            options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+                        if workspace.pendingOperationID != nil { needsAnotherPass = true }
+                    }
+                    if !workspace.referencedPhotoNames.contains(name) {
+                        let localPhoto = directory(capturedScope).appendingPathComponent(name)
+                        if FileManager.default.fileExists(atPath: localPhoto.path) { try FileManager.default.removeItem(at: localPhoto) }
+                    }
+                }
+            }
+            if requiresDeletionAcknowledgment {
+                errorMessage = "Saved on this device. Your deletions are waiting to finish syncing."
+                diagnosticOutcome = .interrupted
+                return
             }
             errorMessage = nil
             diagnosticOutcome = .completed
@@ -582,9 +843,15 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         guard let remoteConflict else { throw HomeRecipeWorkspaceError.conflict }
         let backup = directory(scope).appendingPathComponent("conflict-\(UUID()).json")
         try JSONEncoder().encode(workspace).write(to: backup, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-        let merged = remoteConflict.reconciling(local: workspace)
-        try write(merged, scope: scope)
+        var merged = remoteConflict.reconciling(local: workspace)
+        let copied = try rekeyRetiredPhotos(in: &merged, priorReferences: remoteConflict.referencedPhotoNames)
+        do { try write(merged, scope: scope) }
+        catch {
+            for name in copied { try? FileManager.default.removeItem(at: directory(scope).appendingPathComponent(name)) }
+            throw error
+        }
         workspace = merged
+        try cleanupUnreferencedLocalPhotos()
         hasRemoteConflict = false
         self.remoteConflict = nil
         errorMessage = nil

@@ -594,7 +594,7 @@ struct HomePreparationScreen: View {
             .confirmationDialog("Discard this preparation?", isPresented: $confirmsDiscard) {
                 Button("Keep for later", action: onKeep)
                 Button("Discard preparation", role: .destructive, action: onDiscard)
-                Button("Continue making", role: .cancel) { }
+                Button("Continue making") { confirmsDiscard = false }
             } message: {
                 Text("Discard removes this unfinished session. The saved recipe is unchanged.")
             }

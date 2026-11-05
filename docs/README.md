@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home controls candidate — November 5
+
+[Home controls audit](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md) and
+[code action plan](plans/home-flow-controls-2026-11-05.plan.md) track Journal
+parity, named setups, saved-sip/draft controls and designed editors.
+[Current implementation and acceptance](HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate)
+distinguish the new source candidate from earlier installed builds.
+
 ## Recipe focus and full-screen post result — 2026-11-05
 
 [Current delivery, data preservation and human QA](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md)

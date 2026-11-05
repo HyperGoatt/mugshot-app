@@ -4,6 +4,34 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## Home control ownership and deletion — November 5 candidate
+
+Private Home records now freeze optional location nicknames and coffee-bag IDs;
+profile IDs and private gear inventories are not public post fields. Shared
+Journal presentation deduplicates canonical posts. Edit drafts have a distinct ID
+and optional original-attempt ID; Save changes replaces the saved private copy
+while retaining its ID/date, recipe snapshots and publication identity.
+
+Account-scoped deletion markers travel with workspace JSON and are unioned before
+conflict recovery. A new additive trigger retains them across older-client saves,
+normalizes UUID case, removes only matching records, and prevents deleting a live
+canonical post through private workspace JSON. Draft discard cannot erase another
+device's saved make. Confirmed server post deletion writes only an original-owner
+identifier receipt; failure does not hide the private sip. Private photos are
+removed through Storage only after metadata acknowledgment and only while
+unreferenced, with durable retry receipts. Protected outbox/read failures block
+ordinary deletion. Guest adoption preserves deletion intent and rebinds validated
+Home profiles before removing verified source data.
+
+Source and deletion guard are implemented and verified: 106 native tests, 18
+selected Simulator paths and 68 hosted contracts plus real Auth/Storage probes.
+The additive migration is live at 20261105183000; all 75 protected fingerprints
+are unchanged and the paid QA branch is deleted. The development app is installed
+with all 40 local files preserved through install; physical acceptance passes 106
+native cases, 18 fixture screen paths and the separate owner read-only check.
+The complete owner workspace/content remain unchanged; only shelf updatedAt refreshes.
+[Behavior and current gates](HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate).
+
 ## Draft recipe replacement and confirmed post presentation — November 5
 
 Capture tracks only automatically generated ingredient/step/name/method fields.

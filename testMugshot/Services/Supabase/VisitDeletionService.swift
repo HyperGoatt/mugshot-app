@@ -87,6 +87,7 @@ final class VisitMediaCleanupStore {
 }
 
 final class VisitDeletionService {
+    private let client: SupabaseClient
     private let visitService: VisitService
     private let photoService: VisitPhotoUploadService
     private let cleanupStore: VisitMediaCleanupStore
@@ -95,13 +96,26 @@ final class VisitDeletionService {
         client: SupabaseClient,
         cleanupStore: VisitMediaCleanupStore = .shared
     ) {
+        self.client = client
         visitService = VisitService(client: client)
         photoService = VisitPhotoUploadService(client: client)
         self.cleanupStore = cleanupStore
     }
 
-    func deleteVisit(visitId: UUID, userId: UUID) async throws {
-        let deletedPhotoURLs = try await visitService.deleteOwnedVisit(visitId: visitId)
+    func deleteVisit(visitId: UUID, userId: UUID, knownPhotoURLs: [String] = []) async throws {
+        guard client.auth.currentUser?.id == userId else { throw VisitServiceError.accountScopeChanged }
+        let deletedPhotoURLs: [String]
+        do {
+            deletedPhotoURLs = try await visitService.deleteOwnedVisit(visitId: visitId)
+        } catch let error as PostgrestError where VisitDeletionAcknowledgment.isAlreadyAbsent(
+            code: error.code, message: error.message, currentOwner: client.auth.currentUser?.id, expectedOwner: userId) {
+            // A committed delete whose response was lost is safe to acknowledge
+            // on retry. Authentication/authorization/network errors remain errors.
+            let exactPrefix = userId.uuidString.lowercased() + "/" + visitId.uuidString.lowercased() + "/"
+            deletedPhotoURLs = knownPhotoURLs.filter {
+                VisitPhotoObjectPath.location(fromStoredValue: $0)?.objectPath.lowercased().hasPrefix(exactPrefix) == true
+            }
+        }
         let ownerPrefix = userId.uuidString.lowercased() + "/"
         let locations = deletedPhotoURLs
             .compactMap { VisitPhotoObjectPath.location(fromStoredValue: $0) }
@@ -128,5 +142,11 @@ final class VisitDeletionService {
         } catch {
             // The queue remains account-scoped for the next launch.
         }
+    }
+}
+
+enum VisitDeletionAcknowledgment {
+    static func isAlreadyAbsent(code: String?, message: String, currentOwner: UUID?, expectedOwner: UUID) -> Bool {
+        currentOwner == expectedOwner && code == "P0002" && message == "visit not found"
     }
 }

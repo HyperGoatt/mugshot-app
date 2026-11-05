@@ -4,6 +4,23 @@ status: current
 last_verified: 2026-11-05
 ---
 
+## 2026-11-05 — Home Journal and flow controls candidate
+
+- Implement shared Journal rows/chronology, optional named Home setups, saved
+  private-sip edit/delete and complete protected draft management.
+- Replace four remaining Home Form shells with composed editors; make measurements
+  optional and preserve cover choice, source recipes and account ownership.
+- Add durable deletion retention/reconciliation and acknowledged private-photo
+  cleanup. The reviewed additive deletion guard is live after 68 hosted contracts
+  and real Auth/Storage probes; all 75 protected fingerprints are unchanged and
+  the paid QA branch is deleted. All 106 focused native tests and 17 selected
+  Simulator paths pass, plus confirmed private-delete UI acceptance (18 total).
+  The signed phone gate passes the same 106 native cases/18 screen paths and
+  separate owner read-only acceptance. All 40 original files survive install;
+  final owner content/workspace remain unchanged (only shelf updatedAt refreshes).
+- [Audit and ECC evidence](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md),
+  [code action plan](plans/home-flow-controls-2026-11-05.plan.md).
+
 ## 2026-11-05 — Home journey control audit and action plan
 
 - Audit Journal card parity, missing Home deletion, draft/session overlap, named
