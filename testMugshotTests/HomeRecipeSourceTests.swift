@@ -90,6 +90,94 @@ struct HomeRecipeSourceTests {
         #expect(HomeRecipeSourceParser.fields(in: "An amazing drink, link in bio!").isEmpty)
     }
 
+    @Test func screenshotSectionsJoinWrappedIngredientsAndKeepPreparationOutOfTheList() {
+        let source = """
+        10:42
+        INGREDIENTS
+        o 3 cups water
+        • 2 Tbsp dark sugar
+        • 1 vanilla bean (split and
+        scraped) or 2 tsp extract
+        • 1 can of sweetened condensed
+        oat milk
+        PREPARATION
+        Print
+        TO MAKE THE SPICED SYRUP
+        1. Simmer: Combine water and sugar.
+        Cook gently for 4 minutes.
+        2. Strain through a fine sieve
+        into a heat-safe jar.
+        3. Stir in the condensed milk
+        GET 15% OFF
+        until combined.
+        TO MAKE A LATTE
+        1. Pull an espresso shot.
+        Subscribe
+        """
+        let fields = HomeRecipeSourceParser.fields(in: source)
+        #expect(fields.filter { $0.key == "ingredient" }.map(\.value) == [
+            "3 cups water", "2 Tbsp dark sugar",
+            "1 vanilla bean (split and scraped) or 2 tsp extract",
+            "1 can of sweetened condensed oat milk"
+        ])
+        #expect(fields.filter { $0.key == "step" }.map(\.value) == [
+            "Simmer: Combine water and sugar. Cook gently for 4 minutes.",
+            "Strain through a fine sieve into a heat-safe jar.",
+            "Stir in the condensed milk until combined."
+        ])
+    }
+
+    @Test func recipeFallbackStopsAtPageSectionsAndNeverTreatsPromotionsAsFood() {
+        let fields = HomeRecipeSourceParser.fields(in: """
+        Ingredients:
+        2 g matcha
+        100 ml water
+        Instructions:
+        1. Sift the matcha.
+        2. Whisk with water.
+        Nutrition facts
+        40 calories
+        Related recipes
+        Add to cart
+        Share
+        """)
+        #expect(fields.filter { $0.key == "ingredient" }.count == 2)
+        #expect(fields.filter { $0.key == "step" }.map(\.value) == ["Sift the matcha.", "Whisk with water."])
+    }
+
+    @Test func cleanCaptureReplacesFallbackWithoutDuplicatingItOrChangingTypedFields() {
+        var content = HomeRecipeContent(name: "My syrup", template: .component, method: .other)
+        content.ingredients = [HomeRecipeIngredient(name: "My finishing salt")]
+        var capture = CoffeeAssistanceRecipeImport.Draft()
+        capture.apply([
+            .init(key: "ingredient", value: "1 cup oat milk", sourceQuote: "1 cup oat milk"),
+            .init(key: "ingredient", value: "Print", sourceQuote: "Print")
+        ], to: &content)
+        content.ingredients[1].name = "1 cup whole milk"
+        capture.replace([
+            .init(key: "name", value: "AI name", sourceQuote: "Recipe title"),
+            .init(key: "ingredient", value: "1 cup oat milk", sourceQuote: "1 cup oat milk"),
+            .init(key: "ingredient", value: "2 tsp sugar", sourceQuote: "2 tsp sugar"),
+            .init(key: "step", value: "Stir together.", sourceQuote: "Stir together.")
+        ], to: &content)
+        #expect(content.name == "My syrup")
+        #expect(content.ingredients.map(\.name) == ["My finishing salt", "1 cup whole milk", "2 tsp sugar"])
+        #expect(content.steps.map(\.instruction) == ["Stir together."])
+    }
+
+    @Test func aDeletedAutomaticIngredientStaysDeletedAfterAnotherRead() {
+        var content = HomeRecipeContent(name: "Syrup", template: .component, method: .other)
+        var capture = CoffeeAssistanceRecipeImport.Draft()
+        let fields = [CoffeeAssistanceField(key: "ingredient", value: "1 tsp cinnamon", sourceQuote: "1 tsp cinnamon")]
+        capture.apply(fields, to: &content)
+        content.ingredients.removeAll()
+        capture.replace(fields, to: &content)
+        #expect(content.ingredients.isEmpty)
+        content.sourceReuseAllowed = false
+        capture.apply([.init(key: "step", value: "Stir.", sourceQuote: "Stir.")], to: &content)
+        #expect(content.steps.isEmpty)
+    }
+
     @Test func blockedOrOversizedSourcesCannotBecomeFabricatedRecipes() throws {
         let link = try HomeRecipeSourceURL("https://www.instagram.com/p/abc/")
         #expect(throws: (any Error).self) { try HomeRecipeSourceParser.parse(Data("<title>Login • Instagram</title>".utf8), contentType: "text/html", source: link) }
