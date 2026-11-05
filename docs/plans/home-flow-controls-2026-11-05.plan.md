@@ -69,5 +69,16 @@ This plan is a task/evidence ledger, not permission to deploy or delete owner da
   run documentation and diff checks; exclude secrets/private/generated-local data.
 - [x] Signed isolated iPhone fixtures, fresh owner backup, safe candidate install
   and read-only acceptance when available. No owner deletion fixture or TestFlight.
-- [ ] Preserve ECC RED/GREEN commits, push and update held draft PR #109; report
+- [x] Preserve ECC RED/GREEN commits, push and update held draft PR #109; report
   exact local/Simulator/physical states, source limitations and human QA.
+
+## Delivery closure
+
+Implemented and locally/physically accepted; code checkpoint `2bae8ef` is pushed
+on `codex/home-library-flow` and held draft PR #109 is updated. All 106 native
+tests, 18 selected Simulator/phone UI paths and the separate owner read-only
+check have passing evidence. All 68 hosted contracts and real Auth/Storage probes
+pass. The deletion guard is live; held Home V4 and TestFlight remain unchanged.
+The audit records source, install, live, hardware, retry and preservation evidence
+separately. All plan items are complete; subjective owner design feedback remains
+welcome without replacing these verified gates.

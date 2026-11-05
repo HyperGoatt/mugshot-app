@@ -296,3 +296,13 @@ Home V4 and draft-stack merge holds remain.
 Focused coverage is collected, not app-wide: Home controls94.7%, profiles95.2%,
 editor canvas96.5% in the final focused batch; broader legacy workspace/store
 coverage is reported separately in the xcresult archives. [Native captures](../design/home-flow-controls-2026-11-05/README.md).
+
+### Git delivery closure
+
+ECC checkpoints `7d64d4c`, `cf1a155`, `50465b9`, `363f9e6`, `276ef8f` and
+GREEN implementation `2bae8ef` are pushed on `codex/home-library-flow`. Held
+draft PR #109 is updated around the complete Home/Journal/recipe scope and
+remains open, draft and unmerged on held #108. GitHub reports no configured PR
+checks; local fast/backend/documentation/diff, focused native/UI and actual-key
+exclusion checks supply the recorded validation. The unrelated Weekly Pour
+package is preserved and excluded. No TestFlight action occurred.

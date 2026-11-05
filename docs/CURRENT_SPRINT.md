@@ -15,8 +15,8 @@ launched. Forty original files are preserved through install; final owner conten
 and complete recipe workspace are unchanged (only shelf updatedAt refreshes).
 The reviewed deletion migration is live after 68 hosted contracts and real
 Auth/Storage probes; protected fingerprints are unchanged and the paid branch
-and disposable fixture apps/runners are deleted. Publish the reviewed code/docs
-checkpoint to held draft PR #109; preserve parent/Home V4/TestFlight holds.
+and disposable fixture apps/runners are deleted. Reviewed checkpoint `2bae8ef` is pushed on `codex/home-library-flow`; held draft
+PR #109 is updated. Preserve parent/Home V4/TestFlight holds.
 
 ## Recipe focus and post celebration — November 5 follow-up
 
