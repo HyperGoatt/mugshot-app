@@ -132,3 +132,59 @@ the old schema (`/tmp/mugshot-home-workspace-deletion-red-2026-11-05.log`). The
 new tests also require old-client saves to retain markers, remove associated
 unfinished sessions, preserve recipes/servings and reject malformed markers
 without advancing the revision.
+
+### Additional audit finding: embedded library handoffs
+
+A gear library opened inside the drink builder inherited all library tabs, but
+had no route back to the main sip composer. Switching to Recipes and choosing
+Make could therefore dismiss into an empty callback. Root libraries now retain
+all sections and the shared draft manager; recipe-selection sheets retain recipe
+selection without offering an unrelated draft manager; gear-only sheets stay on
+their requested section. This is implemented in source and still requires the
+consolidated native verification recorded by the delivery owner.
+
+Named Home selection uses the recorded nickname. Generic `Home` is therefore a
+reserved nickname, and same-account names must be unique ignoring case and outer
+whitespace. Model/store validation now enforces those boundaries as well as the
+editor, so a later write cannot make profile gear selection ambiguous. Focused
+`HomePlaceProfileControlTests` cover the reserved name, duplicate rejection and
+same-identity rename.
+
+### Integration and failure checks — November 5 follow-up
+
+The first combined native batch passes **100 cases** (99 named tests plus one
+additional parameterized case) across controls, deletion boundaries, Journal
+history, profiles/adoption, sip discard, editors, workspace and library suites.
+Receipt: `/tmp/mugshot-home-controls-native-green2-2026-11-05.xcresult`. Later
+review fixes still require their final native pass. Generic and integration
+compile errors were corrected as tooling/integration findings, not behavior REDs.
+
+The first screen walkthrough reproduces missing explicit cancel controls in
+iOS 27 confirmation popovers for drafts and Home setups. Shared scrollable
+confirmation sheets replace those popovers. It also identifies extended remote
+thumbnail accessibility frames and editor-field/SwiftUI menu automation issues;
+fixes and focused reruns are in progress. Receipt:
+`/tmp/mugshot-home-controls-ui1-2026-11-05.xcresult`.
+
+Security/state review adds valid-name-only local cleanup, consumed edit-ID markers,
+dependent edit-ID retention, preserved batch links, safe guest nickname collision
+handling, abandoned photo-write cleanup, and fresh photo identities when a retired
+file gains a new reference. The server rejects newly referenced retired names,
+while photos already shared by retained makes stay valid.
+
+The owner approved a new temporary **data-less** Supabase branch at
+$0.01344/hour. Branch `c27a4159-dafe-4709-b53b-314c58e11d4f` /
+`cwathktlaqheiqpsdzos` replays all **186 local migrations**, including the held
+Home V4 migration only inside QA. All **68 hosted SQL contracts** pass with
+zero migration drift; real Auth/Data API and Storage probes verify owner save,
+foreign denial, uppercase markers, dependent edit cleanup, stale-client retries,
+failed writes and idempotent private-object deletion. Synthetic probe accounts
+were removed. The live project remains at 184 migrations; the exact production
+release must exclude held Home V4. The paid branch must be deleted after QA.
+
+UI1 completed 16 cases: 7 passed and 9 failed. Two failures reproduce missing
+cancel actions; one reproduces a mismatched thumbnail accessibility frame.
+Menu-item duplicates, a text field under the fixed Save bar, covered-root filter
+queries and a measurement-sheet action identifier require targeted native/harness
+corrections; assertions remain. The regular quick-log path must be included by
+its exact test name in the next run (the first command requested an absent name).

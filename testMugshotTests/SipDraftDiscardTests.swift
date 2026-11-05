@@ -54,6 +54,28 @@ struct SipDraftDiscardTests {
         #expect(try Data(contentsOf: metadata) == before)
     }
 
+    @Test func catalogueDeduplicatesMakesAndHidesBlankOrQueuedDeletedWork() {
+        let sip = SipDraft(context: .home, drinkName: "Latte")
+        var workspace = HomeRecipeWorkspace()
+        let duplicate = HomeAttemptRecord(id: sip.id, name: "Latte")
+        workspace.attemptDrafts = [duplicate, HomeAttemptRecord(name: "Tea")]
+        workspace.sessions = [HomePreparationSession(attempt: duplicate)]
+        workspace.recipeDrafts = [HomeRecipeEditorDraft()]
+        #expect(HomeDraftCatalogue(sipDrafts: [sip, SipDraft()], workspace: workspace).count == 2)
+        #expect(HomeDraftCatalogue(sipDrafts: [sip], workspace: workspace, excludingSipID: sip.id).count == 1)
+        var linked = sip
+        let linkedAttempt = HomeAttemptRecord(name: "Latte")
+        let linkedSession = HomePreparationSession(attempt: linkedAttempt)
+        linked.launchContext.homeAttemptID = linkedAttempt.id
+        linked.launchContext.homePreparationSessionID = linkedSession.id
+        workspace.attemptDrafts = [linkedAttempt]
+        workspace.sessions = [linkedSession]
+        #expect(HomeDraftCatalogue(sipDrafts: [linked], workspace: workspace, excludingSipID: linked.id).count == 0)
+        var removed = HomeWorkspaceDeletions(); removed.publicationDrafts = [sip.id]
+        workspace.deletions = removed
+        #expect(HomeDraftCatalogue(sipDrafts: [sip], workspace: workspace).sipDrafts.isEmpty)
+    }
+
     private func temporaryRoot() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("SipDraftDiscardTests-\(UUID())")
     }

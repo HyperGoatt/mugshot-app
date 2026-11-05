@@ -119,12 +119,16 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["36 g"].exists)
         tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
+        let measurements = app.buttons["home.capture.measurements"]
+        XCTAssertTrue(measurements.waitForExistence(timeout: 3))
+        measurements.tap()
         XCTAssertTrue(app.staticTexts["How did it go?"].waitForExistence(timeout: 4))
         let confirm = app.buttons["As planned"].firstMatch
         XCTAssertTrue(confirm.exists)
         confirm.tap()
         XCTAssertTrue(app.staticTexts["✓ As planned"].exists)
-        tapPrimaryAction(in: app)
+        app.buttons["home.measurements.done"].tap()
         XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
