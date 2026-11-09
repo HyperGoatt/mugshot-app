@@ -58,6 +58,79 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
     }
 
     @MainActor
+    func testSetupKeepsHeaderAndPillsFixedAsContextsAndScrollChange() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out", "--ui-testing-reduce-motion"]
+        app.launch()
+        let add = app.buttons["mugshot.tab.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        let title = app.staticTexts["Log a Sip"]
+        let autosave = app.staticTexts["Drafts save automatically"]
+        let pills = ["cafe", "home", "elsewhere"].map { element("logASipV3.context.\($0)", in: app) }
+        XCTAssertTrue(pills[0].waitForExistence(timeout: 3))
+        let chrome = [title, autosave] + pills
+        let frames = chrome.map(\.frame)
+        for frame in frames { XCTAssertFalse(frame.isEmpty) }
+
+        for (index, panel) in [
+            (1, app.staticTexts["What are you making?"]),
+            (2, element(Identifier.locationName, in: app)),
+            (0, element(Identifier.cafeSelector, in: app))
+        ] {
+            pills[index].tap()
+            XCTAssertTrue(panel.waitForExistence(timeout: 3))
+            XCTAssertTrue(pills[index].isSelected)
+            for (control, frame) in zip(chrome, frames) {
+                XCTAssertEqual(control.frame.minX, frame.minX, accuracy: 1, control.label)
+                XCTAssertEqual(control.frame.minY, frame.minY, accuracy: 1, control.label)
+            }
+        }
+
+        app.scrollViews["logASipV3.scroll"].swipeUp()
+        XCTAssertTrue(pills.allSatisfy(\.isHittable))
+        XCTAssertEqual(title.frame.minY, frames[0].minY, accuracy: 1)
+        app.buttons["Close Log a Sip"].tap()
+        add.tap()
+        XCTAssertFalse(element("logASipV3.resumeDraft", in: app).exists, "Context selection alone must not create a draft.")
+    }
+
+    @MainActor
+    func testElsewhereSettingAloneAutosavesAcrossRelaunch() throws {
+        let app = XCUIApplication()
+        let launchArguments = ["--ui-testing", "--ui-testing-signed-out", "--ui-testing-reduce-motion"]
+        app.launchArguments = launchArguments + ["--ui-testing-reset"]
+        app.launch()
+        let add = app.buttons["mugshot.tab.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        let elsewhere = element("logASipV3.context.elsewhere", in: app)
+        XCTAssertTrue(elsewhere.waitForExistence(timeout: 3))
+        elsewhere.tap()
+        type("Sunday market", into: Identifier.locationName, in: app)
+        dismissKeyboardIfNeeded(in: app)
+
+        // Stop without using Close, which also writes a draft.
+        app.terminate()
+        app.launchArguments = launchArguments
+        app.launch()
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        let resume = element("logASipV3.resumeDraft", in: app)
+        XCTAssertTrue(resume.waitForExistence(timeout: 3), "An entered setting must be enough for autosave.")
+        resume.tap()
+        let draft = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "home.drafts.resume.sip-"))
+        XCTAssertTrue(draft.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertEqual(draft.count, 1)
+        draft.firstMatch.tap()
+        let setting = element(Identifier.locationName, in: app)
+        XCTAssertTrue(setting.waitForExistence(timeout: 3))
+        XCTAssertEqual(setting.value as? String, "Sunday market")
+        XCTAssertTrue(elsewhere.isSelected)
+    }
+
+    @MainActor
     func testHomeQuickLogSavesAnUnratedPrivateSipInTwoInputSurfaces() throws {
         let app = XCUIApplication()
         app.launchArguments = [
