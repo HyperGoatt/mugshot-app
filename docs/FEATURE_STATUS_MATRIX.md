@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## Log a Sip setup — November 9 candidate
+
+One stable title, autosave cue and pill row in setup; cafe, Home and Elsewhere
+panels change below. Setting-only Elsewhere drafts can resume. The
+[Home walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md) records local
+acceptance and remaining library usability work. No new device distribution.
 
 ## Home controls — November 5 accepted development candidate
 

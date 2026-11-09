@@ -199,23 +199,26 @@ struct LogASipV3ProductionView: View {
                         }
                     }
                 } else {
-                    currentSurface
-                        .id(surfaceID)
-                        .transition(stepTransition)
-                        .overlay(alignment: firstSipGuideAlignment) {
-                            if showsFirstSipGuidance {
-                                MugshotFirstSipGuideBanner(
-                                    step: step,
-                                    onDismiss: onDismissFirstSipGuidance
-                                )
-                                .padding(.top, firstSipGuideTopPadding)
-                                .padding(.bottom, firstSipGuideBottomPadding)
-                                .transition(
-                                    .move(edge: firstSipGuideAtTop ? .top : .bottom)
-                                        .combined(with: .opacity)
-                                )
+                    VStack(spacing: 0) {
+                        if showsSetupHeader { setupHeader }
+                        currentSurface
+                            .id(surfaceID)
+                            .transition(stepTransition)
+                            .overlay(alignment: firstSipGuideAlignment) {
+                                if showsFirstSipGuidance {
+                                    MugshotFirstSipGuideBanner(
+                                        step: step,
+                                        onDismiss: onDismissFirstSipGuidance
+                                    )
+                                    .padding(.top, firstSipGuideTopPadding)
+                                    .padding(.bottom, firstSipGuideBottomPadding)
+                                    .transition(
+                                        .move(edge: firstSipGuideAtTop ? .top : .bottom)
+                                            .combined(with: .opacity)
+                                    )
+                                }
                             }
-                        }
+                    }
                 }
             }
             .foregroundStyle(Color.espressoBrown)
@@ -326,6 +329,47 @@ struct LogASipV3ProductionView: View {
         firstSipGuideAtTop ? 0 : 78
     }
 
+    private var showsSetupHeader: Bool {
+        step == .setup && (!isHomeFlow || draft.homeWorkbenchPhase == .workbench)
+    }
+
+    /// Keep the setup controls outside both the scrolling panel and its transition.
+    private var setupHeader: some View {
+        VStack(spacing: DesignSystem.Space.md) {
+            MugshotScreenHeader("Log a Sip") {
+                Label("Drafts save automatically", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.tertiaryText)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            MugshotSegmentedControl(
+                options: [JournalEntryContext.cafe, .home, .elsewhere],
+                selection: Binding(
+                    get: { draft.context == .recipe ? .home : draft.context },
+                    set: { context in
+                        guard showsSetupHeader, !isRecoveryLocked, !isSaving else { return }
+                        dismissKeyboard()
+                        draft.selectV3Context(context)
+                    }
+                ),
+                title: { $0.rawValue },
+                icon: { context in
+                    switch context {
+                    case .cafe: "storefront"
+                    case .home, .recipe: "house"
+                    case .elsewhere: "mappin.and.ellipse"
+                    }
+                },
+                accessibilityIdentifier: { "logASipV3.context.\($0.rawValue.lowercased())" }
+            )
+            .disabled(isRecoveryLocked || isSaving)
+            .padding(.horizontal, DesignSystem.Space.md)
+        }
+        .padding(.bottom, DesignSystem.Space.md)
+    }
+
     @ViewBuilder
     private var currentSurface: some View {
         if isHomeFlow {
@@ -398,48 +442,25 @@ struct LogASipV3ProductionView: View {
     private var homeSurface: some View {
         switch draft.homeWorkbenchPhase {
         case .workbench:
-            VStack(spacing: 0) {
-                MugshotScreenHeader("Log a Sip") {
-                    Label("Drafts save automatically", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.tertiaryText)
-                }
-                .padding(.horizontal, DesignSystem.Space.md)
-                .padding(.top, 8)
-
-                MugshotSegmentedControl(
-                    options: [JournalEntryContext.cafe, .home, .elsewhere],
-                    selection: Binding(
-                        get: { draft.context == .recipe ? .home : draft.context },
-                        set: { draft.selectV3Context($0) }
-                    ),
-                    title: { $0.rawValue },
-                    icon: { $0.systemImage },
-                    accessibilityIdentifier: { "logASipV3.context.\($0.rawValue.lowercased())" }
-                )
-                .padding(.horizontal, DesignSystem.Space.md)
-                .padding(.vertical, 10)
-
-                HomeSipV3SetupView(
-                    draft: $draft,
-                    usesV4: homeSipV4RouteEnabled,
-                    isRecoveryLocked: isRecoveryLocked,
-                    onStartMaking: startHomePreparation,
-                    onSkipGuidance: {
-                        draft.homeSipPath = .guided
-                        MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationSkipped))
-                        moveHome(to: .capture)
-                    },
-                    onQuickLog: {
-                        draft.homeSipPath = .quick
-                        draft.homeAttemptActuals = HomeAttemptActuals()
-                        MugshotAnalytics.shared.capture(.homeWorkbench(action: .quickChosen))
-                        moveHome(to: .quickCapture)
-                    },
-                    onResumeSession: resumeHomeSession,
-                    onResumeSip: onResumeStoredDraft
-                )
-            }
+            HomeSipV3SetupView(
+                draft: $draft,
+                usesV4: homeSipV4RouteEnabled,
+                isRecoveryLocked: isRecoveryLocked,
+                onStartMaking: startHomePreparation,
+                onSkipGuidance: {
+                    draft.homeSipPath = .guided
+                    MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationSkipped))
+                    moveHome(to: .capture)
+                },
+                onQuickLog: {
+                    draft.homeSipPath = .quick
+                    draft.homeAttemptActuals = HomeAttemptActuals()
+                    MugshotAnalytics.shared.capture(.homeWorkbench(action: .quickChosen))
+                    moveHome(to: .quickCapture)
+                },
+                onResumeSession: resumeHomeSession,
+                onResumeSip: onResumeStoredDraft
+            )
         case .quickCapture:
             LogASipV3HomeCaptureSurface(
                 draft: $draft,
@@ -586,16 +607,17 @@ struct LogASipV3ProductionView: View {
 
         if completion == nil {
             ToolbarItem(placement: .topBarTrailing) {
-                Text(isHomeFlow ? homeProgressLabel : "\(stepNumber) of 4")
+                let showsHomeProgress = isHomeFlow && !showsSetupHeader
+                Text(showsHomeProgress ? homeProgressLabel : "\(stepNumber) of 4")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.mugshotSage)
                     .fixedSize(horizontal: true, vertical: true)
                     .accessibilityLabel(
-                        isHomeFlow
+                        showsHomeProgress
                             ? homeProgressAccessibilityLabel
                             : "Step \(stepNumber) of 4"
                     )
-                    .accessibilityIdentifier(isHomeFlow ? "logASipV3.home.progress" : "logASipV3.progress")
+                    .accessibilityIdentifier(showsHomeProgress ? "logASipV3.home.progress" : "logASipV3.progress")
             }
         }
     }
@@ -620,7 +642,8 @@ struct LogASipV3ProductionView: View {
     }
 
     private var surfaceID: String {
-        isHomeFlow ? "home-\(draft.homeWorkbenchPhase.rawValue)" : step.rawValue
+        if showsSetupHeader { return SipV3ComposerStep.setup.rawValue }
+        return isHomeFlow ? "home-\(draft.homeWorkbenchPhase.rawValue)" : step.rawValue
     }
 
     private var canMoveBack: Bool {
@@ -1253,13 +1276,6 @@ private struct LogASipV3SetupSurface: View {
     let onChooseCafe: () -> Void
     let onContinue: () -> Void
 
-    private var contextSelection: Binding<JournalEntryContext> {
-        Binding(
-            get: { draft.context == .recipe ? .home : draft.context },
-            set: { draft.selectV3Context($0) }
-        )
-    }
-
     private var hasVisual: Bool {
         !photoImages.isEmpty || draft.photoFallback == .mugsyMissedPhoto
     }
@@ -1282,72 +1298,24 @@ private struct LogASipV3SetupSurface: View {
     }
 
     private var canContinue: Bool {
-        isHome || (hasVisual && hasContext && draft.drinkName.remoteTrimmedNonEmpty != nil)
-    }
-
-    private var isHome: Bool {
-        draft.context == .home || draft.context == .recipe
+        hasVisual && hasContext && draft.drinkName.remoteTrimmedNonEmpty != nil
     }
 
     var body: some View {
         LogASipV3ScrollableSurface(
-            actionTitle: isHome ? "Use recipe & brew" : "Start my reflection",
+            actionTitle: "Start my reflection",
             actionSubtitle: setupActionSubtitle,
-            actionIcon: isHome ? "cup.and.heat.waves.fill" : "arrow.right",
-            actionEnabled: canContinue,
+            actionIcon: "arrow.right",
+            actionEnabled: canContinue && !isRecoveryLocked,
             contentEnabled: !isRecoveryLocked,
             action: onContinue
         ) {
-            MugshotScreenHeader("Log a Sip") {
-                if resumeDraftCount > 0 {
-                    Button(action: onResumeDraft) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "clock.arrow.circlepath")
-                            Text("Resume draft")
-                            if resumeDraftCount > 1 {
-                                Text("\(resumeDraftCount)")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .frame(minHeight: 20)
-                                    .background(Color.mugshotMint.opacity(0.55), in: Capsule())
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .multilineTextAlignment(.trailing)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("logASipV3.resumeDraft")
-                    .accessibilityLabel(
-                        resumeDraftCount == 1
-                            ? "Resume draft"
-                            : "Resume draft, \(resumeDraftCount) available"
-                    )
-                } else {
-                    Label("Drafts save automatically", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.tertiaryText)
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            if resumeDraftCount > 0 {
+                HomeDraftSummaryButton(count: resumeDraftCount, accessibilityID: "logASipV3.resumeDraft", onOpen: onResumeDraft)
+                    .padding(.horizontal, DesignSystem.Space.md)
             }
 
-            MugshotSegmentedControl(
-                options: [JournalEntryContext.cafe, .home, .elsewhere],
-                selection: contextSelection,
-                title: { $0.rawValue },
-                icon: { contextIcon($0) },
-                accessibilityIdentifier: { context in
-                    "logASipV3.context.\(context.rawValue.lowercased())"
-                }
-            )
-            .padding(.horizontal, DesignSystem.Space.md)
-
-            if isHome {
-                HomeWorkbenchView(draft: $draft)
-                    .padding(.horizontal, DesignSystem.Space.md)
-            } else {
+            Group {
                 VStack(alignment: .leading, spacing: DesignSystem.Space.sm) {
                     LogASipV3SectionHeader(
                         title: "Photos",
@@ -1455,13 +1423,7 @@ private struct LogASipV3SetupSurface: View {
             .accessibilityValue(draft.cafe?.consumerDisplayName ?? "Choose a cafe")
             .accessibilityHint("Opens cafe search")
         case .home, .recipe:
-            LogASipV3LabeledField(
-                title: "Home setup",
-                placeholder: "Joe’s Home Cafe",
-                text: $draft.locationName,
-                systemImage: "house.fill",
-                accessibilityIdentifier: "logASipV3.locationName"
-            )
+            EmptyView()
         case .elsewhere:
             LogASipV3LabeledField(
                 title: "Setting",
@@ -1474,9 +1436,6 @@ private struct LogASipV3SetupSurface: View {
     }
 
     private var setupActionSubtitle: String {
-        if isHome {
-            return "Actual values can be corrected when you finish."
-        }
         guard canContinue else {
             if !hasVisual { return "Add a photo or choose Mugsy’s placeholder." }
             if draft.drinkName.remoteTrimmedNonEmpty == nil { return "Name the drink you want to remember." }
@@ -1496,13 +1455,6 @@ private struct LogASipV3SetupSurface: View {
         }
     }
 
-    private func contextIcon(_ context: JournalEntryContext) -> String? {
-        switch context {
-        case .cafe: return "storefront"
-        case .home, .recipe: return "house"
-        case .elsewhere: return "mappin.and.ellipse"
-        }
-    }
 }
 
 // MARK: - Home brew and capture

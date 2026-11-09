@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## Home walkthrough and Log a Sip setup — November 9 candidate
+
+The setup title, autosave cue and context pills stay in place across cafe, Home
+and Elsewhere. An entered Elsewhere setting can save and resume on its own.
+See the [persona walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md)
+for local evidence and the next design priorities. This update is a Simulator
+candidate. The November 5 phone receipt below describes the earlier build.
 
 ## Home Journal and controls — November 5 accepted development candidate
 

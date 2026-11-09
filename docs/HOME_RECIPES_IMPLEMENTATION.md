@@ -1,8 +1,24 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## Shared sip setup and Home walkthrough — November 9 candidate
+
+Log a Sip owns one fixed title, autosave cue and cafe / Home / Elsewhere pill
+row during setup. The selected pill updates in place; the panel and its actions
+below it change. The draft keeps common sip inputs such as the drink name and
+photos, and existing context rules apply to place-specific evidence. Later
+making, rating, review and protected recovery retain their own controls.
+
+Drafts remain below the selector. An Elsewhere setting by itself is enough to
+save a draft; a context tap or automatic Home location alone is not. Resume
+restores the saved setup in the existing account scope.
+
+The [two-persona walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md)
+recommends Saved as the primary Home library entrance, with a Journal shortcut
+to the same library. The library layout proposals are separate from this fix.
 
 ## Home Journal and flow controls — November 5 candidate
 

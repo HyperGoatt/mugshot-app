@@ -123,6 +123,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         let draft = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "home.drafts.resume.sip-"))
         XCTAssertTrue(draft.firstMatch.waitForExistence(timeout: 3))
         XCTAssertEqual(draft.count, 1)
+        XCTAssertEqual(draft.firstMatch.label, "Resume Sunday market")
         draft.firstMatch.tap()
         let setting = element(Identifier.locationName, in: app)
         XCTAssertTrue(setting.waitForExistence(timeout: 3))
@@ -269,6 +270,14 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         let primaryAction = element(Identifier.primaryAction, in: app)
         reveal(primaryAction, in: app)
         XCTAssertTrue(primaryAction.isEnabled)
+
+        element(Identifier.homeContext, in: app).tap()
+        XCTAssertTrue(app.staticTexts["What are you making?"].waitForExistence(timeout: 3))
+        element("logASipV3.context.elsewhere", in: app).tap()
+        XCTAssertTrue(element(Identifier.locationName, in: app).waitForExistence(timeout: 3))
+        XCTAssertEqual(element(Identifier.drinkName, in: app).value as? String, "Iced latte")
+        XCTAssertTrue(element("logASipV3.photos.thumbnail.0", in: app).exists)
+        XCTAssertFalse(cafeSelector.exists, "The cafe picker and selection belong to the cafe context.")
     }
 
     @MainActor

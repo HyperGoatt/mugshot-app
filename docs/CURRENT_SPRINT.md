@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## Home novice and expert walkthrough — November 9
+
+The common setup header and setting-only autosave pass their Simulator
+regressions. Use the [walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md)
+to prioritize a clear quick-versus-guided choice, a discoverable recipe shelf
+and optional precision tools. Keep the existing delivery holds. Library
+redesign proposals remain open.
 
 ## Home controls audit → plan → implementation — November 5 accepted candidate
 

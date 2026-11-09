@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## Stable Log a Sip setup — November 9 candidate
+
+- `Views/Add/LogASipV3ProductionViews.swift`: one non-scrolling setup header
+  and context selector above the Home or standard panel.
+- `Models/SipDraft.swift` and `Views/Add/HomeDraftManagementView.swift`: an
+  entered Elsewhere setting qualifies for existing local autosave and helps
+  identify an unnamed draft in the existing manager.
+- `LogASipV3CentralHomeUITests` and `LogASipV3DomainTests`: stable setup,
+  context routing, early autosave and resume evidence.
 
 ## Home Journal, drafts and owner controls — November 5 candidate
 

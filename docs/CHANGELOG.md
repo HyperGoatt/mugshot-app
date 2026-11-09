@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## 2026-11-09 — Stable Log a Sip setup and Home walkthrough
+
+- Keep the Log a Sip title, autosave cue and three context pills in one place.
+  Only the setup panel scrolls or changes when switching between cafe, Home and
+  Elsewhere. Existing draft access remains below the pills.
+- Autosave an Elsewhere draft even when its setting is the first entered field.
+  Use that setting to identify the draft until it has a drink name.
+- Verify both regressions in Simulator with 46 native checks and seven focused
+  composer screen paths passing. No updated phone build.
+- [Novice and expert walkthrough, priorities and evidence](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md).
 
 ## 2026-11-05 — Home Journal and flow controls candidate
 

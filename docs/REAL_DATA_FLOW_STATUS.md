@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## Shared setup and early draft persistence — November 9 candidate
+
+A nonblank Elsewhere setting is meaningful local draft content before a name,
+photo or rating. Setup navigation and automatic Home labels still do not
+create drafts. Autosave and resume use the existing draft ID, owner scope and
+local photo files. The selector does not unlock a protected submission. No
+new backend write, inventory requirement or AI call is part of switching.
 
 ## Home control ownership and deletion — November 5 candidate
 

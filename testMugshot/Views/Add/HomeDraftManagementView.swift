@@ -22,6 +22,7 @@ struct HomeDraftCatalogue {
 
 struct HomeDraftSummaryButton: View {
     let count: Int
+    var accessibilityID = "home.drafts.open"
     let onOpen: () -> Void
     var body: some View {
         Button(action: onOpen) {
@@ -42,7 +43,7 @@ struct HomeDraftSummaryButton: View {
             .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 20))
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.mugshotLine))
         }
-        .buttonStyle(.plain).accessibilityIdentifier("home.drafts.open")
+        .buttonStyle(.plain).accessibilityIdentifier(accessibilityID)
         .accessibilityLabel("Your drafts, \(count) unfinished")
     }
 }
@@ -136,7 +137,8 @@ struct HomeDraftManagementView: View {
     private func sipRow(_ draft: SipDraft) -> some View {
         let protected = !HomeJourneyControlPolicy.canDiscard(draft, in: scope,
             hasProtectedSubmission: protectedIDs.contains(draft.id))
-        return draftRow(title: draft.drinkName.remoteTrimmedNonEmpty ?? "Untitled sip",
+        let setting = draft.context == .elsewhere ? draft.locationName.remoteTrimmedNonEmpty : nil
+        return draftRow(title: draft.drinkName.remoteTrimmedNonEmpty ?? setting ?? "Untitled sip",
             detail: protected ? "Interrupted post · resume to recover" : "\(draft.context.rawValue) · saved \(draft.updatedAt.formatted(.relative(presentation: .named)))",
             symbol: draft.context.systemImage, identifier: "sip-\(draft.id)", locked: !canVerifyDiscard || protected,
             onResume: {
