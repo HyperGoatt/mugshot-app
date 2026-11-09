@@ -28,12 +28,12 @@ The `codex/luna-assistance` stack is production-configured for optional
 eight authenticated synthetic text/image probes and quota/ownership denial
 checks. Existing data was preserved around the exact additive migration.
 
-**Mugshot Luna QA 0.5.3 (8)** is installed as the development app on the owner's
-iPhone 16 Pro / iOS 27.0.1. It restores the existing account and renders Feed;
+**Mugshot Luna QA 0.5.3 (9)** is the [current development install](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+on the owner's iPhone 16 Pro / iOS 27.0.1. This installation verifies launch;
 human acceptance of real helper responses remains pending. No TestFlight action
 occurred. Parent PR holds remain, and the separate Weekly Pour visual proposal
-is excluded. [Current activation and phone QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
-contains the package receipt and checklist; the [November 2 ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md)
+is excluded. [Earlier activation and phone QA](audits/OPTIONAL_ASSISTANCE_PHONE_QA_2026-11-04.md)
+contains the previous receipt and checklist; the [November 2 ledger](audits/OPTIONAL_COFFEE_ASSISTANCE_2026-11-02.md)
 retains the original implementation evidence.
 
 The subsequent [Journal/bean correction](audits/JOURNAL_AND_BEANS_2026-11-04.md)

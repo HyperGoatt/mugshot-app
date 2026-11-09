@@ -6,6 +6,9 @@ date: 2026-11-09
 
 # Home library and repeat brewing verification
 
+> Follow-up: [development iPhone installation and launch](HOME_LIBRARY_PHONE_2026-11-09.md).
+> The original Simulator checkpoint is preserved below.
+
 Current behavior: [Home recipes and brewing](../HOME_RECIPES_IMPLEMENTATION.md).
 Scope: [approved recommendations](HOME_PERSONA_WALKTHROUGH_2026-11-09.md)
 and [implementation plan](../plans/home-library-and-brewing-2026-11-09.plan.md).

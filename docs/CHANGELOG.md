@@ -4,6 +4,12 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## 2026-11-09 — Home library iPhone development install
+
+- Install and launch Mugshot Luna QA 0.5.3 (9) in place. Verify all 40 app data
+  files and one preferences file remain byte-identical through launch.
+- [Signed iPhone receipt](audits/HOME_LIBRARY_PHONE_2026-11-09.md).
+
 ## 2026-11-09 — Easier Home library and repeat brewing candidate
 
 - Give the library a starter path, direct recipe detail, useful sorting and
@@ -14,8 +20,7 @@ last_verified: 2026-11-09
   Advance one step at a time and preview the selected audience before saving.
 - Compare frozen plans with recorded measurements and the last compatible sip;
   repeat a plan with one optional change. Keep AI assistance optional.
-- Pass 185 native cases and 16 focused Simulator journeys. This candidate has
-  no new phone install, backend deployment or TestFlight release.
+- Pass 185 native cases and 16 focused Simulator journeys before phone promotion.
 - [Implementation plan](plans/home-library-and-brewing-2026-11-09.plan.md)
   and [ECC verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md).
 

@@ -10,14 +10,16 @@ Source implements offline starters, manual recipe capture, shelf sorting and
 restore, independent inventory controls, distinct quick and guided paths,
 audience preview and an owner-only comparison and repeat flow. See
 [Home implementation](HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate)
-for the scope. Device distribution is a separate gate.
+for the scope. [Mugshot Luna QA 0.5.3 (9)](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+is installed and launched on the owner iPhone. Full hardware journey acceptance
+and TestFlight remain separate from this install.
 
 ## Log a Sip setup — November 9 candidate
 
 One stable title, autosave cue and pill row in setup; cafe, Home and Elsewhere
 panels change below. Setting-only Elsewhere drafts can resume. The
 [Home walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md) records local
-acceptance and the original library recommendations. No new device distribution.
+acceptance and the original library recommendations.
 
 ## Home controls — November 5 accepted development candidate
 

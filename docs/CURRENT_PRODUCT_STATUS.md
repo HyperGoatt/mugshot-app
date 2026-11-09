@@ -10,15 +10,17 @@ Source includes the approved [Home walkthrough improvements](HOME_RECIPES_IMPLEM
 clear entry and recipe capture, shelf controls, quick and guided making,
 private review, and a saved-sip brew comparison. The
 [verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md) records 185 native
-cases and 16 focused Simulator journeys. The prior phone receipt remains separate.
+cases and 16 focused Simulator journeys. Mugshot Luna QA **0.5.3 (9)** is
+installed and launched on the owner's iPhone with existing local files preserved.
+See the [development iPhone receipt](audits/HOME_LIBRARY_PHONE_2026-11-09.md).
 
 ## Home walkthrough and Log a Sip setup — November 9 candidate
 
 The setup title, autosave cue and context pills stay in place across cafe, Home
 and Elsewhere. An entered Elsewhere setting can save and resume on its own.
 See the [persona walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md)
-for local evidence and the next design priorities. This update is a Simulator
-candidate. The November 5 phone receipt below describes the earlier build.
+for local evidence and the original design priorities. The November 5 phone
+receipt below describes the earlier build.
 
 ## Home Journal and controls — November 5 accepted development candidate
 

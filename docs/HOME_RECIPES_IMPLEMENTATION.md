@@ -40,6 +40,8 @@ reviewed evidence and never gates the core flow.
 
 [Accepted implementation plan](plans/home-library-and-brewing-2026-11-09.plan.md)
 and [Simulator verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md).
+[Build 9 installation and launch](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+are verified on the owner iPhone.
 
 ## Shared sip setup and Home walkthrough — November 9 candidate
 
