@@ -30,6 +30,19 @@ struct HomeRecipeCompositionTests {
         #expect(content.targets == before.targets)
     }
 
+    @Test func explicitlyChosenBrewKindSurvivesAnAmbiguousNameAndRoundTrip() throws {
+        var content = HomeRecipeContent(name: "Blueberry syrup", template: .preparation, method: .other)
+        content.creatorCredit = "Recipe maker"
+        content.steps = [HomePreparationStep(instruction: "Steep the berries.")]
+        #expect(HomeRecipeUse.suggested(for: content) == .component)
+        HomeRecipeUse.base.apply(to: &content)
+        let restored = try JSONDecoder().decode(HomeRecipeContent.self, from: JSONEncoder().encode(content))
+        #expect(HomeRecipeUse.suggested(for: restored) == .base)
+        #expect(restored.methodDisplayName == "Brew recipe")
+        #expect(restored.name == "Blueberry syrup" && restored.creatorCredit == "Recipe maker")
+        #expect(restored.steps == content.steps)
+    }
+
     @Test func creatingADrinkLinksTheExactComponentAndInventsNoServingAmount() throws {
         let source = syrup()
         let version = try #require(source.current)
@@ -172,14 +185,16 @@ struct HomeRecipeCompositionTests {
         let base = HomeRecipeContent(name: "Saved espresso", template: .preparation, method: .espresso)
         let reference = HomeRecipeReference(recipeID: UUID(), versionID: UUID())
         let milk = HomeRecipeIngredient(name: "Oat milk", amount: 100, unit: "ml")
-        let linked = HomeRecipeIngredient(name: base.name, unit: "serving", recipe: reference)
+        let linked = HomeRecipeIngredient(name: base.name, amount: 2, unit: "serving", recipe: reference)
         var drink = HomeRecipeContent(name: "Imported latte", template: .drink, method: .completeDrink)
         drink.ingredients = [milk, linked]
         let oldBaseID = HomeDrinkComposition.baseID(in: drink) { $0 == reference ? base : nil }
         #expect(oldBaseID == linked.id)
         HomeDrinkComposition.usePreset(.traditionalMatcha, in: &drink, replacing: oldBaseID)
         #expect(drink.ingredients.contains(milk))
-        #expect(!drink.ingredients.contains { $0.id == linked.id })
+        let replacement = try #require(drink.ingredients.first { $0.id == linked.id })
+        #expect(replacement.name == "Traditional matcha" && replacement.recipe == nil)
+        #expect(replacement.amount == 2 && replacement.unit == "serving")
     }
 
     @Test func presetMatchaGuidanceKeepsItsMethodAndDoesNotDuplicateAssembly() {
@@ -213,6 +228,66 @@ struct HomeRecipeCompositionTests {
         #expect(guide.steps == content.visibleSteps && !guide.usesSavedBase)
         content.method = .other; content.targets = HomeRecipeTargets()
         #expect(HomeDrinkComposition.guidance(for: content).base.method == .other)
+    }
+
+    @Test func anIngredientListIsAnIdeaUntilInstructionsAreUsable() {
+        var idea = HomeRecipeContent(name: "Jasmine tea", template: .preparation, method: .other)
+        idea.ingredients = [HomeRecipeIngredient(name: "Tea", amount: 2, unit: "g")]
+        idea.steps = [HomePreparationStep(instruction: "  "), HomePreparationStep(instruction: "Steep.", isHidden: true)]
+        #expect(!idea.isReadyToMake)
+        idea.steps.append(HomePreparationStep(instruction: "Steep the leaves for three minutes."))
+        #expect(idea.isReadyToMake)
+
+        let brew = HomeRecipeContent(name: "House espresso", template: .preparation, method: .espresso,
+                                     targets: HomeRecipeTargets(dose: 18, ratio: 2))
+        #expect(brew.isReadyToMake)
+    }
+
+    @Test func switchingAnAddInPreservesItsUsageAndBothSavedRecipes() throws {
+        let first = syrup()
+        let old = try #require(first.current)
+        var replacementContent = old.content
+        replacementContent.name = "Cinnamon syrup"
+        replacementContent.creatorCredit = "Another creator"
+        replacementContent.sourceURL = "https://example.org/cinnamon"
+        let second = HomeRecipeRecord(versions: [HomeRecipeVersion(number: 2, content: replacementContent)])
+        let new = try #require(second.current)
+        var drink = HomeDrinkComposition.starting(with: first)
+        let index = try #require(drink.ingredients.firstIndex { $0.recipe?.versionID == old.id })
+        drink.ingredients[index].amount = 0.75
+        drink.ingredients[index].unit = "tbsp"
+        let id = drink.ingredients[index].id
+        #expect(HomeDrinkComposition.replacePart(id: id, with: second, version: new, in: &drink))
+        #expect(drink.ingredients[index].id == id && drink.ingredients[index].amount == 0.75)
+        #expect(drink.ingredients[index].unit == "tbsp" && drink.ingredients[index].name == "Cinnamon syrup")
+        #expect(drink.ingredients[index].recipe == HomeRecipeReference(recipeID: second.id, versionID: new.id))
+        #expect(first.current == old && second.current == new)
+        #expect(drink.creatorCredit.isEmpty && drink.sourceURL.isEmpty)
+        let switched = drink
+        #expect(!HomeDrinkComposition.replacePart(id: id, with: second, version: new, in: &drink))
+        #expect(drink == switched)
+
+        HomeDrinkComposition.add(first, version: old, to: &drink)
+        let withBoth = drink
+        #expect(!HomeDrinkComposition.replacePart(id: id, with: first, version: old, in: &drink))
+        #expect(drink == withBoth, "Selecting a link already present cannot merge or duplicate measured parts.")
+    }
+
+    @Test func scalingPortionsUsesExactUnitsAndLeavesSourceAndBrewInstructionsAlone() throws {
+        let source = syrup()
+        var drink = HomeDrinkComposition.starting(with: source)
+        let index = try #require(drink.ingredients.firstIndex { $0.recipe != nil })
+        drink.ingredients[index].amount = 1.25
+        drink.ingredients[index].unit = "tsp"
+        let original = drink
+        let scaled = try #require(HomeDrinkComposition.scaled(drink, toServings: 2))
+        #expect(scaled.servings == 2 && scaled.ingredients[index].amount == 2.5)
+        #expect(scaled.ingredients[index].unit == "tsp" && scaled.ingredients[index].recipe == original.ingredients[index].recipe)
+        #expect(scaled.ingredients.first(where: { $0.name == "Milk" })?.amount == nil)
+        #expect(scaled.targets == original.targets && scaled.steps == original.steps)
+        #expect(drink == original && source.current?.content.ingredients.first?.amount == 2)
+        #expect(HomeDrinkComposition.scaled(drink, toServings: .infinity) == nil)
+        #expect(HomeDrinkComposition.scaled(drink, toServings: 0) == nil)
     }
 
     private func syrup() -> HomeRecipeRecord {

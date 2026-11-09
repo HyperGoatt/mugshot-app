@@ -4,6 +4,16 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Home library and repeat brew data boundaries — November 9 candidate
+
+Browse options are presentation state in the current owner scope. Starter
+plans, ingredient quantities and a one-brew change copy into local drafts;
+recipe and component versions remain immutable. No new workspace JSON field,
+Supabase contract or public comparison payload is introduced. Comparison
+reads completed, compatible measurements from the current owner workspace.
+Missing actuals are never replaced by targets. Optional Luna review selects
+bounded facts from the saved sip and comparable readings.
+
 ## Shared setup and early draft persistence — November 9 candidate
 
 A nonblank Elsewhere setting is meaningful local draft content before a name,

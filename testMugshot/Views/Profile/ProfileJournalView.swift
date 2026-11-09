@@ -251,7 +251,8 @@ struct JournalTabView: View {
                         onMakeAgain: { repeatHomeAttempt(selectedHomeAttempt) },
                         onDone: { self.selectedHomeAttempt = nil },
                         onHistory: openHomeLibrary,
-                        onLogServing: { logHomeServing(from: selectedHomeAttempt) }
+                        onLogServing: { logHomeServing(from: selectedHomeAttempt) },
+                        onChangeNextBrew: { repeatHomeAttempt(selectedHomeAttempt, change: $0) }
                     )
                 }
             }
@@ -313,7 +314,8 @@ struct JournalTabView: View {
                     onShareHomeAttempt: shareHomeAttempt,
                     onRepeatHomeAttempt: repeatHomeAttempt,
                     onOpenRecipeBook: openHomeLibrary,
-                    showsPhase2Tools: phase2CanonicalJournal
+                    showsPhase2Tools: phase2CanonicalJournal,
+                    onChangeNextBrew: { repeatHomeAttempt($0, change: $1) }
                 )
             }
             .sheet(isPresented: $showsDraftManager, onDismiss: {
@@ -828,34 +830,20 @@ struct JournalTabView: View {
     }
 
     private func repeatHomeAttempt(_ attempt: HomeAttemptRecord) {
+        repeatHomeAttempt(attempt, change: nil)
+    }
+
+    private func repeatHomeAttempt(_ attempt: HomeAttemptRecord, change: HomeBrewPlanChange?) {
         guard homeStore.scope == localAccountScope,
               let attempt = homeStore.workspace.attempts.first(where: { $0.id == attempt.id }) else { return }
-        let current = attempt.recipe.flatMap { reference in
-            homeStore.workspace.recipes.first { $0.id == reference.recipeID }?.current
+        guard let draft = HomeBrewRepeat.draft(
+            for: attempt, ownerID: localAccountScope.userID,
+            versionNumber: attempt.recipe.flatMap { homeStore.workspace.version($0)?.number },
+            change: change, resolveLinked: { homeStore.workspace.version($0)?.content }
+        ) else {
+            homeStore.errorMessage = "The brew plan changed. Open Make again and choose your change again."
+            return
         }
-        let content = current?.content ?? attempt.preparation ?? attempt.targets ?? HomeRecipeContent()
-        var draft = SipDraft(
-            ownerUserID: authModel.authenticatedUser?.id,
-            context: .home,
-            locationName: attempt.journalLocationName,
-            drinkType: content.method.drinkType,
-            drinkName: content.name.remoteTrimmedNonEmpty ?? attempt.name,
-            brewMethod: content.methodDisplayName,
-            brewDetails: content.asBrewDetails(
-                recipeID: attempt.recipe?.recipeID,
-                versionNumber: current?.number,
-                resolveLinked: { homeStore.workspace.version($0)?.content }
-            ),
-            homeWorkbenchPhase: .workbench
-        )
-        draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
-        draft.homeCoffeeBagID = attempt.homeCoffeeBagID
-        draft.launchContext.homeRecipeVersionID = current?.id
-        draft.homeSetupContent = content
-        if content.template == .drink, content.targets.dose != nil {
-            draft.brewDetails.yieldGrams = content.targets.resolvedOutput
-        }
-        draft.homeAttemptActuals = HomeAttemptActuals()
         onComposeDraft(draft)
     }
 
@@ -1188,6 +1176,7 @@ struct JournalArchiveView: View {
     let onRepeatHomeAttempt: (HomeAttemptRecord) -> Void
     let onOpenRecipeBook: () -> Void
     let showsPhase2Tools: Bool
+    let onChangeNextBrew: ((HomeAttemptRecord, HomeBrewPlanChange) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var homeStore = HomeRecipeWorkspaceStore.shared
 
@@ -1212,7 +1201,8 @@ struct JournalArchiveView: View {
         onShareHomeAttempt: @escaping (HomeAttemptRecord) -> Void,
         onRepeatHomeAttempt: @escaping (HomeAttemptRecord) -> Void,
         onOpenRecipeBook: @escaping () -> Void,
-        showsPhase2Tools: Bool
+        showsPhase2Tools: Bool,
+        onChangeNextBrew: ((HomeAttemptRecord, HomeBrewPlanChange) -> Void)? = nil
     ) {
         self.entries = entries
         self.homeScope = homeScope
@@ -1223,6 +1213,7 @@ struct JournalArchiveView: View {
         self.onRepeatHomeAttempt = onRepeatHomeAttempt
         self.onOpenRecipeBook = onOpenRecipeBook
         self.showsPhase2Tools = showsPhase2Tools
+        self.onChangeNextBrew = onChangeNextBrew
         _bookmarkedIDs = State(initialValue: Set(entries.filter(\.isBookmarked).map(\.id)))
     }
 
@@ -1463,6 +1454,14 @@ struct JournalArchiveView: View {
                             dismiss()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                 onOpenRecipeBook()
+                            }
+                        },
+                        onChangeNextBrew: onChangeNextBrew.map { callback in
+                            { change in
+                                dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    callback(selectedPrivateHomeAttempt, change)
+                                }
                             }
                         }
                     )

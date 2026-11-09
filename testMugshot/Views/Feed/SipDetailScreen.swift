@@ -1186,6 +1186,7 @@ struct SipDetailScreen: View {
     let onTaggedAccount: (UUID) -> Void
     let onCommentMention: (UUID) -> Void
     let onRemoveOwnTag: () -> Void
+    var privateHomeBrewReview: HomeBrewReviewPresentation? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -1340,6 +1341,12 @@ struct SipDetailScreen: View {
                 )
                 .padding(.horizontal, 22)
                 .padding(.top, 20)
+            }
+
+            if presentation.capabilities.isOwner, let privateHomeBrewReview {
+                HomeBrewReviewCard(review: privateHomeBrewReview)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 20)
             }
 
             if let recipe = presentation.content.recipe {

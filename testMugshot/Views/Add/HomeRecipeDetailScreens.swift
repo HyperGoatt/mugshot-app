@@ -25,12 +25,12 @@ struct HomeRecipeDetailScreen: View {
                             .font(.subheadline).foregroundStyle(Color.secondaryText)
                         if HomeRecipeUse.suggested(for: version.content) == .component {
                             useInDrink(recipe).buttonStyle(PrimaryButtonStyle())
-                            if version.content.isActionable {
-                                Button("Make this component", systemImage: "play.fill") { onMake(recipe) }
+                            if version.content.isReadyToMake {
+                                Button("Make this add-in", systemImage: "play.fill") { onMake(recipe) }
                                     .buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.recipe.make")
                             } else { Button("Add preparation details") { edit(recipe, version: version) } }
                         } else {
-                            if version.content.isActionable {
+                            if version.content.isReadyToMake {
                                 Button("Make this", systemImage: "play.fill") { onMake(recipe) }
                                     .buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("home.recipe.make")
                             } else { Button("Add preparation details") { edit(recipe, version: version) } }

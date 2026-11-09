@@ -48,7 +48,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         homeContext.tap()
 
         XCTAssertTrue(app.staticTexts["Log a Sip"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["What are you making?"].exists)
+        XCTAssertTrue(app.staticTexts["Make or log a sip"].exists)
         XCTAssertTrue(element(Identifier.homeChooseRecipe, in: app).exists)
         XCTAssertTrue(element(Identifier.homeChooseMethod, in: app).exists)
         XCTAssertTrue(element(Identifier.homeQuickLog, in: app).exists)
@@ -75,7 +75,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         for frame in frames { XCTAssertFalse(frame.isEmpty) }
 
         for (index, panel) in [
-            (1, app.staticTexts["What are you making?"]),
+            (1, app.staticTexts["Make or log a sip"]),
             (2, element(Identifier.locationName, in: app)),
             (0, element(Identifier.cafeSelector, in: app))
         ] {
@@ -165,7 +165,12 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         // Rating, criteria, note, make-again intent, and photo are all optional.
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Save to journal"].exists)
+        XCTAssertTrue(app.staticTexts["Save to Journal · Private"].exists)
+        XCTAssertTrue(element("home.review.audiencePreview", in: app).exists)
+        app.buttons["Previous step"].tap()
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Not rated"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Afternoon matcha"].exists)
@@ -186,17 +191,17 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         let latte = element("logASipV4.home.starter.complete_drink", in: app)
         XCTAssertTrue(latte.waitForExistence(timeout: 4))
         latte.tap()
-        XCTAssertTrue(app.staticTexts["What makes this drink"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Espresso"].exists)
-        XCTAssertTrue(app.staticTexts["Milk"].exists)
+        XCTAssertTrue(element("home.setup.appliedInputs", in: app).waitForExistence(timeout: 3))
+        XCTAssertEqual(element("home.setup.ingredientsPreview", in: app).value as? String, "Espresso · Milk")
+        XCTAssertTrue(app.buttons["home.setup.changeForThisBrew"].exists)
         app.buttons["home.makeWithGuidance"].tap()
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["36 g"].exists)
-        tapPrimaryAction(in: app)
+        for _ in 0..<8 where !app.staticTexts["Capture your sip"].exists { tapPrimaryAction(in: app) }
         XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
         let measurements = app.buttons["home.capture.measurements"]
         XCTAssertTrue(measurements.waitForExistence(timeout: 3))
-        measurements.tap()
+        tapAboveComposerFooter(measurements, in: app)
         XCTAssertTrue(app.staticTexts["How did it go?"].waitForExistence(timeout: 4))
         let confirm = app.buttons["As planned"].firstMatch
         XCTAssertTrue(confirm.exists)
@@ -208,9 +213,37 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Save to journal"].exists)
+        XCTAssertTrue(app.staticTexts["Save to Journal · Private"].exists)
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["How you made it"].waitForExistence(timeout: 4))
+        let makeAgain = app.buttons["home.brewReview.makeAgain"]
+        reveal(makeAgain, in: app)
+        XCTAssertTrue(makeAgain.isHittable)
+        XCTAssertTrue(app.staticTexts["Compare your brew"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Coffee, Plan: 18 g, Actual: 18 g")).firstMatch.exists)
+        attachScreenshot(named: "03-home-plan-and-actual", app: app)
+        makeAgain.tap()
+        let choose = app.buttons["home.repeat.chooseMeasurement"]
+        XCTAssertTrue(choose.waitForExistence(timeout: 4))
+        choose.tap()
+        app.buttons["Yield"].tap()
+        let amount = app.textFields["home.repeat.amount"]
+        reveal(amount, in: app)
+        amount.tap()
+        amount.typeText("40")
+        XCTAssertEqual(amount.value as? String, "40")
+        let done = app.buttons["home.repeat.keyboardDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 4))
+        done.tap()
+        XCTAssertEqual(amount.value as? String, "40", "Closing the keyboard must keep the final digit.")
+        let start = app.buttons["home.repeat.apply"]
+        reveal(start, in: app)
+        start.tap()
+        let guide = app.buttons["home.makeWithGuidance"]
+        XCTAssertTrue(guide.waitForExistence(timeout: 4))
+        guide.tap()
+        XCTAssertTrue(app.staticTexts["40 g"].waitForExistence(timeout: 4))
     }
 
     @MainActor
@@ -271,8 +304,9 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         reveal(primaryAction, in: app)
         XCTAssertTrue(primaryAction.isEnabled)
 
-        element(Identifier.homeContext, in: app).tap()
-        XCTAssertTrue(app.staticTexts["What are you making?"].waitForExistence(timeout: 3))
+        let home = element(Identifier.homeContext, in: app)
+        home.tap()
+        XCTAssertTrue(home.isSelected)
         element("logASipV3.context.elsewhere", in: app).tap()
         XCTAssertTrue(element(Identifier.locationName, in: app).waitForExistence(timeout: 3))
         XCTAssertEqual(element(Identifier.drinkName, in: app).value as? String, "Iced latte")

@@ -23,7 +23,6 @@ struct HomeRecipeVideoCapture {
     let text: String
     let image: UIImage
     let frameCount: Int
-    let hasTranscript: Bool
 }
 
 final class HomeRecipeMediaReader: @unchecked Sendable {
@@ -60,11 +59,9 @@ final class HomeRecipeMediaReader: @unchecked Sendable {
     }
 
     @MainActor
-    func video(at url: URL, includeSpeech: Bool = false) async throws -> HomeRecipeVideoCapture {
+    func video(at url: URL) async throws -> HomeRecipeVideoCapture {
         let asset = AVURLAsset(url: url)
-        let duration = try await asset.load(.duration).seconds
-        guard duration.isFinite, duration > 0 else { throw HomeRecipeSourceError.invalidMedia }
-        guard duration <= 60.5 else { throw HomeRecipeSourceError.videoTooLong }
+        let duration = try await validatedDuration(asset)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 900, height: 900)
@@ -79,10 +76,6 @@ final class HomeRecipeMediaReader: @unchecked Sendable {
             frames.append(image)
             if let words = try? await text(in: image), !words.isEmpty { recognized.append("Frame \(index + 1):\n\(words)") }
         }
-        var transcript: String?
-        if includeSpeech, !(try await asset.loadTracks(withMediaType: .audio)).isEmpty {
-            transcript = try? await HomeRecipeSpeechReader().read(url)
-        }
         try Task.checkCancellation()
         let sheet = UIGraphicsImageRenderer(size: CGSize(width: 1200, height: CGFloat((frames.count + 1) / 2) * 600)).image { context in
             UIColor.white.setFill(); context.fill(CGRect(x: 0, y: 0, width: 1200, height: CGFloat((frames.count + 1) / 2) * 600))
@@ -94,10 +87,30 @@ final class HomeRecipeMediaReader: @unchecked Sendable {
                 "Frame \(index + 1)".draw(at: CGPoint(x: cell.minX + 20, y: cell.maxY - 28), withAttributes: [.font: UIFont.systemFont(ofSize: 18), .foregroundColor: UIColor.black])
             }
         }
-        if let transcript, !transcript.isEmpty { recognized.append("Spoken instructions (on-device transcript):\n\(transcript)") }
-        return HomeRecipeVideoCapture(text: String(recognized.joined(separator: "\n\n").prefix(12_000)), image: sheet,
-                                      frameCount: frames.count, hasTranscript: transcript?.isEmpty == false)
+        return HomeRecipeVideoCapture(text: String(recognized.joined(separator: "\n\n").prefix(12_000)),
+                                      image: sheet, frameCount: frames.count)
     }
+
+    @MainActor
+    func spokenText(at url: URL) async throws -> String? {
+        let asset = AVURLAsset(url: url)
+        _ = try await validatedDuration(asset)
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        try Task.checkCancellation()
+        guard !audioTracks.isEmpty else { return nil }
+        let text = try await HomeRecipeSpeechReader().read(url)
+        try Task.checkCancellation()
+        return text.remoteTrimmedNonEmpty
+    }
+
+    @MainActor
+    private func validatedDuration(_ asset: AVURLAsset) async throws -> Double {
+        let duration = try await asset.load(.duration).seconds
+        guard duration.isFinite, duration > 0 else { throw HomeRecipeSourceError.invalidMedia }
+        guard duration <= 60.5 else { throw HomeRecipeSourceError.videoTooLong }
+        return duration
+    }
+
 }
 
 @MainActor

@@ -17,21 +17,47 @@ final class HomeRecipeComposerUITests: XCTestCase {
     func testCaptureHasASourceFirstCanvasAndAVisibleDrinkBuilder() {
         let app = book()
         app.buttons["home.library.addRecipe"].tap()
-        XCTAssertTrue(app.staticTexts["Save an idea."].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["home.recipe.buildDrink"].isHittable)
-        XCTAssertTrue(app.buttons["home.recipe.screenshot"].exists)
+        XCTAssertTrue(app.staticTexts["Save a recipe."].waitForExistence(timeout: 5))
+        for id in ["link", "screenshot", "video", "caption", "typeItIn"] {
+            XCTAssertTrue(app.buttons["home.recipe.\(id)"].exists)
+        }
+        reveal(app.buttons["home.recipe.buildDrink"], app)
         capture("01-capture-empty", app)
+    }
+
+    @MainActor
+    func testManualTeaCanStayAnIdeaOrBecomeMakeableWithoutAnImport() {
+        let app = book()
+        app.buttons["home.library.addRecipe"].tap()
+        let manual = app.buttons["home.recipe.typeItIn"]
+        reveal(manual, app); manual.tap()
+        let name = app.textFields["home.recipe.name"]
+        reveal(name, app); name.tap(); name.typeText("Jasmine tea")
+        app.buttons["home.recipe.keyboardDone"].tap()
+        let ingredient = app.textFields["home.recipe.capture.ingredient.0.name"]
+        reveal(ingredient, app); ingredient.tap(); ingredient.typeText("Jasmine tea leaves")
+        app.buttons["home.recipe.keyboardDone"].tap()
+        let save = app.buttons["home.recipe.saveIdea"]
+        XCTAssertEqual(save.label, "Save for later")
+        let instruction = app.textFields["home.recipe.capture.step.0.instruction"]
+        reveal(instruction, app); instruction.tap(); instruction.typeText("Steep for three minutes.")
+        app.buttons["home.recipe.keyboardDone"].tap()
+        XCTAssertEqual(save.label, "Save recipe")
+        clearBanner(); save.tap()
+        XCTAssertTrue(app.buttons["home.recipe.make"].waitForExistence(timeout: 6))
     }
 
     @MainActor
     func testSyrupCanBeSavedThenCombinedAndPreviewedWithoutLosingTheLatte() {
         let app = book(); app.buttons["home.library.addRecipe"].tap()
+        let captionChoice = app.buttons["home.recipe.caption"]
+        reveal(captionChoice, app); captionChoice.tap()
+        let caption = app.descendants(matching: .any)["home.recipe.sourceText"].firstMatch
+        XCTAssertTrue(caption.waitForExistence(timeout: 4)); reveal(caption, app); caption.tap()
+        app.typeText("Ingredients:\n1 cup berries\n1 cup water\nSteps:\nSimmer gently.")
+        app.buttons["home.recipe.keyboardDone"].tap()
         let name = app.textFields["home.recipe.name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Berry syrup")
-        app.buttons["home.recipe.caption"].tap()
-        let caption = app.textFields["home.recipe.sourceText"]
-        XCTAssertTrue(caption.waitForExistence(timeout: 4)); caption.tap()
-        caption.typeText("Ingredients:\n1 cup berries\n1 cup water\nSteps:\nSimmer gently.")
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); reveal(name, app); name.tap(); name.typeText("Berry syrup")
         app.buttons["home.recipe.keyboardDone"].tap()
         let component = app.buttons["home.recipe.use.component"]
         reveal(component, app); component.tap()
@@ -70,9 +96,7 @@ final class HomeRecipeComposerUITests: XCTestCase {
         let guidance = app.buttons["home.makeWithGuidance"]
         if guidance.waitForExistence(timeout: 4) { guidance.tap() }
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 5))
-        for _ in 0..<8 where !app.staticTexts["How did it go?"].exists { app.buttons["logASipV3.primaryAction"].tap() }
-        XCTAssertTrue(app.staticTexts["How did it go?"].waitForExistence(timeout: 4))
-        app.buttons["logASipV3.primaryAction"].tap()
+        for _ in 0..<8 where !app.staticTexts["Capture your sip"].exists { app.buttons["logASipV3.primaryAction"].tap() }
         XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
         app.buttons["logASipV3.primaryAction"].tap()
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
@@ -83,7 +107,7 @@ final class HomeRecipeComposerUITests: XCTestCase {
 
     @MainActor
     func testBuildAMatchaDrinkWithoutSettingUpInventoryOrUsingAI() {
-        let app = book(); app.buttons["home.library.buildDrink"].tap()
+        let app = book(); openEmptyBuilder(app)
         let name = app.textFields["home.drink.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 4)); name.tap(); name.typeText("Morning matcha")
         app.buttons["home.drink.keyboardDone"].tap()
@@ -102,13 +126,13 @@ final class HomeRecipeComposerUITests: XCTestCase {
         if guidance.waitForExistence(timeout: 4) { guidance.tap() }
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["home.guidance.method"].label, "Traditional matcha")
-        XCTAssertTrue(app.staticTexts["home.guidance.methodTip"].exists)
+        XCTAssertTrue(app.staticTexts["home.guidance.currentInstruction"].exists)
         XCTAssertTrue(app.staticTexts["STEP 1 OF 2"].exists, "Assembly instructions must not be duplicated as both base and drink steps.")
     }
 
     @MainActor
     func testIngredientAmountTypingRetainsAllDigits() {
-        let app = book(); app.buttons["home.library.buildDrink"].tap()
+        let app = book(); openEmptyBuilder(app)
         let amount = app.textFields["Amount of Milk"]
         reveal(amount, app); amount.tap(); amount.typeText("150.5")
         app.buttons["home.drink.keyboardDone"].tap()
@@ -141,9 +165,29 @@ final class HomeRecipeComposerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["home.recipe.make"].waitForExistence(timeout: 6))
     }
 
+    @MainActor private func openEmptyBuilder(_ app: XCUIApplication) {
+        app.buttons["home.library.addRecipe"].tap()
+        let builder = app.buttons["home.recipe.buildDrink"]
+        reveal(builder, app); builder.tap()
+    }
+
     @MainActor private func reveal(_ element: XCUIElement, _ app: XCUIApplication) {
-        for _ in 0..<6 where !element.isHittable { app.swipeUp() }
-        XCTAssertTrue(element.exists)
+        let save = [app.buttons["home.drink.save"].firstMatch, app.buttons["home.recipe.saveIdea"].firstMatch]
+            .first { $0.exists && $0.isHittable }
+        let top = app.navigationBars.allElementsBoundByIndex.last.map { $0.frame.maxY + 5 } ?? app.frame.minY + 80
+        let bottom = save.map { $0.frame.minY - 12 } ?? app.frame.maxY - 44
+        for _ in 0..<10 {
+            guard element.exists else {
+                app.swipeUp()
+                continue
+            }
+            let frame = element.frame
+            if element.isHittable && frame.minY >= top && frame.maxY <= bottom { return }
+            if frame.minY < top && frame != .zero {
+                app.swipeDown()
+            } else { app.swipeUp() }
+        }
+        XCTFail("The control must scroll into the visible area above the action bar.")
     }
     @MainActor private func clearBanner() {
         let banner = XCUIApplication(bundleIdentifier: "com.apple.springboard").descendants(matching: .any)

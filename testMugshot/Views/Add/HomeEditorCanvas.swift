@@ -8,11 +8,14 @@ struct HomeEditorCanvas: View {
     let detail: String
     let symbol: String
     let eyebrow: String
+    private let showsKeyboardDone: Bool
     private let content: AnyView
 
     init<Content: View>(title: String, detail: String, symbol: String,
-                        eyebrow: String = "HOME LIBRARY", @ViewBuilder content: () -> Content) {
+                        eyebrow: String = "HOME LIBRARY", showsKeyboardDone: Bool = true,
+                        @ViewBuilder content: () -> Content) {
         self.title = title; self.detail = detail; self.symbol = symbol; self.eyebrow = eyebrow
+        self.showsKeyboardDone = showsKeyboardDone
         self.content = AnyView(content())
     }
 
@@ -46,10 +49,12 @@ struct HomeEditorCanvas: View {
         .scrollDismissesKeyboard(.interactively)
         .tint(Color.mugshotSageText)
         .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
-                    .accessibilityIdentifier("home.editor.keyboardDone")
+            if showsKeyboardDone {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+                        .accessibilityIdentifier("home.editor.keyboardDone")
+                }
             }
         }
     }

@@ -4,6 +4,21 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## 2026-11-09 — Easier Home library and repeat brewing candidate
+
+- Give the library a starter path, direct recipe detail, useful sorting and
+  filters, archive restore and separate beans and gear controls.
+- Add a source chooser and manual recipe entry, clear recipe kinds, and a drink
+  builder with distinct parts, source/version links and local serving scaling.
+- Clarify quick versus guided Home logging, applied setup and today-only edits.
+  Advance one step at a time and preview the selected audience before saving.
+- Compare frozen plans with recorded measurements and the last compatible sip;
+  repeat a plan with one optional change. Keep AI assistance optional.
+- Pass 185 native cases and 16 focused Simulator journeys. This candidate has
+  no new phone install, backend deployment or TestFlight release.
+- [Implementation plan](plans/home-library-and-brewing-2026-11-09.plan.md)
+  and [ECC verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md).
+
 ## 2026-11-09 — Stable Log a Sip setup and Home walkthrough
 
 - Keep the Log a Sip title, autosave cue and three context pills in one place.

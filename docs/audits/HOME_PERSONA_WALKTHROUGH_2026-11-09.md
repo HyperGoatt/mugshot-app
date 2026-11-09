@@ -6,7 +6,8 @@ date: 2026-11-09
 
 # Home library and Log a Sip: two ways through
 
-> Current implementation: [Home recipes and logging](../HOME_RECIPES_IMPLEMENTATION.md#shared-sip-setup-and-home-walkthrough--november-9-candidate).
+> Current implementation: [Home library and repeat brewing](../HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate).
+> The original walkthrough and its limited Simulator evidence below are preserved.
 
 Walkthrough baseline: `bcd5400` on `codex/home-library-flow`, with the
 [ordered plan](../plans/home-persona-audit-2026-11-09.plan.md) and

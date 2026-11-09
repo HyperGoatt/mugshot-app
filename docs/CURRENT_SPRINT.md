@@ -4,13 +4,21 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Home novice and expert recommendations — November 9
+
+The [accepted Home plan](plans/home-library-and-brewing-2026-11-09.plan.md)
+covers the library, capture and builder, quick and guided making, and private
+brew comparison. The [ECC verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md)
+passes the native and Simulator gates. Preserve the Home draft stack, owner data,
+and release holds.
+
 ## Home novice and expert walkthrough — November 9
 
 The common setup header and setting-only autosave pass their Simulator
 regressions. Use the [walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md)
 to prioritize a clear quick-versus-guided choice, a discoverable recipe shelf
-and optional precision tools. Keep the existing delivery holds. Library
-redesign proposals remain open.
+and optional precision tools. The approved recommendations are implemented in
+the candidate above. Keep the existing delivery holds.
 
 ## Home controls audit → plan → implementation — November 5 accepted candidate
 

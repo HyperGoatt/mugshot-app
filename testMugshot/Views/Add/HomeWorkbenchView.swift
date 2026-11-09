@@ -1252,6 +1252,8 @@ struct HomeCoffeeBagEditorSheet: View {
     @State private var scanValues: [CoffeeBagScanFieldKey: CoffeeBagScanValue] = [:]
     @State private var errorMessage: String?
     @State private var showsMore = false
+    @State private var choosesRoastDate = false
+    @State private var roastDateCandidate = Date.now
     @ObservedObject private var permission = CoffeeAssistancePermissionStore.shared
     @StateObject private var assistance: CoffeeAssistanceSession
     @State private var scanTask: Task<Void, Never>?
@@ -1292,8 +1294,9 @@ struct HomeCoffeeBagEditorSheet: View {
     }
 
     private var duplicate: CoffeeBag? {
-        existingBags.first { candidate in
-            candidate.id != bag.id &&
+        guard bag.name.remoteTrimmedNonEmpty != nil || bag.roaster.remoteTrimmedNonEmpty != nil else { return nil }
+        return existingBags.first { candidate in
+            candidate.id != bag.id && candidate.ownerUserID == scope.userID &&
                 candidate.roaster.remoteTrimmedNonEmpty?.lowercased() == bag.roaster.remoteTrimmedNonEmpty?.lowercased() &&
                 candidate.name.remoteTrimmedNonEmpty?.lowercased() == bag.name.remoteTrimmedNonEmpty?.lowercased()
         }
@@ -1301,96 +1304,34 @@ struct HomeCoffeeBagEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if configuration.mode != .manual {
-                        scanCard
-                        LunaPermissionControl(ownerID: scope.userID) {
-                            if let image { beginScan(image) }
-                        }
-                        if let scanMessage {
-                            Text(scanMessage).font(.caption).foregroundStyle(Color.secondaryText)
-                                .accessibilityIdentifier("home.bag.scan.status")
-                        }
-
+            HomeEditorCanvas(
+                title: configuration.mode == .edit ? "Your coffee." : "Meet your next coffee.",
+                detail: "A name is enough to save a bag. Add the details you know.",
+                symbol: "leaf", eyebrow: "YOUR BEANS"
+            ) {
+                if configuration.mode != .manual {
+                    scanCard
+                    LunaPermissionControl(ownerID: scope.userID) {
+                        if let image { beginScan(image) }
                     }
-
-                    if let duplicate {
-                        Label(
-                            "This looks like \(duplicate.displayName), already on your shelf.",
-                            systemImage: "square.on.square"
-                        )
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.mugshotSage)
-                        .padding(12)
-                        .background(Color.mugshotMint.opacity(0.20))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-
-                    bagField(.roaster, title: "Roaster", text: $bag.roaster, placeholder: "Who roasted it?")
-                    bagField(.name, title: "Coffee", text: $bag.name, placeholder: "Bag or lot name")
-                    bagField(.origin, title: "Origin", text: $bag.origin, placeholder: "Country or region")
-                    bagField(.process, title: "Process", text: $bag.process, placeholder: "Washed, natural, honey…")
-                    bagField(.tastingNotes, title: "Tasting notes", text: $bag.tastingNotes, placeholder: "What the roaster noticed")
-
-                    DisclosureGroup("More bag details", isExpanded: $showsMore) {
-                        VStack(spacing: 12) {
-                            bagField(.producer, title: "Producer", text: $bag.producer, placeholder: "Farm or washing station")
-                            bagField(.variety, title: "Variety", text: $bag.variety, placeholder: "Coffee variety")
-                            bagField(.roastLevel, title: "Roast", text: $bag.roastLevel, placeholder: "Light, medium, dark…")
-                            DatePicker(
-                                "Roast date",
-                                selection: Binding(
-                                    get: { bag.roastDate ?? .now },
-                                    set: { bag.roastDate = $0 }
-                                ),
-                                displayedComponents: .date
-                            )
-                            .font(.system(size: 12, weight: .semibold))
-
-                            HStack(spacing: 10) {
-                                HomeMeasurementField(
-                                    title: "Bag size",
-                                    accessibilityIdentifier: "logASipV3.home.bagStartingWeight",
-                                    placeholder: "250",
-                                    unit: "g",
-                                    value: $bag.startingWeightGrams,
-                                    previous: nil
-                                )
-                                HomeMeasurementField(
-                                    title: "Estimated left",
-                                    accessibilityIdentifier: "logASipV3.home.bagRemainingWeight",
-                                    placeholder: "180",
-                                    unit: "g",
-                                    value: $bag.remainingWeightGrams,
-                                    previous: nil
-                                )
-                            }
-                        }
-                        .padding(.top, 12)
-                    }
-                    .font(.system(size: 13, weight: .bold))
-                    .tint(Color.mugshotSage)
-
-                    Picker("Bag status", selection: $bag.status) {
-                        ForEach(CoffeeBagStatus.allCases.filter {
-                            configuration.mode == .edit || $0 != .archived
-                        }) { status in
-                            Text(status.title).tag(status)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(Color.mugshotSage)
-
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.red)
+                    if let scanMessage {
+                        Text(scanMessage).font(.caption).foregroundStyle(Color.secondaryText)
+                            .accessibilityIdentifier("home.bag.scan.status")
                     }
                 }
-                .padding(16)
+                HomeEditorSection("Your bag", symbol: "leaf") {
+                    bagField(.name, title: "Name on the bag", text: $bag.name, placeholder: "Bag or lot name")
+                    if let duplicate {
+                        Label("This looks like \(duplicate.displayName), already on your shelf.", systemImage: "square.on.square")
+                            .font(.caption.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
+                    }
+                }
+                optionalBagDetails
+                if configuration.mode == .edit {
+                    HomeEditorSection("Bag status", symbol: "shippingbox") { bagStatusPicker }
+                }
+                if let errorMessage { HomeEditorError(message: errorMessage) }
             }
-            .background(Color.creamWhite)
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
                 if !isCurrentOwner { cancelScan(); dismiss() }
             }
@@ -1404,6 +1345,7 @@ struct HomeCoffeeBagEditorSheet: View {
                     Button("Save", action: save)
                         .fontWeight(.bold)
                         .disabled(!canSave)
+                        .accessibilityIdentifier("home.bag.save")
                 }
             }
             .fullScreenCover(isPresented: $presentedCamera) {
@@ -1424,6 +1366,9 @@ struct HomeCoffeeBagEditorSheet: View {
             .onChange(of: permission.revision) { _, _ in
                 if !permission.isEnabled(ownerID: scope.userID) { cancelScan() }
             }
+            .onChange(of: scanValues.isEmpty) { _, isEmpty in
+                if !isEmpty { showsMore = true }
+            }
             .onAppear {
                 if !startedInitialScan, let initialScanImage {
                     startedInitialScan = true
@@ -1432,6 +1377,76 @@ struct HomeCoffeeBagEditorSheet: View {
             }
             .onDisappear { cancelScan() }
 
+        }
+    }
+
+    private var optionalBagDetails: some View {
+        DisclosureGroup(isExpanded: $showsMore) {
+            VStack(alignment: .leading, spacing: 14) {
+                bagField(.roaster, title: "Roaster", text: $bag.roaster, placeholder: "Who roasted it?")
+                bagField(.origin, title: "Origin", text: $bag.origin, placeholder: "Country or region")
+                bagField(.process, title: "Process", text: $bag.process, placeholder: "Washed, natural, honey…")
+                bagField(.tastingNotes, title: "Tasting notes", text: $bag.tastingNotes, placeholder: "What the roaster noticed")
+                bagField(.producer, title: "Producer", text: $bag.producer, placeholder: "Farm or washing station")
+                bagField(.variety, title: "Variety", text: $bag.variety, placeholder: "Coffee variety")
+                bagField(.roastLevel, title: "Roast", text: $bag.roastLevel, placeholder: "Light, medium, dark…")
+                roastDateControls
+                HStack(spacing: 10) {
+                    HomeMeasurementField(
+                        title: "Bag size",
+                        accessibilityIdentifier: "logASipV3.home.bagStartingWeight",
+                        placeholder: "250", unit: "g", value: $bag.startingWeightGrams, previous: nil
+                    )
+                    HomeMeasurementField(
+                        title: "Estimated left",
+                        accessibilityIdentifier: "logASipV3.home.bagRemainingWeight",
+                        placeholder: "180", unit: "g", value: $bag.remainingWeightGrams, previous: nil
+                    )
+                }
+                if configuration.mode != .edit { bagStatusPicker }
+            }
+            .padding(.top, 12)
+        } label: {
+            Text("More bag details").font(.headline).frame(minHeight: 44, alignment: .leading)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 6)
+        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var bagStatusPicker: some View {
+        Picker("Bag status", selection: $bag.status) {
+            ForEach(CoffeeBagStatus.allCases.filter { configuration.mode == .edit || $0 != .archived }) { status in
+                Text(status.title).tag(status)
+            }
+        }
+        .pickerStyle(.menu)
+        .frame(minHeight: 44, alignment: .leading)
+        .accessibilityIdentifier("home.bag.status")
+    }
+
+    @ViewBuilder private var roastDateControls: some View {
+        if let current = bag.roastDate {
+            DatePicker("Roast date", selection: Binding(get: { bag.roastDate ?? current }, set: { bag.roastDate = $0 }),
+                displayedComponents: .date)
+            Button("Clear roast date", systemImage: "xmark.circle") {
+                bag.roastDate = nil
+                choosesRoastDate = false
+            }.frame(minHeight: 44)
+        } else {
+            Text("Roast date unknown").font(.caption).foregroundStyle(Color.secondaryText)
+            if choosesRoastDate {
+                DatePicker("Roast date", selection: $roastDateCandidate, displayedComponents: .date)
+                Button("Use this date", systemImage: "checkmark.circle") {
+                    bag.roastDate = roastDateCandidate
+                    choosesRoastDate = false
+                }.frame(minHeight: 44)
+                Button("Keep date unknown") { choosesRoastDate = false }.frame(minHeight: 44)
+            } else {
+                Button("Add roast date", systemImage: "calendar.badge.plus") {
+                    roastDateCandidate = .now
+                    choosesRoastDate = true
+                }.frame(minHeight: 44)
+            }
         }
     }
 
@@ -1505,20 +1520,21 @@ struct HomeCoffeeBagEditorSheet: View {
         return VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(title)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.caption.weight(.semibold))
                 Spacer()
                 if scanValue?.isLowConfidence == true {
                     Label("Check this", systemImage: "exclamationmark.circle.fill")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.orange)
                 }
             }
             TextField(placeholder, text: text, axis: key == .tastingNotes ? .vertical : .horizontal)
                 .lineLimit(key == .tastingNotes ? 2...4 : 1...1)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.body.weight(.semibold))
                 .accessibilityLabel(title)
                 .accessibilityIdentifier("logASipV3.home.bag.\(key.rawValue)")
-                .padding(12)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
                 .background(Color.foamWhite)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
@@ -1580,6 +1596,7 @@ struct HomeCoffeeBagEditorSheet: View {
     }
 
     private func save() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         guard canSave else { return }
         cancelScan()
         do {

@@ -59,6 +59,7 @@ struct HomeLibraryView: View {
     var onComposeDraft: (SipDraft) -> Void = { _ in }
     var includesSipDrafts = false
     var onSelectRecipe: ((HomeRecipeRecord, HomeRecipeVersion) -> Void)? = nil
+    var onSelectStarter: ((HomeRecipeContent) -> Void)? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
@@ -74,36 +75,42 @@ struct HomeLibraryView: View {
     @State private var drinkDraft: HomeRecipeEditorDraft?
     @State private var pendingRecipe: HomeRecipeRecord?
     @State private var recipeUseFilter: HomeRecipeUse?
+    @State private var recipeMethodFilter: HomeBrewMethod?
+    @State private var recipeSort = HomeRecipeShelfSort.recentlyUsed
+    @State private var showsArchivedRecipes = false
     @State private var findsRecipes = false
     @State private var addsAfterDiscovery = false
-    @State private var showsArchived = false
+    @State private var showsStarterPicker = false
+    @State private var pendingStarter: HomeRecipeContent?
+    @State private var showsArchivedBags = false
+    @State private var bagStatusFilter: CoffeeBagStatus?
+    @State private var bagSort = HomeBagShelfSort.roastDate
+    @State private var showsArchivedGear = false
+    @State private var gearRoleFilter: EquipmentRole?
+    @State private var gearSetupFilter: UUID?
     @State private var query = ""
     @State private var error: String?
     @State private var showsDrafts = false
     @State private var sipDrafts: [SipDraft] = []
     @State private var profileEditor: HomePlaceProfile?
     @State private var profileRemoval: HomePlaceProfile?
+    @FocusState private var isSearchingRecipes: Bool
 
     private var scope: LocalAccountScope { .forUserID(ownerID) }
     private var isCurrentOwner: Bool { authModel.authenticatedUser?.id == ownerID }
     private var preferences: HomeLibraryPreferences { library.preferences ?? HomeLibraryPreferences() }
+    private var profiles: [HomePlaceProfile] { (preferences.homeProfiles ?? []).filter { $0.ownerUserID == ownerID } }
+    private var canStartRecipe: Bool { includesSipDrafts || onSelectStarter != nil }
     private var availableSections: [HomeLibrarySection] {
-        includesSipDrafts || onSelectRecipe != nil ? HomeLibrarySection.allCases : [initialSection]
+        includesSipDrafts || onSelectRecipe != nil || onSelectStarter != nil ? HomeLibrarySection.allCases : [initialSection]
     }
     private var draftCount: Int {
         guard workspace.scope == scope else { return 0 }
         return HomeDraftCatalogue(sipDrafts: includesSipDrafts ? sipDrafts : [], workspace: workspace.workspace).count
     }
-    private var recipes: [HomeRecipeRecord] {
+    private var scopedRecipes: [HomeRecipeRecord] {
         guard workspace.scope == scope else { return [] }
-        return workspace.workspace.recipes.filter {
-            !$0.isArchived && (query.isEmpty || $0.current?.content.name.localizedCaseInsensitiveContains(query) == true)
-                && (recipeUseFilter == nil || $0.current.map { HomeRecipeUse.suggested(for: $0.content) == recipeUseFilter } == true)
-        }.sorted { lhs, rhs in
-            lhs.isPinned != rhs.isPinned ? lhs.isPinned
-                : (lhs.lastUsedAt ?? lhs.current?.createdAt ?? .distantPast)
-                    > (rhs.lastUsedAt ?? rhs.current?.createdAt ?? .distantPast)
-        }
+        return workspace.workspace.recipes.filter { $0.current != nil }
     }
 
     var body: some View {
@@ -125,7 +132,10 @@ struct HomeLibraryView: View {
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
                 if !isCurrentOwner {
                     bagEditor = nil; gearEditor = nil; recipe = nil; pendingRecipe = nil
-                    drinkDraft = nil; addsRecipe = false; profileEditor = nil; profileRemoval = nil; showsDrafts = false; dismiss()
+                    drinkDraft = nil; addsRecipe = false; profileEditor = nil; profileRemoval = nil
+                    showsDrafts = false; showsStarterPicker = false; pendingStarter = nil
+                    findsRecipes = false; addsAfterDiscovery = false
+                    dismiss()
                 }
             }
             .sheet(item: $bagEditor) { configuration in
@@ -139,6 +149,7 @@ struct HomeLibraryView: View {
             .sheet(isPresented: $addsRecipe, onDismiss: openPendingRecipe) {
                 HomeQuickRecipeSheet(store: workspace) { saved, version in
                     addsRecipe = false
+                    guard isCurrentOwner, workspace.scope == scope else { return }
                     if let onSelectRecipe { onSelectRecipe(saved, version); dismiss() }
                     else { pendingRecipe = saved }
                 }.environment(\.dynamicTypeSize, dynamicTypeSize)
@@ -146,17 +157,26 @@ struct HomeLibraryView: View {
             .sheet(item: $drinkDraft, onDismiss: openPendingRecipe) { draft in
                 HomeDrinkBuilderSheet(store: workspace, draft: draft) { id in
                     drinkDraft = nil
-                    guard let saved = workspace.workspace.recipes.first(where: { $0.id == id }), let version = saved.current else { return }
+                    guard isCurrentOwner, workspace.scope == scope,
+                          let saved = workspace.workspace.recipes.first(where: { $0.id == id }), let version = saved.current else { return }
                     if let onSelectRecipe { onSelectRecipe(saved, version); dismiss() }
                     else { pendingRecipe = saved }
                 }.environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .sheet(item: $recipe) { item in
-                HomeRecipeExperienceView(ownerID: ownerID, initialRecipeID: item.id, initialCollection: "Recipes", onShare: { draft in
+                HomeRecipeExperienceView(ownerID: ownerID, initialRecipeID: item.id, opensRecipeDirectly: true, onShare: { draft in
+                    guard isCurrentOwner, workspace.scope == scope else { return }
                     recipe = nil
                     dismiss()
                     onComposeDraft(draft)
                 }).environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
+            .sheet(isPresented: $showsStarterPicker, onDismiss: openPendingStarter) {
+                HomeStarterPicker { content in
+                    guard isCurrentOwner, workspace.scope == scope else { return }
+                    pendingStarter = content
+                    showsStarterPicker = false
+                }.environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .sheet(isPresented: $findsRecipes, onDismiss: {
                 if addsAfterDiscovery { addsAfterDiscovery = false; addsRecipe = true }
@@ -180,7 +200,10 @@ struct HomeLibraryView: View {
                     title: "Remove this Home setup?", deleteTitle: "Remove setup", cancelTitle: "Keep setup",
                     message: "Earlier sips keep their recorded Home name. Your gear and recipes stay in your library.") {
                     guard isCurrentOwner, let profileRemoval else { return }
-                    do { library = try HomeLibraryStore.shared.removeHomeProfile(id: profileRemoval.id, in: scope) }
+                    do {
+                        library = try HomeLibraryStore.shared.removeHomeProfile(id: profileRemoval.id, in: scope)
+                        if gearSetupFilter == profileRemoval.id { gearSetupFilter = nil }
+                    }
                     catch { self.error = "Couldn’t remove this setup. Try again." }
                     self.profileRemoval = nil
                 }
@@ -191,25 +214,31 @@ struct HomeLibraryView: View {
         .disabled(!isCurrentOwner)
     }
 
-    private var libraryContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text(heading).font(.system(size: 32, weight: .semibold, design: .serif))
-                Text(subtitle).font(.subheadline).foregroundStyle(Color.secondaryText)
-                if availableSections.count > 1 { sectionPicker }
-                if section == .recipes && includesSipDrafts {
-                    HomeDraftSummaryButton(count: draftCount) { showsDrafts = true }
-                }
-                sectionContent
-                if let ownerID, let message = synchronizer.messages[ownerID] {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(message).font(.footnote)
-                        Button("Retry sync") { Task { await synchronize() } }
-                    }.foregroundStyle(Color.secondaryText)
-                }
-                if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-            }.padding(20)
-        }.background(Color.creamWhite)
+    @ViewBuilder private var libraryContent: some View {
+        if isCurrentOwner {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(heading).font(.system(.largeTitle, design: .serif).weight(.semibold))
+                    Text(subtitle).font(.subheadline).foregroundStyle(Color.secondaryText)
+                    if availableSections.count > 1 { sectionPicker }
+                    if section == .recipes, includesSipDrafts, draftCount > 0 {
+                        HomeDraftSummaryButton(count: draftCount) { showsDrafts = true }
+                    }
+                    sectionContent
+                    if let ownerID, let message = synchronizer.messages[ownerID] {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(message).font(.footnote)
+                            Button("Retry sync") { Task { await synchronize() } }
+                        }.foregroundStyle(Color.secondaryText)
+                    }
+                    if let error { HomeEditorError(message: error) }
+                }.padding(20)
+            }
+            .background(Color.creamWhite)
+            .scrollDismissesKeyboard(.interactively)
+        } else {
+            ContentUnavailableView("Home library unavailable", systemImage: "house")
+        }
     }
 
     private var heading: String {
@@ -232,7 +261,7 @@ struct HomeLibraryView: View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(availableSections) { item in
-                    Button { section = item; query = "" } label: {
+                    Button { isSearchingRecipes = false; section = item } label: {
                         Text(item.rawValue)
                             .font(.subheadline.weight(.semibold)).padding(.horizontal, 12).frame(minHeight: 44)
                             .foregroundStyle(section == item ? Color.foamWhite : Color.espressoBrown)
@@ -256,88 +285,369 @@ struct HomeLibraryView: View {
     }
 
     private var recipeShelf: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                Button { drinkDraft = HomeRecipeEditorDraft(content: HomeDrinkComposition.starting()) } label: {
-                    Label("Build a drink", systemImage: "mug").frame(maxWidth: .infinity)
-                }.buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("home.library.buildDrink")
-                Button { addsRecipe = true } label: { Label("Add a recipe", systemImage: "plus").frame(maxWidth: .infinity) }
-                    .buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.library.addRecipe")
-            }
-            Button("Find your next recipe", systemImage: "safari") { findsRecipes = true }
-                .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
-            TextField("Search your recipes", text: $query).textFieldStyle(.roundedBorder)
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    recipeFilter("All", use: nil)
-                    ForEach([HomeRecipeUse.drink, .component, .base]) { use in recipeFilter(use.title, use: use) }
+        let active = scopedRecipes.filter { !$0.isArchived }
+        let matches = HomeLibraryBrowse.recipes(scopedRecipes, query: query,
+            use: recipeUseFilter, method: recipeMethodFilter, sort: recipeSort)
+        let archived = HomeLibraryBrowse.recipes(scopedRecipes, archived: true, sort: .name)
+        return LazyVStack(alignment: .leading, spacing: 14) {
+            if active.isEmpty {
+                empty(archived.isEmpty ? "Start with something good." : "Your recipes are archived",
+                    detail: archived.isEmpty
+                        ? "Try a coffee, tea or matcha starter, or keep a recipe you found."
+                        : "Restore a recipe below whenever you want it back on your shelf.",
+                    symbol: "book.pages")
+                if canStartRecipe {
+                    Button("Try a starter recipe", systemImage: "cup.and.saucer") {
+                        showsStarterPicker = true
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityIdentifier("home.library.starter")
                 }
-            }.scrollIndicators(.hidden)
-            if recipes.isEmpty {
-                empty("An idea is enough to start.", detail: "Save a link, paste a caption, scan a screenshot, or build your own. Coffee, tea, matcha and all the good things in between.", symbol: "book.pages")
+                saveRecipeButton
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) { buildDrinkButton; saveRecipeButton }
+                    VStack(spacing: 10) { buildDrinkButton; saveRecipeButton }
+                }
+                recipeBrowseControls(active)
             }
-            ForEach(recipes) { item in
+            if !archived.isEmpty { archivedRecipeShelf(archived) }
+            if !active.isEmpty && matches.isEmpty {
+                empty("No recipes match", detail: "Try another name, type or method.", symbol: "magnifyingglass")
+                Button("Clear filters", systemImage: "xmark.circle", action: clearRecipeFilters)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("home.library.clearRecipeFilters")
+            }
+            ForEach(matches) { item in
                 if let version = item.current {
+                    let use = HomeRecipeUse.suggested(for: version.content)
                     Button {
+                        guard isCurrentOwner, workspace.scope == scope else { return }
+                        isSearchingRecipes = false
                         if let onSelectRecipe { onSelectRecipe(item, version); dismiss() }
                         else { recipe = item }
                     } label: {
                         shelfRow(version.content.name,
-                            detail: HomeRecipeUse.suggested(for: version.content).title + " · " + version.content.recipeContentsSummary,
-                            symbol: HomeRecipeUse.suggested(for: version.content).symbol)
-                    }.buttonStyle(.plain)
+                            detail: "\(use.title) · \(version.content.recipeContentsSummary)",
+                            symbol: use.symbol, pinned: item.isPinned)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("home.library.recipe.\(item.id)")
+                }
+            }
+            Button("Find your next recipe", systemImage: "arrow.up.right.square") { findsRecipes = true }
+                .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                .accessibilityHint("Choose a topic to search outside Mugshot.")
+        }
+    }
+
+    private var saveRecipeButton: some View {
+        Button { addsRecipe = true } label: {
+            Label("Save a recipe you found", systemImage: "plus")
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(SecondaryButtonStyle())
+        .accessibilityIdentifier("home.library.addRecipe")
+    }
+
+    private var buildDrinkButton: some View {
+        Button { drinkDraft = HomeRecipeEditorDraft(content: HomeDrinkComposition.starting()) } label: {
+            Label("Build a drink", systemImage: "mug").frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PrimaryButtonStyle())
+        .accessibilityIdentifier("home.library.buildDrink")
+    }
+
+    private func recipeBrowseControls(_ records: [HomeRecipeRecord]) -> some View {
+        let contents = records.compactMap { $0.current?.content }
+        let methods = Set(contents.map(\.method) + [recipeMethodFilter].compactMap { $0 }).sorted {
+            let order = $0.title.localizedCaseInsensitiveCompare($1.title)
+            return order == .orderedSame ? $0.rawValue < $1.rawValue : order == .orderedAscending
+        }
+        let uses = [HomeRecipeUse.drink, .component, .base].filter { use in
+            recipeUseFilter == use || contents.contains { HomeRecipeUse.suggested(for: $0) == use }
+        }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Color.mugshotSageText)
+                TextField("Search your recipes", text: $query)
+                    .focused($isSearchingRecipes)
+                    .submitLabel(.search)
+                    .onSubmit { isSearchingRecipes = false }
+                    .accessibilityIdentifier("home.library.recipeSearch")
+            }
+            .padding(.horizontal, 12).frame(minHeight: 48)
+            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 14))
+            if records.count > 1 || recipeUseFilter != nil || recipeMethodFilter != nil {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { recipeMenus(count: records.count, uses: uses, methods: methods) }
+                    VStack(alignment: .leading, spacing: 8) { recipeMenus(count: records.count, uses: uses, methods: methods) }
                 }
             }
         }
     }
 
-    private func recipeFilter(_ title: String, use: HomeRecipeUse?) -> some View {
-        Button { recipeUseFilter = use } label: {
-            Text(title).font(.caption.weight(.semibold)).padding(.horizontal, 14).frame(minHeight: 44)
-                .foregroundStyle(recipeUseFilter == use ? Color.foamWhite : Color.espressoBrown)
-                .background(recipeUseFilter == use ? Color.mugshotSageText : Color.foamWhite, in: Capsule())
-        }.buttonStyle(.plain).accessibilityAddTraits(recipeUseFilter == use ? .isSelected : [])
+    @ViewBuilder private func recipeMenus(count: Int, uses: [HomeRecipeUse], methods: [HomeBrewMethod]) -> some View {
+        if count > 1 {
+            shelfMenu(recipeSort.rawValue, symbol: "arrow.up.arrow.down", identifier: "home.library.recipeSort") {
+                Picker("Sort recipes", selection: $recipeSort) {
+                    ForEach(HomeRecipeShelfSort.allCases) { Text($0.rawValue).tag($0) }
+                }
+            }
+            .accessibilityLabel("Sort recipes")
+            .accessibilityValue(recipeSort.rawValue)
+        }
+        if uses.count > 1 || recipeUseFilter != nil {
+            shelfMenu(recipeUseFilter?.title ?? "Type", symbol: "square.grid.2x2", identifier: "home.library.recipeType") {
+                Picker("Recipe type", selection: $recipeUseFilter) {
+                    Text("All types").tag(Optional<HomeRecipeUse>.none)
+                    ForEach(uses) { Text($0.title).tag(Optional($0)) }
+                }
+            }
+            .accessibilityLabel("Recipe type")
+            .accessibilityValue(recipeUseFilter?.title ?? "All types")
+        }
+        if methods.count > 1 || recipeMethodFilter != nil {
+            shelfMenu(recipeMethodFilter?.title ?? "Method", symbol: "cup.and.saucer", identifier: "home.library.recipeMethod") {
+                Picker("Brew method", selection: $recipeMethodFilter) {
+                    Text("All methods").tag(Optional<HomeBrewMethod>.none)
+                    ForEach(methods, id: \.rawValue) { Text($0.title).tag(Optional($0)) }
+                }
+            }
+            .accessibilityLabel("Brew method")
+            .accessibilityValue(recipeMethodFilter?.title ?? "All methods")
+        }
+    }
+
+    private func archivedRecipeShelf(_ archived: [HomeRecipeRecord]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { showsArchivedRecipes.toggle() } label: {
+                HStack(spacing: 10) {
+                    Label("Archived recipes", systemImage: "archivebox")
+                    Spacer()
+                    Text("\(archived.count)").monospacedDigit()
+                    Image(systemName: showsArchivedRecipes ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .font(.subheadline.weight(.semibold))
+            .accessibilityIdentifier("home.library.archivedRecipes")
+            .accessibilityLabel("Archived recipes")
+            .accessibilityValue("\(archived.count), \(showsArchivedRecipes ? "expanded" : "collapsed")")
+            if showsArchivedRecipes {
+                ForEach(archived) { item in
+                    if let content = item.current?.content {
+                        HStack(spacing: 12) {
+                            Text(content.name).font(.subheadline.weight(.semibold))
+                            Spacer(minLength: 8)
+                            Button("Restore") { restoreRecipe(item.id) }
+                                .frame(minHeight: 44)
+                                .accessibilityLabel("Restore \(content.name)")
+                                .accessibilityIdentifier("home.library.restoreRecipe.\(item.id)")
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 4)
+        .foregroundStyle(Color.mugshotSageText)
+        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func restoreRecipe(_ id: UUID) {
+        guard isCurrentOwner, workspace.scope == scope else { return }
+        do {
+            try workspace.mutate { state in
+                guard let index = state.recipes.firstIndex(where: { $0.id == id }) else { return }
+                state.recipes[index].isArchived = false
+            }
+            error = nil
+            Task {
+                guard isCurrentOwner, workspace.scope == scope else { return }
+                await workspace.synchronize()
+            }
+        } catch { self.error = "Couldn’t restore this recipe. Try again." }
+    }
+
+    private func clearRecipeFilters() {
+        isSearchingRecipes = false
+        query = ""
+        recipeUseFilter = nil
+        recipeMethodFilter = nil
     }
 
     private func openPendingRecipe() {
-        guard isCurrentOwner, let saved = pendingRecipe else { pendingRecipe = nil; return }
-        query = ""; recipeUseFilter = nil; pendingRecipe = nil; recipe = saved
+        guard isCurrentOwner, workspace.scope == scope, let saved = pendingRecipe else { pendingRecipe = nil; return }
+        pendingRecipe = nil
+        clearRecipeFilters()
+        recipe = saved
+    }
+
+    private func openPendingStarter() {
+        guard isCurrentOwner, workspace.scope == scope, let content = pendingStarter else { pendingStarter = nil; return }
+        pendingStarter = nil
+        if let onSelectStarter {
+            onSelectStarter(content)
+            dismiss()
+        } else if includesSipDrafts {
+            let draft = HomeStarterRecipes.draft(for: content, ownerID: ownerID)
+            dismiss()
+            onComposeDraft(draft)
+        }
     }
 
     private var beanShelf: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Button("Scan a bag", systemImage: "viewfinder") { bagEditor = .scan }.buttonStyle(PrimaryButtonStyle())
-                .accessibilityIdentifier("home.library.scanBag")
-            Button("Add manually", systemImage: "plus") { bagEditor = .manual }.buttonStyle(SecondaryButtonStyle())
-                .accessibilityIdentifier("home.library.addBag")
-            Toggle("Show finished and archived bags", isOn: $showsArchived).font(.subheadline)
-            if library.bags.isEmpty { empty("Meet your next morning.", detail: "Add a bag once. Pick it whenever you make a sip.", symbol: "leaf") }
-            ForEach(library.bags.filter { $0.ownerUserID == ownerID && (showsArchived || $0.status.isCurrent) }.sorted { $0.updatedAt > $1.updatedAt }) { bag in
+        let owned = library.bags.filter { $0.ownerUserID == ownerID }
+        let visible = HomeLibraryBrowse.bags(owned, ownerID: ownerID, showsArchived: showsArchivedBags, sort: bagSort)
+        let matches = HomeLibraryBrowse.bags(visible, ownerID: ownerID, showsArchived: showsArchivedBags,
+            status: bagStatusFilter, sort: bagSort)
+        let statuses = CoffeeBagStatus.allCases.filter { status in
+            bagStatusFilter == status || visible.contains { $0.status == status }
+        }
+        return LazyVStack(alignment: .leading, spacing: 14) {
+            Button("Scan a bag", systemImage: "viewfinder") { bagEditor = .scan }
+                .buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("home.library.scanBag")
+            Button("Add manually", systemImage: "plus") { bagEditor = .manual }
+                .buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.library.addBag")
+            if owned.contains(where: { !$0.status.isCurrent }) {
+                Toggle("Show finished and archived bags", isOn: $showsArchivedBags)
+                    .font(.subheadline).frame(minHeight: 44)
+                    .accessibilityIdentifier("home.library.archivedBags")
+                    .onChange(of: showsArchivedBags) { _, showsArchived in
+                        if !showsArchived, bagStatusFilter?.isCurrent == false { bagStatusFilter = nil }
+                    }
+            }
+            if visible.count > 1 || bagStatusFilter != nil {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { bagMenus(count: visible.count, statuses: statuses) }
+                    VStack(alignment: .leading, spacing: 8) { bagMenus(count: visible.count, statuses: statuses) }
+                }
+            }
+            if owned.isEmpty {
+                empty("Meet your next morning.", detail: "Save the name on a bag so it’s ready when you make a sip.", symbol: "leaf")
+            } else if visible.isEmpty {
+                empty("No current bags", detail: "Show finished and archived bags to see your earlier coffee.", symbol: "leaf")
+            } else if matches.isEmpty {
+                empty("No bags match", detail: "Choose a different status to see more bags.", symbol: "magnifyingglass")
+                Button("Clear status filter") { bagStatusFilter = nil }.frame(minHeight: 44)
+            }
+            ForEach(matches) { bag in
                 Button { bagEditor = .edit(bag) } label: {
-                    shelfRow(bag.displayName, detail: [bag.roaster, bag.origin, bag.status.title].filter { !$0.isEmpty }.joined(separator: " · "), symbol: "leaf")
+                    let detail = [bag.roaster.remoteTrimmedNonEmpty, bag.origin.remoteTrimmedNonEmpty,
+                        bag.status.title, HomeLibraryBrowse.roastDateLabel(bag)].compactMap { $0 }.joined(separator: " · ")
+                    shelfRow(bag.displayName, detail: detail, symbol: "leaf")
                 }.buttonStyle(.plain)
             }
+        }
+    }
+
+    @ViewBuilder private func bagMenus(count: Int, statuses: [CoffeeBagStatus]) -> some View {
+        if count > 1 {
+            shelfMenu(bagSort.rawValue, symbol: "arrow.up.arrow.down", identifier: "home.library.bagSort") {
+                Picker("Sort bags", selection: $bagSort) {
+                    ForEach(HomeBagShelfSort.allCases) { Text($0.rawValue).tag($0) }
+                }
+            }
+            .accessibilityLabel("Sort bags")
+            .accessibilityValue(bagSort.rawValue)
+        }
+        if statuses.count > 1 || bagStatusFilter != nil {
+            shelfMenu(bagStatusFilter?.title ?? "Status", symbol: "line.3.horizontal.decrease", identifier: "home.library.bagStatus") {
+                Picker("Bag status", selection: $bagStatusFilter) {
+                    Text("All statuses").tag(Optional<CoffeeBagStatus>.none)
+                    ForEach(statuses) { Text($0.title).tag(Optional($0)) }
+                }
+            }
+            .accessibilityLabel("Bag status")
+            .accessibilityValue(bagStatusFilter?.title ?? "All statuses")
         }
     }
 
     private var gearShelf: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Button("Add gear", systemImage: "plus") { gearEditor = .new }.buttonStyle(PrimaryButtonStyle())
-                .accessibilityIdentifier("home.library.addGear")
-            Toggle("Show archived gear", isOn: $showsArchived).font(.subheadline)
-            if library.equipment.isEmpty { empty("Make room for your favorites.", detail: "Brewers, grinders, kettles and the little tools that make it yours.", symbol: "kettle") }
-            ForEach(library.equipment.filter { $0.ownerUserID == ownerID && (showsArchived || $0.archivedAt == nil) }) { gear in
+        let owned = library.equipment.filter { $0.ownerUserID == ownerID }
+        let setup = profiles.first { $0.id == gearSetupFilter }
+        let visible = HomeLibraryBrowse.gear(owned, ownerID: ownerID, showsArchived: showsArchivedGear)
+        let matches = HomeLibraryBrowse.gear(visible, ownerID: ownerID, showsArchived: showsArchivedGear,
+            role: gearRoleFilter, setup: setup)
+        let roles = EquipmentRole.allCases.filter { role in
+            gearRoleFilter == role || visible.contains { $0.role == role }
+        }
+        return LazyVStack(alignment: .leading, spacing: 14) {
+            Button("Add gear", systemImage: "plus") { gearEditor = .new }
+                .buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("home.library.addGear")
+            if owned.contains(where: { $0.archivedAt != nil }) {
+                Toggle("Show archived gear", isOn: $showsArchivedGear)
+                    .font(.subheadline).frame(minHeight: 44)
+                    .accessibilityIdentifier("home.library.archivedGear")
+            }
+            if roles.count > 1 || gearRoleFilter != nil || (!visible.isEmpty && !profiles.isEmpty) || setup != nil {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { gearMenus(roles: roles, setup: setup, hasVisibleGear: !visible.isEmpty) }
+                    VStack(alignment: .leading, spacing: 8) { gearMenus(roles: roles, setup: setup, hasVisibleGear: !visible.isEmpty) }
+                }
+            }
+            if owned.isEmpty {
+                empty("Make room for your favorites.", detail: "Keep the brewers, grinders and other tools you use most.", symbol: "kettle")
+            } else if visible.isEmpty {
+                empty("No active gear", detail: "Show archived gear to see your earlier tools.", symbol: "kettle")
+            } else if matches.isEmpty {
+                empty("No gear matches", detail: "Try another role or Home setup.", symbol: "magnifyingglass")
+                Button("Clear gear filters") { gearRoleFilter = nil; gearSetupFilter = nil }.frame(minHeight: 44)
+            }
+            ForEach(matches) { gear in
                 Button { gearEditor = HomeEquipmentEditorConfiguration(equipment: gear) } label: {
-                    shelfRow(gear.displayName, detail: gear.role.title, symbol: gear.role.systemImage)
+                    shelfRow(gear.displayName,
+                        detail: gear.archivedAt == nil ? gear.role.title : "\(gear.role.title) · Archived",
+                        symbol: gear.role.systemImage)
                 }.buttonStyle(.plain)
             }
         }
     }
 
+    @ViewBuilder private func gearMenus(roles: [EquipmentRole], setup: HomePlaceProfile?, hasVisibleGear: Bool) -> some View {
+        if roles.count > 1 || gearRoleFilter != nil {
+            shelfMenu(gearRoleFilter?.title ?? "Role", symbol: "line.3.horizontal.decrease", identifier: "home.library.gearRole") {
+                Picker("Gear role", selection: $gearRoleFilter) {
+                    Text("All roles").tag(Optional<EquipmentRole>.none)
+                    ForEach(roles) { Text($0.title).tag(Optional($0)) }
+                }
+            }
+            .accessibilityLabel("Gear role")
+            .accessibilityValue(gearRoleFilter?.title ?? "All roles")
+        }
+        if (hasVisibleGear && !profiles.isEmpty) || setup != nil {
+            shelfMenu(setup?.name ?? "Home setup", symbol: "house", identifier: "home.library.gearSetup") {
+                Picker("Home setup", selection: $gearSetupFilter) {
+                    Text("All setups").tag(Optional<UUID>.none)
+                    ForEach(profiles) { Text($0.name).tag(Optional($0.id)) }
+                }
+            }
+            .accessibilityLabel("Home setup")
+            .accessibilityValue(setup?.name ?? "All setups")
+        }
+    }
+
+    private func shelfMenu<Content: View>(_ title: String, symbol: String, identifier: String,
+                                          @ViewBuilder content: () -> Content) -> some View {
+        Menu {
+            content()
+        } label: {
+            Label(title, systemImage: symbol)
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 12).frame(minHeight: 44)
+                .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .accessibilityIdentifier(identifier)
+    }
+
     private var preferencesForm: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HomeEditorSection("Your Home setups", symbol: "house", detail: "A familiar nickname and the tools for that spot.") {
-                let profiles = (preferences.homeProfiles ?? []).filter { $0.ownerUserID == ownerID }
+            HomeEditorSection("Your Home setups", symbol: "house", detail: "Give a spot a nickname and choose the tools you use there.") {
                 if profiles.isEmpty {
                     Text("Home is ready to use. Add a named setup whenever you like.")
                         .font(.subheadline).foregroundStyle(Color.secondaryText)
@@ -368,23 +678,29 @@ struct HomeLibraryView: View {
                         .font(.subheadline).frame(minHeight: 44)
                 }
             }
-            VStack(alignment: .leading, spacing: 14) {
-                Text("For a fresh setup").font(.headline)
+            HomeEditorSection("For a fresh setup", symbol: "slider.horizontal.3",
+                detail: "Choose a favorite method and go-to beans for starting without a saved recipe.") {
                 Menu(preferences.preferredMethod.map { "Favorite method: \($0.title)" } ?? "Choose a favorite method") {
                     Button("No favorite") { updatePreferences { $0.preferredMethod = nil } }
                     ForEach(HomeBrewMethod.allCases) { method in Button(method.title) { updatePreferences { $0.preferredMethod = method } } }
                 }
                 Menu(library.defaults(for: ownerID).bag.map { "Go-to beans: \($0.displayName)" } ?? "Choose go-to beans") {
                     Button("None") { updatePreferences { $0.defaultBagID = nil } }
-                    ForEach(library.currentBags) { bag in Button(bag.displayName) { updatePreferences { $0.defaultBagID = bag.id } } }
+                    ForEach(library.currentBags.filter { $0.ownerUserID == ownerID }) { bag in
+                        Button(bag.displayName) { updatePreferences { $0.defaultBagID = bag.id } }
+                    }
                 }
-                ForEach(library.activeEquipment) { gear in
+                Text("Tools for Home").font(.subheadline.weight(.semibold))
+                Text("Named setups use their own tools. Choose these for Home without a saved setup.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+                ForEach(library.activeEquipment.filter { $0.ownerUserID == ownerID }) { gear in
                     Toggle(gear.displayName, isOn: Binding(get: { preferences.defaultEquipmentIDs.contains(gear.id) }, set: { value in
                         updatePreferences { if value { $0.defaultEquipmentIDs.insert(gear.id) } else { $0.defaultEquipmentIDs.remove(gear.id) } }
                     }))
                 }
-                Text("Used for a fresh setup on this device. Your saved recipes keep their own details.").font(.caption).foregroundStyle(Color.secondaryText)
-            }.padding(16).background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 20))
+                Text("A saved recipe starts with its recorded setup. Change for this brew applies to the sip you’re making.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            }
             VStack(alignment: .leading, spacing: 12) {
                 if let ownerID, permission.isEnabled(ownerID: ownerID) {
                     Toggle("Use Luna", isOn: Binding(get: { permission.isEnabled(ownerID: ownerID) }, set: { permission.setEnabled($0, ownerID: ownerID) }))
@@ -395,11 +711,17 @@ struct HomeLibraryView: View {
         }
     }
 
-    private func shelfRow(_ title: String, detail: String, symbol: String) -> some View {
+    private func shelfRow(_ title: String, detail: String, symbol: String, pinned: Bool = false) -> some View {
         HStack(spacing: 14) {
             Image(systemName: symbol).font(.title2).foregroundStyle(Color.mugshotSageText).frame(width: 42)
             VStack(alignment: .leading, spacing: 5) {
-                Text(title).font(.headline).foregroundStyle(Color.espressoBrown)
+                HStack(spacing: 6) {
+                    if pinned {
+                        Image(systemName: "pin.fill").font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.mugshotSageText).accessibilityLabel("Pinned")
+                    }
+                    Text(title).font(.headline).foregroundStyle(Color.espressoBrown)
+                }
                 Text(detail).font(.caption).foregroundStyle(Color.secondaryText)
             }
             Spacer()
@@ -418,6 +740,7 @@ struct HomeLibraryView: View {
     private func reload() {
         guard isCurrentOwner else { return }
         library = HomeLibraryStore.shared.load(in: scope)
+        if let gearSetupFilter, !profiles.contains(where: { $0.id == gearSetupFilter }) { self.gearSetupFilter = nil }
         sipDrafts = includesSipDrafts ? SipDraftStore.shared.allDrafts(in: scope) : []
     }
     private func updatePreferences(_ update: (inout HomeLibraryPreferences) -> Void) {
@@ -451,8 +774,11 @@ private struct HomeRecipeDiscoveryView: View {
                     ForEach(["Iced matcha", "Pour-over coffee", "Chai", "Coffee syrups"], id: \.self) { idea in
                         Button(idea, systemImage: "magnifyingglass") { query = idea }.frame(minHeight: 44)
                     }
-                    Link(destination: searchURL) { Label("Search the web", systemImage: "safari") }.buttonStyle(PrimaryButtonStyle())
+                    Link(destination: searchURL) { Label("Search the web", systemImage: "arrow.up.right.square") }
+                        .buttonStyle(PrimaryButtonStyle())
+                    Text("Search opens your browser.").font(.caption).foregroundStyle(Color.secondaryText)
                     Button("Save a recipe you found", systemImage: "plus", action: onAdd).buttonStyle(SecondaryButtonStyle())
+                        .accessibilityIdentifier("home.discovery.saveRecipe")
                     Text("Paste a public Instagram or TikTok link, add a caption, or choose screenshots or a saved video. Keep the creator’s source with your recipe.")
                         .font(.caption).foregroundStyle(Color.secondaryText)
                 }.padding(20)

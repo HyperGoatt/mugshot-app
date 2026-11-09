@@ -12,7 +12,6 @@ struct HomeRecipeVideoTests {
         let capture = try await HomeRecipeMediaReader().video(at: url)
         #expect(capture.frameCount == 2)
         #expect(capture.image.size.width == 1200)
-        #expect(capture.hasTranscript == false)
         #expect(!capture.text.contains("on-device transcript"))
     }
 

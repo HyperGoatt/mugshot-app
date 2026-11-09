@@ -20,19 +20,28 @@ struct HomeDrinkBuilderSheet: View {
     @State private var addsCustomIngredient = false
     @State private var error: String?
     @State private var editingAmountID: UUID?
+    @State private var milkIDs: Set<UUID>
     @FocusState private var focusedField: String?
 
     private enum Destination: Identifiable {
-        case base, parts, gear, preview(HomeRecipeReference)
+        case base, parts, switchPart(UUID), gear, preview(HomeRecipeReference)
         var id: String {
-            switch self { case .base: "base"; case .parts: "parts"; case .gear: "gear"; case .preview(let ref): ref.versionID.uuidString }
+            switch self {
+            case .base: "base"
+            case .parts: "parts"
+            case .switchPart(let id): "switch-\(id.uuidString)"
+            case .gear: "gear"
+            case .preview(let ref): ref.versionID.uuidString
+            }
         }
     }
 
     init(store: HomeRecipeWorkspaceStore, draft: HomeRecipeEditorDraft? = nil,
          component: HomeRecipeRecord? = nil, onSaved: @escaping (UUID) -> Void) {
         self.store = store; self.onSaved = onSaved; originalScope = store.scope
-        _draft = State(initialValue: draft ?? HomeRecipeEditorDraft(content: HomeDrinkComposition.starting(with: component)))
+        let initial = draft ?? HomeRecipeEditorDraft(content: HomeDrinkComposition.starting(with: component))
+        _draft = State(initialValue: initial)
+        _milkIDs = State(initialValue: Set(initial.content.ingredients.filter(HomeDrinkComposition.isMilk).map(\.id)))
     }
 
     private var isCurrentOwner: Bool { store.scope == originalScope && authModel.authenticatedUser?.id == originalScope.userID }
@@ -59,11 +68,8 @@ struct HomeDrinkBuilderSheet: View {
                         }
                     }
                     Rectangle().fill(Color.mugshotLine).frame(height: 1)
-                    VStack(alignment: .leading, spacing: 12) {
-                        mixHeader
-                        mix
-                        additionControls
-                    }
+                    mix
+                    portionsCard
                     if draft.content.method != .other {
                         DisclosureGroup("Brew settings") {
                             VStack(spacing: 12) {
@@ -86,7 +92,9 @@ struct HomeDrinkBuilderSheet: View {
                             .font(.caption).foregroundStyle(Color.secondaryText)
                     }
                     if let error { Text(error).foregroundStyle(.red).font(.footnote) }
-                }.padding(22)
+                }
+                .padding(.horizontal, 22).padding(.vertical, 22)
+                .frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.never)
             .background(Color.creamWhite).foregroundStyle(Color.espressoBrown)
@@ -132,18 +140,8 @@ struct HomeDrinkBuilderSheet: View {
             .sheet(item: $destination, onDismiss: reloadShelf) { item in
                 Group {
                 switch item {
-                case .base, .parts:
-                    HomeDrinkPartPicker(store: store, selectingBase: item.id == "base", excluding: draft.recipeID) { recipe, version in
-                        guard isCurrentOwner else { return }
-                        if item.id == "base" || HomeRecipeUse.suggested(for: version.content) == .base {
-                            HomeDrinkComposition.useBase(recipe, version: version, in: &draft.content, replacing: baseID)
-                        } else { HomeDrinkComposition.add(recipe, version: version, to: &draft.content) }
-                        destination = nil
-                    } onPreset: { method in
-                        guard isCurrentOwner else { return }
-                        HomeDrinkComposition.usePreset(method, in: &draft.content, replacing: baseID)
-                        destination = nil
-                    }
+                case .base, .parts, .switchPart:
+                    partPicker(for: item)
                 case .preview(let reference): HomeLinkedRecipeDetail(store: store, reference: reference)
                 case .gear: HomeLibraryView(ownerID: originalScope.userID, initialSection: .gear)
                 }
@@ -158,80 +156,210 @@ struct HomeDrinkBuilderSheet: View {
     }
 
     private var mix: some View {
-        VStack(spacing: 0) {
-            baseRow
-            ForEach($draft.content.ingredients) { $ingredient in
-                if ingredient.id != baseID {
-                    Divider().overlay(Color.mugshotLine).padding(.horizontal, 18)
-                    HomeDrinkPartRow(ingredient: $ingredient, focusedField: $focusedField,
-                        onAmountEditing: { editing in
-                            if editing { editingAmountID = ingredient.id }
-                            else if editingAmountID == ingredient.id { editingAmountID = nil }
-                        },
-                        onPreview: { if let reference = ingredient.recipe { dismissKeyboard(); destination = .preview(reference) } },
-                        onRemove: { dismissKeyboard(); draft.content.ingredients.removeAll { $0.id == ingredient.id } })
+        let base = baseID
+        let milk = draft.content.ingredients.filter { $0.id != base && milkIDs.contains($0.id) }
+        let additions = draft.content.ingredients.filter { $0.id != base && !milkIDs.contains($0.id) }
+        return VStack(alignment: .leading, spacing: 14) {
+            mixHeader
+            HomeEditorSection("Base", symbol: "cup.and.saucer", detail: "Start with a brew or choose a saved recipe.") {
+                baseRow
+                if let base, let item = draft.content.ingredients.first(where: { $0.id == base }) {
+                    HomeDrinkPartQuantity(ingredient: HomeEditorBindings.item(item, in: $draft.content.ingredients),
+                        onEditing: { amountEditing(item.id, $0) })
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            HomeEditorSection("Milk", symbol: "drop", detail: "Add milk or cream if you use it.") {
+                ForEach(milk) { partRow($0) }
+                milkMenu(milk.first)
+            }
+            HomeEditorSection("Add-ins", symbol: "sparkles", detail: "Use a saved syrup or foam, or add an ingredient.") {
+                ForEach(additions) { partRow($0) }
+                additionControls
+            }
         }
-        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.mugshotLine, lineWidth: 1))
+    }
+
+    private func partRow(_ item: HomeRecipeIngredient) -> some View {
+        HomeDrinkPartRow(ingredient: HomeEditorBindings.item(item, in: $draft.content.ingredients),
+            focusedField: $focusedField, linkedCaption: linkCaption(for: item),
+            onAmountEditing: { amountEditing(item.id, $0) },
+            onPreview: { if let reference = item.recipe { dismissKeyboard(); destination = .preview(reference) } },
+            onSwitch: item.recipe == nil ? nil : { dismissKeyboard(); destination = .switchPart(item.id) },
+            onRemove: {
+                dismissKeyboard()
+                draft.content.ingredients.removeAll { $0.id == item.id }
+                milkIDs.remove(item.id)
+            })
     }
 
     @ViewBuilder private var mixHeader: some View {
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 6) { Text("The mix").font(.title3.weight(.semibold)); quantityHint }
-        } else { HStack { Text("The mix").font(.title3.weight(.semibold)); Spacer(); quantityHint } }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("The mix").font(.title3.weight(.semibold))
+                quantityHint
+            }
+        } else {
+            HStack { Text("The mix").font(.title3.weight(.semibold)); Spacer(); quantityHint }
+        }
     }
+
     private var quantityHint: some View { Text("Amounts are optional").font(.caption).foregroundStyle(Color.secondaryText) }
+
     @ViewBuilder private var additionControls: some View {
         if dynamicTypeSize.isAccessibilitySize { VStack(spacing: 10) { savedRecipeButton; ingredientMenu } }
         else { HStack(spacing: 10) { savedRecipeButton; ingredientMenu } }
     }
+
     private var savedRecipeButton: some View {
         Button { dismissKeyboard(); destination = .parts } label: {
-            Label("Saved recipe", systemImage: "book.pages").frame(maxWidth: .infinity)
-        }.buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.drink.addRecipe")
+            Label("Saved add-in", systemImage: "book.pages").frame(maxWidth: .infinity)
+        }
+        .buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.drink.addRecipe")
     }
+
     private var ingredientMenu: some View {
         Menu {
-            ForEach(["Milk", "Oat milk", "Water", "Ice", "Honey"], id: \.self) { name in Button(name) { addIngredient(name) } }
+            ForEach(["Water", "Ice", "Honey", "Sugar"], id: \.self) { name in
+                Button(name) { addIngredient(name) }
+            }
             Button("Something else…") { customIngredient = ""; addsCustomIngredient = true }
-        } label: { Label("Ingredient", systemImage: "plus").frame(maxWidth: .infinity) }
+        } label: {
+            Label("Ingredient", systemImage: "plus").frame(maxWidth: .infinity)
+        }
         .buttonStyle(SecondaryButtonStyle())
+    }
+
+    private func milkMenu(_ current: HomeRecipeIngredient?) -> some View {
+        Menu {
+            ForEach(["Milk", "Oat milk", "Almond milk", "Soy milk", "Cream"], id: \.self) { name in
+                Button(name) { chooseMilk(name, replacing: current?.id) }
+            }
+        } label: {
+            Label(current == nil ? "Add milk" : "Change milk", systemImage: current == nil ? "plus" : "arrow.left.arrow.right")
+                .frame(minHeight: 44)
+        }
+        .accessibilityIdentifier("home.drink.milk")
+    }
+
+    private var portionsCard: some View {
+        HomeEditorSection("Servings", symbol: "person.2", detail: "Scale the amounts in this drink. Brew settings describe one brew.") {
+            Menu {
+                ForEach([1.0, 2.0, 4.0], id: \.self) { servings in
+                    Button(portionsLabel(servings)) { scale(to: servings) }
+                }
+            } label: {
+                Label(portionsLabel(draft.content.servings), systemImage: "arrow.up.arrow.down")
+                    .frame(minHeight: 44)
+            }
+            .accessibilityIdentifier("home.drink.servings")
+        }
+    }
+
+    private func portionsLabel(_ count: Double) -> String {
+        HomeRecipeContent.number(count) + (count == 1 ? " serving" : " servings")
     }
 
     @ViewBuilder private var baseRow: some View {
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 14) { baseIdentity; chooseBase.frame(maxWidth: .infinity, alignment: .leading) }
-                .padding(16)
+            VStack(alignment: .leading, spacing: 10) { baseIdentity; chooseBase }
         } else {
             HStack(spacing: 12) {
-                HomeMethodIconView(method: draft.content.method, size: 30)
+                HomeMethodIconView(method: draft.content.method, size: 28)
                     .frame(width: 40, height: 44).background(Color.sandBeige.opacity(0.65), in: RoundedRectangle(cornerRadius: 14))
+                    .accessibilityHidden(true)
                 baseIdentity
                 Spacer(minLength: 0)
                 chooseBase
-            }.padding(16)
+            }
         }
     }
+
     private var baseIdentity: some View {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("THE BASE").recipeEyebrow()
-                    Text(draft.content.ingredients.first(where: { $0.id == baseID })?.name ?? "Choose your base")
-                        .font(.headline).fixedSize(horizontal: false, vertical: true)
-                    if let base = draft.content.ingredients.first(where: { $0.id == baseID }), let reference = base.recipe {
-                        Button("View recipe ↗") { dismissKeyboard(); destination = .preview(reference) }
-                            .font(.caption.weight(.semibold)).frame(minHeight: 32)
-                    } else if let dose = draft.content.targets.dose, let output = draft.content.targets.resolvedOutput {
-                        Text("Starting point · \(HomeRecipeContent.number(dose)) g → \(HomeRecipeContent.number(output)) g")
-                            .font(.caption).foregroundStyle(Color.secondaryText)
-                    }
+        VStack(alignment: .leading, spacing: 4) {
+            let item = draft.content.ingredients.first { $0.id == baseID }
+            Text(item?.name ?? "Choose your base").font(.headline).fixedSize(horizontal: false, vertical: true)
+            if let item, let reference = item.recipe {
+                if let caption = linkCaption(for: item) {
+                    Text(caption).font(.caption).foregroundStyle(Color.secondaryText)
                 }
+                Button("View recipe", systemImage: "arrow.up.right") {
+                    dismissKeyboard(); destination = .preview(reference)
+                }
+                .font(.caption.weight(.semibold)).frame(minHeight: 44)
+                .accessibilityLabel("Open \(item.name) recipe")
+            } else if let dose = draft.content.targets.dose, let output = draft.content.targets.resolvedOutput {
+                Text("Starting point · \(HomeRecipeContent.number(dose)) g → \(HomeRecipeContent.number(output)) \(draft.content.method.outputUnit)")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            }
+        }
     }
+
     private var chooseBase: some View {
-                Button(dynamicTypeSize.isAccessibilitySize ? "Change base" : "Change") { dismissKeyboard(); destination = .base }
-                    .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
-                    .accessibilityIdentifier("home.drink.chooseBase")
+        Button("Change base") { dismissKeyboard(); destination = .base }
+            .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+            .accessibilityIdentifier("home.drink.chooseBase")
+    }
+
+    private func linkCaption(for ingredient: HomeRecipeIngredient) -> String? {
+        guard let reference = ingredient.recipe else { return nil }
+        guard let version = store.workspace.version(reference) else { return "Saved version unavailable" }
+        let source = version.content.creatorCredit.remoteTrimmedNonEmpty
+            ?? URLComponents(string: version.content.sourceURL)?.host ?? "Recipe book"
+        return "Version \(version.number) · \(source)"
+    }
+
+    private func partPicker(for item: Destination) -> some View {
+        let selectingBase = item.id == "base"
+        let replacing: HomeRecipeIngredient? = {
+            if case .switchPart(let id) = item { return draft.content.ingredients.first { $0.id == id } }
+            return nil
+        }()
+        let blocked = replacing.map { old in Set(draft.content.ingredients.filter { $0.id != old.id }.compactMap(\.recipe)) } ?? []
+        return HomeDrinkPartPicker(store: store, selectingBase: selectingBase, excluding: draft.recipeID,
+            replacingName: replacing?.name, blockedReferences: blocked) { recipe, version in
+            guard isCurrentOwner else { return }
+            if selectingBase {
+                HomeDrinkComposition.useBase(recipe, version: version, in: &draft.content, replacing: baseID)
+            } else if let replacing {
+                HomeDrinkComposition.replacePart(id: replacing.id, with: recipe, version: version, in: &draft.content)
+            } else {
+                HomeDrinkComposition.add(recipe, version: version, to: &draft.content)
+            }
+            destination = nil
+        } onPreset: { method in
+            guard isCurrentOwner else { return }
+            HomeDrinkComposition.usePreset(method, in: &draft.content, replacing: baseID)
+            destination = nil
+        }
+    }
+
+    private func amountEditing(_ id: UUID, _ editing: Bool) {
+        if editing { editingAmountID = id }
+        else if editingAmountID == id { editingAmountID = nil }
+    }
+
+    private func chooseMilk(_ name: String, replacing id: UUID?) {
+        guard isCurrentOwner else { return }
+        dismissKeyboard()
+        if let id, let index = draft.content.ingredients.firstIndex(where: { $0.id == id }) {
+            draft.content.ingredients[index].name = name
+        } else {
+            let milk = HomeRecipeIngredient(name: name, unit: "ml")
+            milkIDs.insert(milk.id)
+            draft.content.ingredients.append(milk)
+        }
+    }
+
+    private func scale(to servings: Double) {
+        guard isCurrentOwner else { return }
+        dismissKeyboard()
+        guard let scaled = HomeDrinkComposition.scaled(draft.content, toServings: servings) else {
+            error = "Check the ingredient amounts before scaling this drink."
+            return
+        }
+        draft.content = scaled
+        error = nil
     }
 
     private var inventoryControls: some View {
@@ -270,7 +398,7 @@ struct HomeDrinkBuilderSheet: View {
 
     private func addIngredient(_ name: String) {
         guard isCurrentOwner else { return }
-        draft.content.ingredients.append(HomeRecipeIngredient(name: name, unit: ["Ice", "Honey"].contains(name) ? "g" : "ml"))
+        draft.content.ingredients.append(HomeRecipeIngredient(name: name, unit: ["Ice", "Honey", "Sugar"].contains(name) ? "g" : "ml"))
     }
     private func dismissKeyboard() {
         focusedField = nil
@@ -298,19 +426,25 @@ private struct HomeDrinkPartRow: View {
     @Binding var ingredient: HomeRecipeIngredient
     @FocusState.Binding var focusedField: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let linkedCaption: String?
     let onAmountEditing: (Bool) -> Void
     let onPreview: () -> Void
+    let onSwitch: (() -> Void)?
     let onRemove: () -> Void
 
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 8) {
+                    identity
+                    Text("In this drink").font(.caption).foregroundStyle(Color.secondaryText)
+                    amount
+                    HStack { switchButton; Spacer(minLength: 0); remove }
+                }
+            } else if ingredient.recipe != nil {
+                VStack(alignment: .leading, spacing: 8) {
                     HStack { identity; Spacer(minLength: 0); remove }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("In this drink").font(.caption).foregroundStyle(Color.secondaryText)
-                        amount
-                    }
+                    HStack { amount; Spacer(minLength: 0); switchButton }
                 }
             } else {
                 HStack(spacing: 8) {
@@ -319,44 +453,67 @@ private struct HomeDrinkPartRow: View {
                     remove
                 }
             }
-        }.padding(14)
+        }
+        .padding(10).background(Color.creamWhite, in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private var identity: some View {
-        Group {
-                if ingredient.recipe != nil {
-                    Button(action: onPreview) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(ingredient.name).font(.subheadline.weight(.semibold)).multilineTextAlignment(.leading)
-                            Text("View recipe ↗").font(.caption).foregroundStyle(Color.mugshotSageText)
-                        }
-                    }.buttonStyle(.plain).accessibilityLabel("Open \(ingredient.name) recipe")
-                } else {
-                    TextField("Ingredient", text: $ingredient.name, axis: .vertical)
-                        .font(.subheadline.weight(.semibold)).focused($focusedField, equals: "name-" + ingredient.id.uuidString)
+    @ViewBuilder private var identity: some View {
+        if ingredient.recipe != nil {
+            Button(action: onPreview) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(ingredient.name).font(.headline).multilineTextAlignment(.leading)
+                    if let linkedCaption { Text(linkedCaption).font(.caption).foregroundStyle(Color.secondaryText) }
+                    Label("View recipe", systemImage: "arrow.up.right")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
                 }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).accessibilityLabel("Open \(ingredient.name) recipe")
+            .accessibilityHint(linkedCaption ?? "")
+        } else {
+            TextField("Ingredient", text: $ingredient.name, axis: .vertical)
+                .font(.subheadline.weight(.semibold)).focused($focusedField, equals: "name-" + ingredient.id.uuidString)
         }
     }
+
+    @ViewBuilder private var switchButton: some View {
+        if let onSwitch {
+            Button("Switch", systemImage: "arrow.left.arrow.right", action: onSwitch)
+                .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                .accessibilityLabel("Switch \(ingredient.name)")
+        }
+    }
+
     private var remove: some View {
         Button(role: .destructive, action: onRemove) {
-            Image(systemName: "minus.circle").frame(width: dynamicTypeSize.isAccessibilitySize ? 76 : 44,
-                                                   height: dynamicTypeSize.isAccessibilitySize ? 76 : 44)
+            Image(systemName: "minus.circle").frame(width: 44, height: 44)
         }
-            .foregroundStyle(Color.tertiaryText).accessibilityLabel("Remove \(ingredient.name)")
+        .foregroundStyle(Color.tertiaryText).accessibilityLabel("Remove \(ingredient.name)")
     }
+
     private var amount: some View {
-            HStack(spacing: 4) {
-                HomeDrinkAmountField(value: $ingredient.amount, onEditing: onAmountEditing, label: "Amount of \(ingredient.name)")
-                    .frame(width: dynamicTypeSize.isAccessibilitySize ? 140 : 64,
-                           height: dynamicTypeSize.isAccessibilitySize ? 76 : 44)
-                Menu(ingredient.unit.isEmpty ? "Unit" : ingredient.unit) {
-                    ForEach(["ml", "g", "tsp", "tbsp", "oz", "cup", "serving"], id: \.self) { unit in
-                        Button(unit) { ingredient.unit = unit }
-                    }
-                }.frame(minWidth: 44, minHeight: 44).font(.subheadline.weight(.semibold))
-                    .fixedSize(horizontal: true, vertical: false)
-                    .accessibilityLabel("Unit for \(ingredient.name)")
+        HomeDrinkPartQuantity(ingredient: $ingredient, onEditing: onAmountEditing)
+    }
+}
+
+private struct HomeDrinkPartQuantity: View {
+    @Binding var ingredient: HomeRecipeIngredient
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let onEditing: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            HomeDrinkAmountField(value: $ingredient.amount, onEditing: onEditing, label: "Amount of \(ingredient.name)")
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? 132 : 64,
+                       height: dynamicTypeSize.isAccessibilitySize ? 66 : 44)
+            Menu(ingredient.unit.isEmpty ? "Unit" : ingredient.unit) {
+                ForEach(["ml", "g", "tsp", "tbsp", "oz", "cup", "serving"], id: \.self) { unit in
+                    Button(unit) { ingredient.unit = unit }
+                }
             }
+            .frame(minWidth: 44, minHeight: 44).font(.subheadline.weight(.semibold))
+            .accessibilityLabel("Unit for \(ingredient.name)")
+        }
     }
 }
 
@@ -423,6 +580,8 @@ private struct HomeDrinkPartPicker: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let selectingBase: Bool
     let excluding: UUID?
+    let replacingName: String?
+    let blockedReferences: Set<HomeRecipeReference>
     let onRecipe: (HomeRecipeRecord, HomeRecipeVersion) -> Void
     let onPreset: (HomeBrewMethod) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -430,10 +589,11 @@ private struct HomeDrinkPartPicker: View {
 
     private var recipes: [HomeRecipeRecord] {
         store.workspace.recipes.filter { record in
-            guard !record.isArchived, record.id != excluding, let content = record.current?.content,
-                  HomeRecipeUse.suggested(for: content) != .drink else { return false }
-            return (!selectingBase || HomeRecipeUse.suggested(for: content) == .base)
-                && (query.isEmpty || content.searchText.localizedCaseInsensitiveContains(query))
+            guard !record.isArchived, record.id != excluding, let version = record.current else { return false }
+            let reference = HomeRecipeReference(recipeID: record.id, versionID: version.id)
+            return !blockedReferences.contains(reference)
+                && HomeRecipeUse.suggested(for: version.content) == (selectingBase ? .base : .component)
+                && (query.isEmpty || version.content.searchText.localizedCaseInsensitiveContains(query))
         }.sorted { $0.current?.content.name.localizedStandardCompare($1.current?.content.name ?? "") == .orderedAscending }
     }
 
@@ -454,9 +614,9 @@ private struct HomeDrinkPartPicker: View {
                         }.frame(minHeight: 40)
                     }
                 }
-                Section(selectingBase ? "Your saved brews" : "From your recipe book") {
+                Section(selectingBase ? "Your saved brews" : "Saved add-ins") {
                     if recipes.isEmpty {
-                        Text(selectingBase ? "Choose a starting point, or save a brew to reuse it here." : "Save a syrup, foam or brew first, or add a plain ingredient to your drink.")
+                        Text(selectingBase ? "Choose a starting point, or save a brew to reuse it here." : "Save a syrup or foam first, or add a plain ingredient to your drink.")
                             .font(.subheadline).foregroundStyle(Color.secondaryText)
                     }
                     ForEach(recipes) { record in
@@ -466,18 +626,20 @@ private struct HomeDrinkPartPicker: View {
                                     Image(systemName: HomeRecipeUse.suggested(for: version.content).symbol).frame(width: 32)
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(version.content.name).font(.headline)
-                                        Text(HomeRecipeUse.suggested(for: version.content).title).font(.caption).foregroundStyle(Color.secondaryText)
+                                        Text(["Version \(version.number)", version.content.creatorCredit.remoteTrimmedNonEmpty].compactMap { $0 }.joined(separator: " · "))
+                                            .font(.caption).foregroundStyle(Color.secondaryText)
                                     }
                                     Spacer(); Image(systemName: "plus.circle").foregroundStyle(Color.mugshotSageText)
                                 }.frame(maxWidth: .infinity, minHeight: 52).contentShape(Rectangle())
                             }.buttonStyle(.plain)
-                                .accessibilityLabel(selectingBase ? "Use \(version.content.name) as base" : "Add \(version.content.name)")
+                                .accessibilityLabel(selectingBase ? "Use \(version.content.name) as base"
+                                    : replacingName == nil ? "Add \(version.content.name)" : "Use \(version.content.name)")
                         }
                     }
                 }
             }
             .searchable(text: $query, prompt: "Find a saved recipe")
-            .navigationTitle(selectingBase ? "Choose your base" : "Add something good")
+            .navigationTitle(selectingBase ? "Choose your base" : replacingName.map { "Switch \($0)" } ?? "Choose an add-in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .scrollContentBackground(.hidden).background(Color.creamWhite)
@@ -506,20 +668,31 @@ struct HomeDrinkIllustration: View {
 struct HomeRecipeUsePicker: View {
     @Binding var selection: HomeRecipeUse
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        if dynamicTypeSize.isAccessibilitySize { VStack(alignment: .leading, spacing: 8) { options } }
-        else { HStack(spacing: 8) { options } }
-    }
-    @ViewBuilder private var options: some View {
-        ForEach(HomeRecipeUse.allCases) { use in
-            Button { selection = use; MugshotHaptic.selection.play() } label: {
-                Label(use.title, systemImage: use.symbol).font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 14).frame(minHeight: 44)
-                    .foregroundStyle(selection == use ? Color.foamWhite : Color.espressoBrown)
-                    .background(selection == use ? Color.mugshotSageText : Color.foamWhite, in: Capsule())
-                    .overlay(Capsule().stroke(selection == use ? Color.clear : Color.mugshotLine))
-            }.buttonStyle(.plain).accessibilityAddTraits(selection == use ? .isSelected : [])
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 220 : 95), spacing: 8)], spacing: 8) {
+            ForEach([HomeRecipeUse.drink, .component, .base]) { use in
+                Button {
+                    selection = use
+                    MugshotHaptic.selection.play()
+                } label: {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Image(systemName: use.symbol).foregroundStyle(Color.mugshotSageText).accessibilityHidden(true)
+                        Text(use.title).font(.subheadline.weight(.semibold))
+                        Text(use.example).font(.caption).foregroundStyle(Color.secondaryText)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+                    .padding(10)
+                    .foregroundStyle(Color.espressoBrown)
+                    .background(selection == use ? Color.mugshotMint.opacity(0.4) : Color.creamWhite,
+                        in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(selection == use ? Color.mugshotSageText : Color.mugshotLine))
+                }
+                .buttonStyle(.plain).accessibilityAddTraits(selection == use ? .isSelected : [])
+                .accessibilityLabel(use.title).accessibilityHint(use.example)
                 .accessibilityIdentifier("home.recipe.use.\(use.rawValue)")
+            }
         }
     }
 }
@@ -532,9 +705,13 @@ extension Text {
 
 extension HomeRecipeContent {
     var recipeContentsSummary: String {
-        let ingredientText = "\(ingredients.count) ingredient" + (ingredients.count == 1 ? "" : "s")
-        let stepText = "\(steps.count) step" + (steps.count == 1 ? "" : "s")
-        if ingredients.isEmpty && steps.isEmpty { return isActionable ? summary : "Saved recipe idea" }
-        return [ingredients.isEmpty ? nil : ingredientText, steps.isEmpty ? nil : stepText].compactMap { $0 }.joined(separator: " · ")
+        let ingredientCount = ingredients.filter { $0.name.remoteTrimmedNonEmpty != nil || $0.recipe != nil }.count
+        let stepCount = visibleSteps.filter { $0.instruction.remoteTrimmedNonEmpty != nil }.count
+        var details: [String] = []
+        if ingredientCount > 0 { details.append("\(ingredientCount) ingredient" + (ingredientCount == 1 ? "" : "s")) }
+        if stepCount > 0 { details.append("\(stepCount) step" + (stepCount == 1 ? "" : "s")) }
+        if details.isEmpty { return isReadyToMake ? summary : "Saved recipe idea" }
+        if !isReadyToMake { details.append("Recipe idea") }
+        return details.joined(separator: " · ")
     }
 }

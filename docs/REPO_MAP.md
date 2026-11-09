@@ -4,6 +4,19 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Home library and repeat brewing — November 9 candidate
+
+- `HomeLibraryBrowse.swift`, `HomeLibraryView.swift`: stable sort/filter,
+  archive restore, inventory controls, starter and direct detail entry.
+- `HomeRecipeCaptureView.swift`, `HomeDrinkBuilderView.swift`,
+  `HomeRecipeComposition.swift`: capture paths, recipe kinds, part
+  replacement and local serving scale.
+- `HomeStarterRecipes.swift`, `HomeSipV3SetupView.swift`,
+  `LogASipV3ProductionViews.swift`: starter catalog, applied inputs, steps and review.
+- `HomeAttemptComparison.swift`, `HomeBrewReviewViews.swift`,
+  `HomeAttemptCanonicalDetailView.swift`: owner-local recorded measurements
+  and next-brew drafts.
+
 ## Stable Log a Sip setup — November 9 candidate
 
 - `Views/Add/LogASipV3ProductionViews.swift`: one non-scrolling setup header

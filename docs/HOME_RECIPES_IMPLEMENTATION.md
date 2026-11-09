@@ -4,6 +4,43 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Home library and repeat brewing — November 9 candidate
+
+Saved is the primary entrance to one Home library. Journal opens the same
+library. Empty shelves offer offline coffee, tea and matcha starters and
+**Save a recipe you found**. Unfinished work, search and filters appear when
+there is work to find. Recipes sort by Recently used, Newest or A–Z with pins
+first; type and method filters can be cleared, and archived recipes can be
+restored on the shelf. Recipe detail returns directly to that shelf.
+
+Recipe capture starts with link, screenshot, video, caption or **Type it in**.
+An idea can **Save for later**; a recipe with usable steps or a brew plan can
+**Make this**. Whole drink, Add-in and Brew recipe are editable suggestions.
+The drink builder distinguishes base, milk and add-ins, displays linked
+versions and source, replaces a part in place, and scales serving amounts
+locally without editing the source recipe.
+
+Beans need a bag name; optional details include a roast date that remains
+unknown until set. Bag status and date/name sorting are independent of gear
+role/setup filters and gear's own archive visibility.
+
+Add → Home starts with **Help me make it** or **I already made it**. A local
+starter opens a usable plan; quick log opens drink name and optional photos.
+Applied setup, beans and gear are visible with **Change for this brew**. A
+saved recipe's inputs take precedence over defaults. Changes to today's plan
+do not update library preferences or recipe versions. Guidance advances one
+instruction at a time, with a timer where useful, and optional Measurements.
+
+Private review says **Save to Journal · Private** and shows the audience before
+sharing. Saved Home sips show Plan, Actual and Last time for compatible recorded
+measurements. Unknown readings remain blank. **Make again** copies the exact
+plan into a fresh private draft and can change one planned measurement without
+carrying old actuals or changing the source. Optional Luna explanation uses
+reviewed evidence and never gates the core flow.
+
+[Accepted implementation plan](plans/home-library-and-brewing-2026-11-09.plan.md)
+and [Simulator verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md).
+
 ## Shared sip setup and Home walkthrough — November 9 candidate
 
 Log a Sip owns one fixed title, autosave cue and cafe / Home / Elsewhere pill

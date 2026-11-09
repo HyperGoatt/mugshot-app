@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Home library and repeat brewing — November 9 candidate
+
+Source includes the approved [Home walkthrough improvements](HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate):
+clear entry and recipe capture, shelf controls, quick and guided making,
+private review, and a saved-sip brew comparison. The
+[verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md) records 185 native
+cases and 16 focused Simulator journeys. The prior phone receipt remains separate.
+
 ## Home walkthrough and Log a Sip setup — November 9 candidate
 
 The setup title, autosave cue and context pills stay in place across cafe, Home

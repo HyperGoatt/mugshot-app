@@ -5,22 +5,34 @@ enum HomeRecipeUse: String, CaseIterable, Identifiable {
     case base, component, drink
     var id: String { rawValue }
     var title: String {
-        switch self { case .base: "Brew"; case .component: "Component"; case .drink: "Drink" }
+        switch self {
+        case .base: "Brew recipe"
+        case .component: "Add-in"
+        case .drink: "Whole drink"
+        }
     }
     var symbol: String {
         switch self { case .base: "cup.and.saucer"; case .component: "drop"; case .drink: "mug" }
     }
+    var example: String {
+        switch self {
+        case .base: "Espresso or tea"
+        case .component: "Syrup or foam"
+        case .drink: "Iced latte"
+        }
+    }
     var detail: String {
         switch self {
-        case .base: "Coffee, matcha, tea, or your own preparation."
-        case .component: "Make it once. Add it to any drink."
-        case .drink: "Your base, milk and favorite additions, together."
+        case .base: "A coffee, tea or matcha preparation you can make on its own."
+        case .component: "Make it once and use it in a drink whenever you like."
+        case .drink: "A complete drink with the base and additions together."
         }
     }
 
     static func suggested(for content: HomeRecipeContent) -> Self {
         if content.template == .drink { return .drink }
         if content.template == .component { return .component }
+        if content.template == .preparation, content.customMethodName.remoteTrimmedNonEmpty != nil { return .base }
         if [.completeDrink, .matchaLatte, .hojichaLatte, .teaLatte].contains(content.method) { return .drink }
         if [.syrupSauce, .milkFoam, .chaiConcentrate].contains(content.method) { return .component }
         let name = content.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -31,10 +43,24 @@ enum HomeRecipeUse: String, CaseIterable, Identifiable {
 
     func apply(to content: inout HomeRecipeContent) {
         switch self {
-        case .base: content.template = .preparation
+        case .base:
+            content.template = .preparation
+            if Self.suggested(for: content) != .base {
+                content.customMethodName = content.method == .other ? "Brew recipe" : content.method.title
+            }
         case .component: content.template = .component
         case .drink: content.template = .drink
         }
+    }
+}
+
+extension HomeRecipeContent {
+    var isReadyToMake: Bool {
+        if visibleSteps.contains(where: { $0.instruction.remoteTrimmedNonEmpty != nil }) { return true }
+        guard HomeRecipeUse.suggested(for: self) == .base,
+              [.coffee, .matcha, .hojicha, .tea].contains(method.family), targets.isValid else { return false }
+        if method == .pod { return targets.resolvedOutput != nil || targets.seconds != nil }
+        return targets.dose != nil && targets.resolvedOutput != nil
     }
 }
 
@@ -58,7 +84,10 @@ enum HomeDrinkComposition {
             return Guidance(base: linked, steps: linked.visibleSteps + content.visibleSteps, usesSavedBase: true)
         }
         var base = content
-        if [.other, .completeDrink].contains(content.method), content.targets.dose != nil { base.method = .espresso }
+        if [.other, .completeDrink].contains(content.method),
+           content.targets.dose != nil || content.targets.ratio != nil {
+            base.method = .espresso
+        }
         return Guidance(base: base, steps: content.visibleSteps, usesSavedBase: false)
     }
 
@@ -83,9 +112,52 @@ enum HomeDrinkComposition {
             unit: version.content.method == .milkFoam ? "g" : "ml", recipe: reference))
     }
 
+    /// Switch only this measured usage. Another row using the same saved version
+    /// must keep its own quantity rather than being removed or merged.
+    @discardableResult
+    static func replacePart(id: UUID, with recipe: HomeRecipeRecord, version: HomeRecipeVersion,
+                            in content: inout HomeRecipeContent) -> Bool {
+        let reference = HomeRecipeReference(recipeID: recipe.id, versionID: version.id)
+        guard let index = content.ingredients.firstIndex(where: { $0.id == id }),
+              content.ingredients[index].recipe != reference,
+              !content.ingredients.contains(where: { $0.id != id && $0.recipe == reference }) else { return false }
+        content.ingredients[index].name = version.content.name
+        content.ingredients[index].recipe = reference
+        return true
+    }
+
+    /// Scale the assembly quantities in a copy. Saved references, brew targets,
+    /// timings and the original spelling of units all stay intact.
+    static func scaled(_ content: HomeRecipeContent, toServings servings: Double) -> HomeRecipeContent? {
+        guard servings.isFinite, servings > 0, content.servings.isFinite, content.servings > 0 else { return nil }
+        let factor = servings / content.servings
+        guard factor.isFinite, factor > 0 else { return nil }
+        var scaled = content
+        for index in scaled.ingredients.indices {
+            guard let amount = scaled.ingredients[index].amount else { continue }
+            let adjusted = amount * factor
+            guard adjusted.isFinite, adjusted > 0 else { return nil }
+            scaled.ingredients[index].amount = adjusted
+        }
+        scaled.servings = servings
+        return scaled
+    }
+
+    /// Older recipes have no explicit assembly roles. Only plain milk is
+    /// inferred here; saved foams and flavored batches remain linked add-ins.
+    static func isMilk(_ ingredient: HomeRecipeIngredient) -> Bool {
+        guard ingredient.recipe == nil else { return false }
+        let name = ingredient.name.lowercased()
+        return name.range(of: "\\b(milk|cream|creamer|half[- ]and[- ]half)\\b", options: .regularExpression) != nil
+            && name.range(of: "\\b(foam|whipped)\\b", options: .regularExpression) == nil
+    }
+
     static func useBase(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion, in content: inout HomeRecipeContent, replacing baseID: UUID? = nil) {
-        let changed = replaceBase(in: &content, with: HomeRecipeIngredient(name: version.content.name, unit: "serving",
-            recipe: HomeRecipeReference(recipeID: recipe.id, versionID: version.id)), replacing: baseID)
+        let reference = HomeRecipeReference(recipeID: recipe.id, versionID: version.id)
+        let oldID = baseID ?? Self.baseID(in: content) ?? content.ingredients.first { $0.recipe == reference }?.id
+        guard !content.ingredients.contains(where: { $0.id != oldID && $0.recipe == reference }) else { return }
+        let changed = replaceBase(in: &content,
+            with: HomeRecipeIngredient(name: version.content.name, unit: "serving", recipe: reference), replacing: oldID)
         guard changed || content.method != version.content.method else { return }
         content.method = version.content.method
         content.targets = version.content.targets
@@ -117,10 +189,14 @@ enum HomeDrinkComposition {
         let oldID = baseID
             ?? content.ingredients.first(where: { base.recipe != nil && $0.recipe == base.recipe })?.id
             ?? Self.baseID(in: content)
-        if let old = content.ingredients.first(where: { $0.id == oldID }),
-           old.name == base.name, old.recipe == base.recipe { return false }
-        content.ingredients.removeAll { $0.id == oldID || (base.recipe != nil && $0.recipe == base.recipe) }
-        content.ingredients.insert(base, at: 0)
+        if let index = content.ingredients.firstIndex(where: { $0.id == oldID }) {
+            let old = content.ingredients[index]
+            guard old.name != base.name || old.recipe != base.recipe else { return false }
+            content.ingredients[index].name = base.name
+            content.ingredients[index].recipe = base.recipe
+        } else {
+            content.ingredients.insert(base, at: 0)
+        }
         return true
     }
 }

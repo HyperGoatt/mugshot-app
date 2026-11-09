@@ -34,8 +34,12 @@ final class HomeDraftControlUITests: XCTestCase {
         add.tap()
         let name = app.textFields["home.profile.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Office nook")
+        XCTAssertEqual(name.value as? String, "Office nook")
         if app.buttons["home.editor.keyboardDone"].exists { app.buttons["home.editor.keyboardDone"].tap() }
-        app.buttons["home.profile.save"].tap()
+        XCTAssertEqual(name.value as? String, "Office nook", "Closing the keyboard must keep the final character.")
+        let save = app.buttons["home.profile.save"]
+        save.tap()
+        XCTAssertTrue(save.waitForNonExistence(timeout: 5))
         let edit = app.buttons["Edit Office nook Home setup"]
         XCTAssertTrue(edit.waitForExistence(timeout: 5))
         capture(app, "02-home-profiles")

@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
 
 # Optional coffee assistance
@@ -82,7 +82,7 @@ raw audio is not sent to OpenAI. Combined text reserves the credit slot inside t
 | Recipe capture | Bring in a recipe in the recipe editor | Blank/template entry, source text and normal recipe draft/save |
 | Memory search | Find a memory alongside Journal archive search | Ordinary local search, filters and timeline |
 | Taste observations | Notice a taste pattern in Journal tools after three completed memories | Existing evidence-based Taste Passport |
-| Home experiments | Explore a next experiment in a saved Home sip's actions | Actual measurements, next-time notes, repeat and comparison |
+| Home experiments | Explore a next experiment in a saved Home sip's actions | Private plan/actual/last-time comparison, next-time notes and repeat with one change |
 | Weekly reflection | Reflect on this week inside the existing week recap | Canonical deterministic recap, counts, photos and sharing |
 
 These are five feature groups; capture has separate bag and recipe tasks. There
@@ -101,6 +101,10 @@ the editable draft; ordinary Save remains a separate action. Recipe capture
 preserves attribution and existing fields, appends selected literal ingredient
 and instruction text without inventing numeric amounts, and does not change
 recipe visibility. Brew suggestions are read-only and do not modify a recipe.
+The saved-sip comparison runs locally. Its optional experiment request can
+include reviewed, comparable recorded readings and clearly labeled plans.
+It excludes private notes by default and uses the existing account and
+request review. A missing reading is not a value to estimate.
 
 Model interpretation is labeled as an AI suggestion with inspectable source
 references. Printed roaster notes are never personal sensory evidence. Planned

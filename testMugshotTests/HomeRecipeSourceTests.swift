@@ -32,14 +32,53 @@ struct HomeRecipeSourceTests {
 
     @Test func replacingAScreenshotKeepsItsCaptionAndUserTyping() {
         var sources = HomeRecipeCaptureSources()
-        let caption = sources.update(.caption, text: "Creator caption", currentText: "")
-        let first = sources.update(.screenshot, text: "Old screenshot", currentText: caption)
-        let second = sources.update(.screenshot, text: "New screenshot", currentText: first)
-        #expect(second.contains("Creator caption"))
-        #expect(second.contains("New screenshot"))
-        #expect(!second.contains("Old screenshot"))
-        let edited = "My correction\n" + second
-        #expect(sources.update(.video, text: "Spoken instructions", currentText: edited).contains(edited))
+        sources.typedCaption = "My correction"
+        sources.set(.caption, text: "Creator caption")
+        sources.set(.screenshot, text: "Old screenshot")
+        sources.set(.screenshot, text: "New screenshot")
+        #expect(sources.text.contains("Creator caption"))
+        #expect(sources.text.contains("My correction"))
+        #expect(sources.text.contains("New screenshot"))
+        #expect(!sources.text.contains("Old screenshot"))
+    }
+
+    @Test func revokingSpeechRemovesOnlyTheTranscriptAndRejectsLateResults() {
+        var sources = HomeRecipeCaptureSources()
+        sources.typedCaption = "Typed correction"
+        sources.set(.caption, text: "Original post caption")
+        sources.set(.screenshot, text: "Screenshot recipe")
+        sources.set(.linkedVideo, text: "Post frame text")
+        sources.set(.video, text: "Selected clip frame text")
+        let original = sources.text
+        sources.setSpeechEnabled(true)
+        let request = sources.speechGeneration
+        let acceptedSpeech = sources.applySpeech("Spoken step", generation: request)
+        #expect(acceptedSpeech)
+        #expect(sources.text.contains("Spoken step"))
+        sources.setSpeechEnabled(false)
+        #expect(sources.text == original)
+        let acceptedAfterRevoke = sources.applySpeech("Late transcript", generation: request)
+        #expect(!acceptedAfterRevoke)
+        sources.setSpeechEnabled(true)
+        let acceptedAfterReenable = sources.applySpeech("Stale transcript after reenable", generation: request)
+        #expect(!acceptedAfterReenable)
+        #expect(sources.text == original)
+    }
+
+    @Test func replacingAClipRequiresFreshSpeechOptInAndPreservesOtherSources() {
+        var sources = HomeRecipeCaptureSources()
+        sources.typedCaption = "My caption"
+        sources.set(.linkedVideo, text: "Keep post frames")
+        sources.set(.video, text: "Replace local frames")
+        sources.setSpeechEnabled(true)
+        let request = sources.speechGeneration
+        let acceptedSpeech = sources.applySpeech("Old speech", generation: request)
+        #expect(acceptedSpeech)
+        sources.resetSelectedVideo()
+        #expect(!sources.includesSpeech)
+        #expect(sources.text == "My caption\n\nKeep post frames")
+        let acceptedOldClip = sources.applySpeech("Old clip returned", generation: request)
+        #expect(!acceptedOldClip)
     }
 
     @Test func combinedSourcesReserveTheCreditSlotInsideTheServerEvidenceLimit() {

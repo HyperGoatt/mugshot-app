@@ -10,6 +10,7 @@ struct HomePlaceProfileEditorView: View {
     @State private var library = HomeLibrarySnapshot.empty
     @State private var makeDefault = false
     @State private var error: String?
+    @FocusState private var isNameFocused: Bool
 
     init(ownerID: UUID?, profile: HomePlaceProfile? = nil, onSaved: @escaping (HomePlaceProfile) -> Void) {
         self.ownerID = ownerID; self.onSaved = onSaved
@@ -28,7 +29,14 @@ struct HomePlaceProfileEditorView: View {
         NavigationStack {
             HomeEditorCanvas(title: "Your kind of Home.", detail: "A familiar spot and the tools you reach for.", symbol: "house.fill", eyebrow: "HOME SETUP") {
                 HomeEditorSection("A name to remember", symbol: "house") {
-                    HomeEditorField("Setup name", text: $profile.name, placeholder: "My kitchen", identifier: "home.profile.name")
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Setup name").font(.caption.weight(.semibold)).foregroundStyle(Color.secondaryText)
+                        TextField("My kitchen", text: $profile.name)
+                            .font(.body).frame(minHeight: 44)
+                            .autocorrectionDisabled().focused($isNameFocused)
+                            .submitLabel(.done).onSubmit { isNameFocused = false }
+                            .accessibilityLabel("Setup name").accessibilityIdentifier("home.profile.name")
+                    }
                     Text("This name appears on your sips. Use a nickname, never an address.")
                         .font(.caption).foregroundStyle(Color.secondaryText)
                     if duplicateName { HomeEditorError(message: "Choose a different name so your setups are easy to tell apart.") }
@@ -79,7 +87,7 @@ struct HomePlaceProfileEditorView: View {
 
     private func save() {
         guard isCurrentOwner, profile.validationMessage == nil, !duplicateName else { return }
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        isNameFocused = false
         do {
             let shelf = HomeLibraryStore.shared
             var saved = try shelf.upsertHomeProfile(profile, in: scope)

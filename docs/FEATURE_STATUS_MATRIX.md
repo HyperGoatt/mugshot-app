@@ -4,12 +4,20 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Home library and repeat brewing — November 9 candidate
+
+Source implements offline starters, manual recipe capture, shelf sorting and
+restore, independent inventory controls, distinct quick and guided paths,
+audience preview and an owner-only comparison and repeat flow. See
+[Home implementation](HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate)
+for the scope. Device distribution is a separate gate.
+
 ## Log a Sip setup — November 9 candidate
 
 One stable title, autosave cue and pill row in setup; cafe, Home and Elsewhere
 panels change below. Setting-only Elsewhere drafts can resume. The
 [Home walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md) records local
-acceptance and remaining library usability work. No new device distribution.
+acceptance and the original library recommendations. No new device distribution.
 
 ## Home controls — November 5 accepted development candidate
 
