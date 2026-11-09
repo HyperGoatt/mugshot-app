@@ -1192,7 +1192,9 @@ final class AppAuthModel: ObservableObject {
         PinnedCriterionStore.shared.removeAll(ownerUserID: userID)
         CriterionImportanceStore.shared.removeAll(ownerUserID: userID)
         RecentCriterionSetupStore.shared.removeAll(ownerUserID: userID)
+        HomeLibrarySynchronizer.shared.invalidate(ownerID: userID)
         HomeLibraryStore.shared.removeAll(ownerUserID: userID)
+        CoffeeAssistancePermissionStore.shared.removeAll(ownerID: userID)
         do { try HomeRecipeWorkspaceStore.shared.removeAll(ownerUserID: userID) }
         catch { completed = false }
         TastingLensPreferencesStore().removeAll(userID: userID)

@@ -29,14 +29,11 @@ final class JournalAndBeansUITests: XCTestCase {
         let app = launch(signedOut: true)
         app.buttons["mugshot.tab.add"].tap()
         app.buttons["logASipV3.context.home"].tap()
-        app.buttons["Espresso"].firstMatch.tap()
-        let adjust = app.buttons["Adjust today’s setup"]
+        app.buttons["logASipV4.home.starter.espresso"].tap()
+        let adjust = app.buttons["home.setup.changeForThisBrew"]
         for _ in 0..<5 where !adjust.isHittable { app.swipeUp() }
         XCTAssertTrue(adjust.waitForExistence(timeout: 5))
         adjust.tap()
-        let beans = app.buttons["Beans, gear, and more"].firstMatch
-        for _ in 0..<5 where !beans.isHittable { app.swipeUp() }
-        beans.tap()
         let manual = app.buttons["home.today.beans.addManually"]
         for _ in 0..<4 where !manual.isHittable { app.swipeUp() }
         XCTAssertTrue(manual.waitForExistence(timeout: 3))
@@ -44,6 +41,7 @@ final class JournalAndBeansUITests: XCTestCase {
         XCTAssertTrue(manual.isEnabled)
         manual.tap()
         XCTAssertTrue(app.navigationBars["Add coffee"].waitForExistence(timeout: 5))
+        app.buttons["More bag details"].tap()
         let roaster = app.textFields["logASipV3.home.bag.roaster"]
         roaster.tap()
         roaster.typeText("QA Roaster")

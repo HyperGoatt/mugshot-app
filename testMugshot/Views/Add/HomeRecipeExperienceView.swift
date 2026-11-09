@@ -27,7 +27,9 @@ struct HomeRecipeExperienceView: View {
     var onExit: (() -> Void)?
     var onEarlierEntries: (() -> Void)?
     var initialCollection: String?
+    var opensRecipeDirectly: Bool
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(RoadmapFeatureFlags.homeSipV4Route) private var homeSipV4RouteEnabled = RoadmapFeatureFlags.homeSipV4RouteEnabledByDefault
     @StateObject private var store = HomeRecipeWorkspaceStore.shared
     @State private var path: [HomeRecipeRoute] = []
@@ -38,13 +40,16 @@ struct HomeRecipeExperienceView: View {
     private var filter: HomeRecipeTemplate? { HomeRecipeTemplate(rawValue: filterValue) }
     @State private var editorSheet: HomeRecipeEditorSheet?
     @State private var openedInitial = false
+    @State private var replacementRecipeID: UUID?
     @State private var sharedRecipe: HomeLinkedRecipeSheet?
     @State private var showsRecipeIdea = false
+    @State private var showsDraftManager = false
+    @State private var sipDrafts: [SipDraft] = []
     @State private var transientAttempts: [UUID: HomeAttemptRecord] = [:]
 
     init(ownerID: UUID?, initialAttempt: HomeAttemptRecord? = nil, initialSessionID: UUID? = nil,
          initialRecipeID: UUID? = nil,
-         initialCollection: String? = nil, onBackToJournal: (() -> Void)? = nil,
+         initialCollection: String? = nil, opensRecipeDirectly: Bool = false, onBackToJournal: (() -> Void)? = nil,
          onEarlierEntries: (() -> Void)? = nil, onExit: (() -> Void)? = nil,
          onShare: @escaping (SipDraft) -> Void) {
         self.ownerID = ownerID
@@ -56,6 +61,7 @@ struct HomeRecipeExperienceView: View {
         self.onEarlierEntries = onEarlierEntries
         self.onExit = onExit
         self.initialCollection = initialCollection
+        self.opensRecipeDirectly = opensRecipeDirectly
         let account = LocalAccountScope.forUserID(ownerID).storageComponent
         _tab = SceneStorage(wrappedValue: "My makes", "home.recipes.\(account).tab")
         _query = SceneStorage(wrappedValue: "", "home.recipes.\(account).query")
@@ -65,61 +71,11 @@ struct HomeRecipeExperienceView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            HomeCollectionList(storageKey: "home.recipes.\(LocalAccountScope.forUserID(ownerID).storageComponent).\(tab).scroll") {
-                if initialCollection != "Recipes" {
-                    Section {
-                        Picker("Home collection", selection: $tab) {
-                            Text("My makes").tag("My makes")
-                            Text("Recipes").tag("Recipes")
-                        }.pickerStyle(.segmented)
-                    }
-                }
-                if tab == "My makes" { makes } else { recipes }
-                if let onEarlierEntries {
-                    Section { Button("Earlier Home entries and recipes", action: onEarlierEntries) }
-                }
-                if store.workspace.pendingOperationID != nil, ownerID != nil {
-                    Label(store.isSyncing ? "Syncing…" : "Saved on this device · sync pending", systemImage: "icloud.and.arrow.up")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let message = store.errorMessage {
-                    Section("Sync") {
-                        Text(message).font(.footnote)
-                        if store.hasRemoteConflict {
-                            if store.canResolveRemoteConflict {
-                                Button("Keep local edits as drafts and load latest") {
-                                    perform { try store.useRemoteAfterConflict() }
-                                }
-                            } else {
-                                Button("Load latest library") { Task { await store.refreshRemoteConflict() } }
-                            }
-                        } else { Button("Retry sync") { Task { await store.synchronize() } } }
-                    }
-                }
-            }
-            .id(tab)
-            .scrollContentBackground(.hidden).background(Color.creamWhite)
-            .navigationTitle(initialCollection == "Recipes" ? "Recipe Book" : "Home")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(onBackToJournal == nil ? "Done" : "Journal") {
-                        if let onExit { onExit() }
-                        else if let onBackToJournal { onBackToJournal() }
-                        else { dismiss() }
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(tab == "Recipes" ? "Save a recipe idea" : "Log a make", systemImage: "plus") {
-                        if tab == "Recipes" { showsRecipeIdea = true } else { startLog(nil) }
-                    }
-                }
-            }
+            AnyView(navigationRoot)
             .navigationDestination(for: HomeRecipeRoute.self) { route in
                 switch route {
                 case .recipe(let id):
-                    HomeRecipeDetailScreen(store: store, recipeID: id, onEdit: { editorSheet = .edit($0) },
-                        onLog: { startLog($0) }, onMake: { startMaking($0) },
-                        onAttempt: { path.append(.attempt($0)) })
+                    recipeDetail(id)
                 case .attempt(let id):
                     if homeSipV4RouteEnabled {
                         HomeAttemptCanonicalDetailView(
@@ -127,22 +83,15 @@ struct HomeRecipeExperienceView: View {
                             onShare: {
                                 if let attempt = store.workspace.attempts.first(where: { $0.id == id }) { share(attempt) }
                             },
-                            onMakeAgain: {
-                                guard let attempt = store.workspace.attempts.first(where: { $0.id == id }) else { return }
-                                let recipe = attempt.recipe.flatMap { reference in
-                                    store.workspace.recipes.first { $0.id == reference.recipeID }
-                                }
-                                launchHomeComposer(recipe: recipe,
-                                    setup: recipe?.current?.content ?? attempt.preparation ?? attempt.targets,
-                                    guided: true)
-                            },
+                            onMakeAgain: { repeatMake(id) },
                             onDone: { path.removeLast() },
                             onHistory: { path.removeLast() },
                             onLogServing: {
                                 if let batch = store.workspace.attempts.first(where: { $0.id == id }) {
                                     launchHomeServing(from: batch)
                                 }
-                            }
+                            },
+                            onChangeNextBrew: { repeatMake(id, change: $0) }
                         )
                     } else {
                         HomeAttemptDetailScreen(store: store, attemptID: id,
@@ -150,13 +99,13 @@ struct HomeRecipeExperienceView: View {
                             MugshotAnalytics.shared.capture(.homeRecipe(.repeated, hasRecipe: recipe != nil, durationSeconds: 0))
                             if recipe != nil { startLog(recipe, setup: setup) }
                             else if let previous = store.workspace.attempts.first(where: { $0.id == id }) {
-                                let fresh = HomeAttemptRecord(name: previous.name, recipe: previous.recipe,
+                                let fresh = HomeAttemptRecord(name: previous.name, locationName: previous.journalLocationName, recipe: previous.recipe,
                                     targets: previous.targets, preparation: setup ?? previous.preparation)
                                 perform { try store.saveAttemptDraft(fresh); path.append(.log(fresh.id)) }
                             }
                         },
                         onServing: { batch in
-                            var serving = HomeAttemptRecord(name: "\(batch.name) · serving", recipe: batch.recipe,
+                            var serving = HomeAttemptRecord(name: "\(batch.name) · serving", locationName: batch.journalLocationName, recipe: batch.recipe,
                                 targets: batch.targets, preparation: batch.preparation, batchID: batch.batchID ?? batch.id,
                                 batchSourceAttemptID: batch.id)
                             serving.actuals = HomeAttemptActuals()
@@ -175,14 +124,18 @@ struct HomeRecipeExperienceView: View {
                 case .log(let id):
                     if let attempt = store.workspace.attemptDrafts.first(where: { $0.id == id }) ?? transientAttempts[id] {
                         HomeQuickLogScreen(store: store, initial: attempt, onSaved: { savedID in
+                            transientAttempts[id] = nil
                             transientAttempts[savedID] = nil
                             path.removeLast(); path.append(.attempt(savedID))
                         }, onDiscard: {
+                            try store.discardAttemptDraft(id: id, expectedScope: .forUserID(ownerID))
                             transientAttempts[id] = nil
-                            perform { try store.discardAttemptDraft(id: id); path.removeLast() }
+                            path.removeLast()
                         }, onKeep: {
                             transientAttempts[id] = nil
                             path.removeLast()
+                        }, startsAtReflection: attempt.resumeAtReflection == true || store.workspace.sessions.contains {
+                            $0.attempt.id == id && $0.currentPhase == .awaitingReflection
                         })
                     } else { ContentUnavailableView("Draft unavailable", systemImage: "doc") }
                 }
@@ -190,26 +143,34 @@ struct HomeRecipeExperienceView: View {
             .sheet(item: $editorSheet) { destination in
                 switch destination {
                 case .create:
-                    HomeRecipeCreationFlow(store: store) { id in path.append(.recipe(id)) }
+                    HomeRecipeCreationFlow(store: store, onSaved: showRecipe)
                 case .edit(let draft):
                     NavigationStack {
-                        HomeRecipeEditorView(store: store, draft: draft) { id in path.append(.recipe(id)) }
+                        HomeRecipeEditorView(store: store, draft: draft, onSaved: showRecipe)
                     }
                 }
             }
             .sheet(item: $sharedRecipe) { selected in
                 HomeSharedRecipeScreen(versionID: selected.reference.versionID, ownerID: ownerID, onShare: onShare)
             }
+            .sheet(isPresented: $showsDraftManager, onDismiss: reloadSipDrafts) {
+                HomeDraftManagementView(ownerID: ownerID, onResumeSip: { draft in
+                    guard store.scope == .forUserID(ownerID) else { return }
+                    onShare(draft)
+                })
+            }
             .sheet(isPresented: $showsRecipeIdea) {
                 HomeQuickRecipeSheet(store: store) { recipe, _ in
                     showsRecipeIdea = false
-                    path.append(.recipe(recipe.id))
+                    showRecipe(recipe.id)
                 }
             }
         }
         .tint(.mugshotSage)
         .task(id: ownerID) {
+            guard !opensRecipeDirectly else { return }
             store.activate(.forUserID(ownerID))
+            reloadSipDrafts()
             if !openedInitial, let initialCollection { tab = initialCollection }
             path = []
             if !openedInitial, let initialSessionID {
@@ -222,7 +183,8 @@ struct HomeRecipeExperienceView: View {
             if !openedInitial, let initialRecipeID,
                let recipe = store.workspace.recipes.first(where: { $0.id == initialRecipeID && !$0.isArchived }) {
                 openedInitial = true
-                startLog(recipe)
+                if initialCollection == "Recipes" { path.append(.recipe(recipe.id)) }
+                else { startLog(recipe) }
             }
             if !openedInitial, let initialAttempt {
                 openedInitial = true
@@ -238,6 +200,106 @@ struct HomeRecipeExperienceView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder private var navigationRoot: some View {
+        if opensRecipeDirectly {
+            Group {
+                if store.scope == .forUserID(ownerID), let id = replacementRecipeID ?? initialRecipeID {
+                    recipeDetail(id).id(id)
+                } else {
+                    ContentUnavailableView("Recipe unavailable", systemImage: "book.closed")
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("home.library.recipeDone")
+                }
+            }
+        } else {
+            collectionRoot
+        }
+    }
+
+    private var collectionRoot: some View {
+        HomeCollectionList(storageKey: "home.recipes.\(LocalAccountScope.forUserID(ownerID).storageComponent).\(tab).scroll") {
+            if initialCollection != "Recipes" {
+                Section {
+                    Picker("Home collection", selection: $tab) {
+                        Text("My makes").tag("My makes")
+                        Text("Recipes").tag("Recipes")
+                    }.pickerStyle(.segmented)
+                }
+            }
+            if tab == "My makes" { makes } else { recipes }
+            if let onEarlierEntries {
+                Section { Button("Earlier Home entries and recipes", action: onEarlierEntries) }
+            }
+            if store.workspace.pendingOperationID != nil, ownerID != nil {
+                Label(store.isSyncing ? "Syncing…" : "Saved on this device · sync pending", systemImage: "icloud.and.arrow.up")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let message = store.errorMessage {
+                Section("Sync") {
+                    Text(message).font(.footnote)
+                    if store.hasRemoteConflict {
+                        if store.canResolveRemoteConflict {
+                            Button("Keep local edits as drafts and load latest") {
+                                perform { try store.useRemoteAfterConflict() }
+                            }
+                        } else {
+                            Button("Load latest library") { Task { await store.refreshRemoteConflict() } }
+                        }
+                    } else { Button("Retry sync") { Task { await store.synchronize() } } }
+                }
+            }
+        }
+        .id(tab)
+        .scrollContentBackground(.hidden).background(Color.creamWhite)
+        .navigationTitle(initialCollection == "Recipes" ? "Recipe Book" : "Home")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(onBackToJournal == nil ? "Done" : "Journal") {
+                    if let onExit { onExit() }
+                    else if let onBackToJournal { onBackToJournal() }
+                    else { dismiss() }
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button(tab == "Recipes" ? "Save a recipe idea" : "Log a make", systemImage: "plus") {
+                    if tab == "Recipes" { showsRecipeIdea = true } else { startLog(nil) }
+                }
+            }
+        }
+    }
+
+    private func recipeDetail(_ id: UUID) -> some View {
+        HomeRecipeDetailScreen(store: store, recipeID: id, onEdit: { editorSheet = .edit($0) },
+            onLog: { startLog($0) }, onMake: { startMaking($0) },
+            onAttempt: { path.append(.attempt($0)) }, onCreatedDrink: showRecipe)
+            .environment(\.dynamicTypeSize, dynamicTypeSize)
+    }
+
+    private func showRecipe(_ id: UUID) {
+        if opensRecipeDirectly {
+            replacementRecipeID = id
+            path.removeAll()
+        } else {
+            path.append(.recipe(id))
+        }
+    }
+
+    private func repeatMake(_ id: UUID, change: HomeBrewPlanChange? = nil) {
+        guard store.scope == .forUserID(ownerID),
+              let attempt = store.workspace.attempts.first(where: { $0.id == id }) else { return }
+        guard let draft = HomeBrewRepeat.draft(for: attempt, ownerID: ownerID,
+            versionNumber: attempt.recipe.flatMap { store.workspace.version($0)?.number },
+            change: change, resolveLinked: { store.workspace.version($0)?.content }) else {
+            store.errorMessage = "This brew changed. Open its plan again to choose your next change."
+            return
+        }
+        onShare(draft)
     }
 
     @ViewBuilder private var makes: some View {
@@ -296,26 +358,10 @@ struct HomeRecipeExperienceView: View {
                 }
             }
         }
-        if !store.workspace.sessions.filter({ $0.currentPhase == .preparing }).isEmpty {
-            Section("In progress") {
-                ForEach(store.workspace.sessions.filter { $0.currentPhase == .preparing }) { session in
-                    Button { path.append(.preparation(session.id)) } label: {
-                        Label(session.attempt.name, systemImage: "timer")
-                    }
-                }
-            }
-        }
-        let meaningfulAttemptDrafts = store.workspace.attemptDrafts.filter(\.hasMeaningfulDraftContent)
-        let meaningfulRecipeDrafts = store.workspace.recipeDrafts.filter { $0.content.hasMeaningfulDraftContent }
-        if !meaningfulAttemptDrafts.isEmpty || !meaningfulRecipeDrafts.isEmpty {
-            Section("Pick up where you left off") {
-                ForEach(meaningfulAttemptDrafts) { draft in
-                    Button(draft.name.isEmpty ? "Unfinished make" : draft.name) { path.append(.log(draft.id)) }
-                }
-                ForEach(meaningfulRecipeDrafts) { draft in
-                    Button(draft.content.name.isEmpty ? "Unfinished recipe" : draft.content.name) { editorSheet = .edit(draft) }
-                }
-            }
+        Section {
+            HomeDraftSummaryButton(count: draftCatalogue.count) { showsDraftManager = true }
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                .listRowBackground(Color.clear)
         }
         Section("Your usuals") {
             if store.workspace.usuals.isEmpty {
@@ -475,7 +521,8 @@ struct HomeRecipeExperienceView: View {
             launchHomeComposer(recipe: recipe, setup: setup, guided: false)
             return
         }
-        let attempt = HomeAttemptRecord.fresh(from: recipe, setup: setup)
+        var attempt = HomeAttemptRecord.fresh(from: recipe, setup: setup)
+        attempt.locationName = defaultHomeNickname
         transientAttempts[attempt.id] = attempt
         path.append(.log(attempt.id))
     }
@@ -484,7 +531,9 @@ struct HomeRecipeExperienceView: View {
             launchHomeComposer(recipe: recipe, setup: nil, guided: true)
             return
         }
-        let session = HomePreparationSession(attempt: .fresh(from: recipe), phase: .preparing)
+        var attempt = HomeAttemptRecord.fresh(from: recipe)
+        attempt.locationName = defaultHomeNickname
+        let session = HomePreparationSession(attempt: attempt, phase: .preparing)
         perform { try store.saveSession(session); path.append(.preparation(session.id)) }
     }
     private func launchHomeComposer(recipe: HomeRecipeRecord?, setup: HomeRecipeContent?, guided: Bool) {
@@ -493,7 +542,7 @@ struct HomeRecipeExperienceView: View {
         var draft = SipDraft(
             ownerUserID: ownerID,
             context: .home,
-            locationName: "Home",
+            locationName: defaultHomeNickname,
             drinkType: content?.method.drinkType ?? .coffee,
             customDrinkType: content?.method.drinkType == .other ? (content?.methodDisplayName ?? "") : "",
             drinkName: content?.name ?? "",
@@ -522,7 +571,7 @@ struct HomeRecipeExperienceView: View {
         var draft = SipDraft(
             ownerUserID: ownerID,
             context: .home,
-            locationName: "Home",
+            locationName: batch.journalLocationName,
             drinkType: content.method.drinkType,
             drinkName: "\(batch.name) · serving",
             brewMethod: content.methodDisplayName,
@@ -539,14 +588,26 @@ struct HomeRecipeExperienceView: View {
         draft.launchContext.homeBatchSourceAttemptID = batch.id
         onShare(draft)
     }
+    private var draftCatalogue: HomeDraftCatalogue {
+        HomeDraftCatalogue(sipDrafts: sipDrafts, workspace:
+            store.scope == .forUserID(ownerID) ? store.workspace : HomeRecipeWorkspace())
+    }
+    private func reloadSipDrafts() {
+        guard store.scope == .forUserID(ownerID) else { sipDrafts = []; return }
+        sipDrafts = SipDraftStore.shared.allDrafts(in: .forUserID(ownerID))
+    }
+    private var defaultHomeNickname: String {
+        HomeLibraryStore.shared.load(in: .forUserID(ownerID)).selectedHomeProfile(for: ownerID)?.name ?? "Home"
+    }
     private func share(_ attempt: HomeAttemptRecord) {
         perform {
-            if let existing = SipDraftStore.shared.load(id: attempt.publicationDraftID ?? attempt.id, in: store.scope),
-               existing.draft.launchContext.homeAttemptID == attempt.id {
+            let resolved = try HomeSharingDraftResolver.resolve(attemptID: attempt.id,
+                previousID: attempt.publicationDraftID, scope: store.scope)
+            if let existing = resolved.existing {
                 onShare(existing.draft)
                 return
             }
-            let publicationID = attempt.publicationDraftID ?? UUID()
+            let publicationID = resolved.id
             var publicDetails = (attempt.preparation ?? attempt.targets)?.asBrewDetails(
                 recipeID: attempt.recipe?.recipeID,
                 versionNumber: attempt.recipe.flatMap { store.workspace.version($0)?.number }
@@ -562,7 +623,7 @@ struct HomeRecipeExperienceView: View {
             publicDetails.homeMethodDetails?.agitationNotes = nil
             publicDetails.homeMethodDetails?.heatNotes = nil
             var draft = SipDraft(id: publicationID, ownerUserID: ownerID,
-                context: .home, locationName: "Home", drinkName: attempt.name,
+                context: .home, locationName: attempt.journalLocationName, drinkName: attempt.name,
                 overallScore: attempt.resolvedRating ?? 0,
                 visibility: .friends, ratingCriteria: attempt.ratingCriteria,
                 brewMethod: attempt.preparation?.methodDisplayName ?? "",
@@ -612,9 +673,10 @@ struct HomeQuickLogScreen: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     @State private var attempt: HomeAttemptRecord
     let onSaved: (UUID) -> Void
-    let onDiscard: () -> Void
+    let onDiscard: () throws -> Void
     let onKeep: () -> Void
     private let originalScope: LocalAccountScope
+    @Environment(\.dismiss) private var dismiss
     @State private var reflecting = false
     @State private var details = false
     @State private var editTargets = false
@@ -633,21 +695,31 @@ struct HomeQuickLogScreen: View {
     @State private var pendingRecipe: HomeRecipeRecord?
 
     init(store: HomeRecipeWorkspaceStore, initial: HomeAttemptRecord,
-         onSaved: @escaping (UUID) -> Void, onDiscard: @escaping () -> Void = {}, onKeep: @escaping () -> Void = {}) {
+         onSaved: @escaping (UUID) -> Void, onDiscard: @escaping () throws -> Void = {}, onKeep: @escaping () -> Void = {},
+         startsAtReflection: Bool = false) {
         self.store = store
         originalScope = store.scope
-        _attempt = State(initialValue: initial)
+        var editable = initial
+        if initial.editingAttemptID != nil { editable.rating = initial.resolvedRating }
+        _attempt = State(initialValue: editable)
+        _reflecting = State(initialValue: initial.resumeAtReflection ?? (initial.editingAttemptID != nil || startsAtReflection || initial.rating != nil
+            || !initial.reaction.isEmpty || !initial.privateNote.isEmpty || !initial.nextTimeNote.isEmpty || initial.makeAgain != nil))
         self.onSaved = onSaved
         self.onDiscard = onDiscard
         self.onKeep = onKeep
     }
     var body: some View {
-        Form {
+        HomeEditorCanvas(title: isEditing ? (reflecting ? "Make it feel right." : "Your sip, updated.")
+                : reflecting ? "Keep this moment." : "A sip worth keeping.",
+            detail: isEditing ? "Update this private journal entry. Saved recipes and anything already shared keep their own details."
+                : reflecting ? "A rating, a thought, something for next time. Keep as much or as little as you like."
+                : "Start with what you made. A recipe, photo and preparation details are yours to add.",
+            symbol: reflecting ? "heart.text.clipboard" : "cup.and.saucer", eyebrow: "YOUR HOME SIP") {
             if reflecting { reflection } else { capture }
-            if let error { Text(error).foregroundStyle(.red) }
         }
-        .scrollContentBackground(.hidden).background(Color.creamWhite)
-        .navigationTitle(reflecting ? "How was it?" : "What did you make?")
+        .disabled(store.scope != originalScope)
+        .safeAreaInset(edge: .bottom) { makeActionBar }
+        .navigationTitle(isEditing ? "Edit sip" : reflecting ? "Reflect" : "Log a Home sip")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -661,7 +733,7 @@ struct HomeQuickLogScreen: View {
         .confirmationDialog("What should happen to this make?", isPresented: $confirmsDiscard) {
             Button("Keep draft", action: onKeep)
             Button("Discard draft", role: .destructive, action: discard)
-            Button("Continue editing", role: .cancel) { }
+            Button("Continue editing") { confirmsDiscard = false }
         } message: {
             Text("Your recipe is unchanged. Discard removes only this unfinished make and its unreferenced photos.")
         }
@@ -672,7 +744,7 @@ struct HomeQuickLogScreen: View {
                 if let pendingRecipe { select(pendingRecipe) }
                 pendingRecipe = nil
             }
-            Button("Cancel", role: .cancel) { pendingRecipe = nil }
+            Button("Cancel") { pendingRecipe = nil }
         } message: {
             Text("Your entered preparation changes and actual measurements will be cleared so they are not attached to the wrong recipe.")
         }
@@ -692,37 +764,49 @@ struct HomeQuickLogScreen: View {
                     durationSeconds: Int(Date.now.timeIntervalSince(openedAt))))
             }
         }
+        .onChange(of: store.scope) { _, scope in
+            if scope != originalScope { showsCamera = false; dismiss() }
+        }
         .onChange(of: reflecting) { _, value in
+            attempt.resumeAtReflection = value
             if value { MugshotAnalytics.shared.capture(.homeRecipe(.reflectionViewed, hasRecipe: attempt.recipe != nil, durationSeconds: 0)) }
         }
         .onChange(of: attempt) { _, value in
             autosaveTask?.cancel()
             autosaveTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(350))
-                guard !Task.isCancelled, store.scope == originalScope else { return }
+                guard !Task.isCancelled, !didSave, !didDiscard, store.scope == originalScope else { return }
                 do { try store.saveAttemptDraft(value) } catch { self.error = error.localizedDescription }
             }
         }
         .task(id: photo) {
             guard let photo else { return }
-            let scope = store.scope
+            let scope = originalScope
+            guard store.scope == scope else { return }
             do {
-                if let data = try await photo.loadTransferable(type: Data.self), store.scope == scope {
-                    attempt.photoNames.append(try await store.savePhotoAsync(data, attemptID: attempt.id))
-                }
-            } catch { self.error = error.localizedDescription }
-        }
-        .onChange(of: cameraImage) { _, image in
-            guard let image, let data = image.jpegData(compressionQuality: 0.9) else { return }
-            cameraImage = nil
-            let capturedScope = store.scope
-            Task {
-                do {
+                if let data = try await photo.loadTransferable(type: Data.self), !Task.isCancelled, store.scope == scope {
                     let name = try await store.savePhotoAsync(data, attemptID: attempt.id)
-                    guard store.scope == capturedScope else { return }
+                    guard !Task.isCancelled, !didSave, !didDiscard, store.scope == scope else {
+                        try? store.removeUnreferencedPhoto(name, in: scope); return
+                    }
                     attempt.photoNames.append(name)
                 }
-                catch { self.error = error.localizedDescription }
+            } catch { if store.scope == scope { self.error = error.localizedDescription } }
+        }
+        .onChange(of: cameraImage) { _, image in
+            guard store.scope == originalScope else { cameraImage = nil; return }
+            guard let image, let data = image.jpegData(compressionQuality: 0.9) else { return }
+            cameraImage = nil
+            Task {
+                guard store.scope == originalScope else { return }
+                do {
+                    let name = try await store.savePhotoAsync(data, attemptID: attempt.id)
+                    guard !Task.isCancelled, !didSave, !didDiscard, store.scope == originalScope else {
+                        try? store.removeUnreferencedPhoto(name, in: originalScope); return
+                    }
+                    attempt.photoNames.append(name)
+                }
+                catch { if store.scope == originalScope { self.error = error.localizedDescription } }
             }
         }
         .fullScreenCover(isPresented: $showsCamera) {
@@ -730,72 +814,92 @@ struct HomeQuickLogScreen: View {
         }
     }
     @ViewBuilder private var capture: some View {
-        Section {
-            TextField("Creation name", text: $attempt.name).accessibilityIdentifier("home.log.name")
-            HStack {
+        HomeEditorSection("Your creation", symbol: "cup.and.saucer") {
+            HomeEditorField("Creation name", text: $attempt.name, placeholder: "What did you make?", identifier: "home.log.name")
+            HStack(spacing: 16) {
                 Button("Take photo", systemImage: "camera") { showsCamera = true }
-                Spacer()
-                PhotosPicker(selection: $photo, matching: .images) {
-                    Label("Choose photo", systemImage: "photo.on.rectangle")
-                }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                PhotosPicker(selection: $photo, matching: .images) { Label("Choose photo", systemImage: "photo.on.rectangle") }
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
             ForEach(attempt.photoNames, id: \.self) { name in
                 if let image = store.photo(name) {
-                    Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 120)
-                    Button("Remove photo", role: .destructive) { attempt.photoNames.removeAll { $0 == name } }
-                }
-            }
-        }
-        Section("Use a recipe") {
-            TextField("Search your recipes", text: $query)
-            if let reference = attempt.recipe,
-               let content = store.workspace.version(reference)?.content ?? attempt.targets ?? attempt.preparation {
-                HomeRecipeRow(content: content)
-                if store.workspace.version(reference) == nil {
-                    Label("Saved from another creator · exact version attached", systemImage: "person.2")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                Button("Remove recipe") { attempt.recipe = nil; attempt.targets = nil; attempt.preparation = nil }
-                if let note = store.workspace.recipes.first(where: { $0.id == reference.recipeID })?.nextTimeNote, !note.isEmpty {
-                    Label(note, systemImage: "lightbulb").font(.callout)
-                }
-            } else {
-                ForEach(store.workspace.recipes.filter { !$0.isArchived && (query.isEmpty || $0.current?.content.searchText.contains(query.lowercased()) == true) }.prefix(6)) { recipe in
-                    if let version = recipe.current {
-                        Button(version.content.name) {
-                            requestSelection(recipe)
-                        }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(uiImage: image).resizable().scaledToFit().frame(maxHeight: 240)
+                            .frame(maxWidth: .infinity).clipShape(RoundedRectangle(cornerRadius: 16))
+                        Button("Remove photo", role: .destructive) { attempt.photoNames.removeAll { $0 == name } }
+                            .frame(minHeight: 44)
                     }
                 }
             }
         }
-        Section {
+        HomeEditorSection(isEditing ? "Recipe context" : "A recipe, if you like", symbol: "book.pages") {
+            if isEditing {
+                if let content = attempt.recipe.flatMap({ store.workspace.version($0)?.content }) ?? attempt.targets ?? attempt.preparation {
+                    HomeRecipeRow(content: content)
+                }
+                Text("This sip keeps its original recipe and preparation. Your saved recipes stay unchanged.")
+                    .font(.caption).foregroundStyle(Color.secondaryText)
+            } else {
+                HomeEditorField("Search your recipes", text: $query, placeholder: "Find a favorite")
+                if let reference = attempt.recipe,
+                   let content = store.workspace.version(reference)?.content ?? attempt.targets ?? attempt.preparation {
+                    HomeRecipeRow(content: content)
+                    if store.workspace.version(reference) == nil {
+                        Label("Saved from another creator · exact version attached", systemImage: "person.2")
+                            .font(.caption).foregroundStyle(Color.secondaryText)
+                    }
+                    Button("Remove recipe", role: .destructive) { attempt.recipe = nil; attempt.targets = nil; attempt.preparation = nil }
+                        .frame(minHeight: 44)
+                    if let note = store.workspace.recipes.first(where: { $0.id == reference.recipeID })?.nextTimeNote, !note.isEmpty {
+                        Label(note, systemImage: "lightbulb").font(.callout)
+                    }
+                } else {
+                    ForEach(store.workspace.recipes.filter { !$0.isArchived && (query.isEmpty || $0.current?.content.searchText.contains(query.lowercased()) == true) }.prefix(6)) { recipe in
+                        if let version = recipe.current {
+                            Button { requestSelection(recipe) } label: {
+                                HStack {
+                                    Text(version.content.name).font(.subheadline.weight(.semibold))
+                                    Spacer()
+                                    Image(systemName: "plus.circle").foregroundStyle(Color.mugshotSageText)
+                                }.frame(minHeight: 44)
+                            }
+                        }
+                    }
+                    if store.workspace.recipes.isEmpty {
+                        Text("You can keep this sip without a saved recipe.").font(.caption).foregroundStyle(Color.secondaryText)
+                    }
+                }
+            }
+        }
+        HomeEditorSection("Make it repeatable", symbol: "slider.horizontal.3", detail: "Everything here is optional. Unmeasured details stay unknown.") {
             if attempt.batchSourceAttemptID != nil {
                 HomeNumberField(title: "Serving amount (ml)", value: $attempt.actuals.servingMilliliters)
-                TextField("Serving dilution", text: $attempt.actuals.dilution)
+                HomeEditorField("Serving dilution", text: $attempt.actuals.dilution, placeholder: "Optional")
             }
-            DisclosureGroup("Preparation details (optional)", isExpanded: $details) {
-                HomeActualsEditor(actuals: $attempt.actuals, method: attempt.preparation?.method, template: attempt.preparation?.template)
+            DisclosureGroup("Preparation details", isExpanded: $details) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HomeActualsEditor(actuals: $attempt.actuals, method: attempt.preparation?.method, template: attempt.preparation?.template)
+                }.padding(.top, 12)
             }
-            if attempt.preparation != nil {
+            if !isEditing, attempt.preparation != nil {
                 DisclosureGroup("Change this make’s recipe", isExpanded: $editTargets) {
-                    if attempt.preparation?.template == .coffee {
-                        if attempt.preparation?.metricConfiguration != nil {
-                            HomeConfiguredTargetsEditor(content: Binding(get: { attempt.preparation ?? HomeRecipeContent() }, set: { attempt.preparation = $0 }))
-                        } else {
-                            HomeTargetsEditor(targets: Binding(get: { attempt.preparation?.targets ?? HomeRecipeTargets() }, set: { attempt.preparation?.targets = $0 }),
-                                method: attempt.preparation?.method ?? .other, advanced: $advanced)
+                    VStack(alignment: .leading, spacing: 14) {
+                        if attempt.preparation?.template == .coffee {
+                            if attempt.preparation?.metricConfiguration != nil {
+                                HomeConfiguredTargetsEditor(content: Binding(get: { attempt.preparation ?? HomeRecipeContent() }, set: { attempt.preparation = $0 }))
+                            } else {
+                                HomeTargetsEditor(targets: Binding(get: { attempt.preparation?.targets ?? HomeRecipeTargets() }, set: { attempt.preparation?.targets = $0 }),
+                                    method: attempt.preparation?.method ?? .other, advanced: $advanced)
+                            }
                         }
-                    }
-                    ForEach(attempt.preparation?.ingredients.indices.map { $0 } ?? [], id: \.self) { index in
-                        HomeNumberField(title: attempt.preparation?.ingredients[index].name ?? "Ingredient", value: Binding(
-                            get: { attempt.preparation?.ingredients[index].amount }, set: { attempt.preparation?.ingredients[index].amount = $0 }))
-                    }
+                        ForEach(attempt.preparation?.ingredients.indices.map { $0 } ?? [], id: \.self) { index in
+                            HomeNumberField(title: attempt.preparation?.ingredients[index].name ?? "Ingredient", value: Binding(
+                                get: { attempt.preparation?.ingredients[index].amount }, set: { attempt.preparation?.ingredients[index].amount = $0 }))
+                        }
+                    }.padding(.top, 12)
                 }
             }
-            Button("How was it?") { reflecting = true }
-                .buttonStyle(.borderedProminent).tint(.mugshotSage)
-                .disabled(attempt.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -818,57 +922,92 @@ struct HomeQuickLogScreen: View {
 
     private func discard() {
         autosaveTask?.cancel()
-        didDiscard = true
-        if store.scope == originalScope { onDiscard() }
-        else { onKeep() }
+        guard store.scope == originalScope else { onKeep(); return }
+        do { try onDiscard(); didDiscard = true }
+        catch { self.error = error.localizedDescription }
     }
     @ViewBuilder private var reflection: some View {
-        Section {
-            Text(attempt.name).font(.headline)
-            Toggle("Add a rating", isOn: Binding(get: { attempt.rating != nil }, set: { attempt.rating = $0 ? 3 : nil }))
+        HomeEditorSection(attempt.name, symbol: "star") {
+            Toggle("Add a rating", isOn: Binding(get: { attempt.rating != nil }, set: { setRating($0 ? 3 : nil) }))
+                .frame(minHeight: 44)
             if attempt.rating != nil {
-                Slider(value: Binding(get: { attempt.rating ?? 3 }, set: { attempt.rating = $0 }), in: 0.5...5, step: 0.5)
-                    .accessibilityLabel("Rating")
-                Text("\(HomeRecipeContent.number(attempt.rating ?? 0)) / 5")
+                HStack {
+                    Slider(value: Binding(get: { attempt.rating ?? 3 }, set: { setRating($0) }), in: 0.5...5, step: 0.5)
+                        .accessibilityLabel("Rating")
+                    Text("\(HomeRecipeContent.number(attempt.rating ?? 0)) / 5").font(.headline)
+                        .monospacedDigit().foregroundStyle(Color.mugshotSageText)
+                }
             }
             Picker("Reaction", selection: $attempt.reaction) {
                 Text("Rate later").tag("")
                 ForEach(["Loved it", "Good", "Needs a tweak"], id: \.self) { Text($0).tag($0) }
-            }
-            TextField("Private note", text: $attempt.privateNote, axis: .vertical)
+            }.frame(minHeight: 44)
+            HomeEditorField("Private note", text: $attempt.privateNote, placeholder: "For your own memory", axis: .vertical)
+        }
+        HomeEditorSection("For the next cup", symbol: "arrow.clockwise") {
             Picker("Make again?", selection: $attempt.makeAgain) {
                 Text("Not decided").tag(nil as HomeMakeAgain?)
                 ForEach(HomeMakeAgain.allCases) { Text($0.title).tag($0 as HomeMakeAgain?) }
-            }
-            TextField("For next time", text: $attempt.nextTimeNote, axis: .vertical)
+            }.frame(minHeight: 44)
+            HomeEditorField("For next time", text: $attempt.nextTimeNote, placeholder: "Something to keep or change", axis: .vertical)
         }
-        if attempt.recipe != nil, attempt.preparation != attempt.targets {
-            Section {
+        if !isEditing, attempt.recipe != nil, attempt.preparation != attempt.targets {
+            HomeEditorSection("Keep this change", symbol: "book.pages") {
                 Picker("Save changes", selection: $updateRecipe) {
                     Text("Just this time").tag(false)
                     Text("Update my recipe").tag(true)
-                }
+                }.frame(minHeight: 44)
             }
         }
-        Section {
-            Button("Save to journal") {
-                do {
-                    guard store.scope == originalScope else {
-                        throw HomeRecipeWorkspaceError.invalid("Your account changed. This make was not moved to another account.")
-                    }
-                    try store.saveAttempt(attempt, updateRecipe: updateRecipe)
-                    didSave = true
-                    MugshotAnalytics.shared.capture(.homeRecipe(.logSaved, hasRecipe: attempt.recipe != nil,
-                        durationSeconds: Int(Date.now.timeIntervalSince(openedAt ?? .now))))
-                    onSaved(attempt.id)
-                } catch {
-                    self.error = error.localizedDescription
-                    MugshotAnalytics.shared.capture(.homeRecipe(.saveFailed, hasRecipe: attempt.recipe != nil, durationSeconds: 0))
-                }
-            }.buttonStyle(.borderedProminent).tint(.mugshotSage).accessibilityIdentifier("home.log.save")
-            Button("Edit preparation") { reflecting = false }
+    }
+
+    private var makeActionBar: some View {
+        VStack(spacing: 8) {
+            if let error {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.footnote).foregroundStyle(Color.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Button(reflecting ? (isEditing ? "Save changes" : "Save to journal") : "How was it?") {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                if reflecting { saveMake() } else { reflecting = true }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(attempt.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.scope != originalScope || didSave)
+            .accessibilityIdentifier(reflecting ? "home.log.save" : "home.log.reflect")
+            if reflecting { Button(isEditing ? "Edit sip details" : "Edit preparation") { reflecting = false }.frame(minHeight: 44) }
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10).background(Color.creamWhite)
+    }
+
+    private var isEditing: Bool { attempt.editingAttemptID != nil }
+
+    private func setRating(_ value: Double?) {
+        if isEditing, value != attempt.resolvedRating {
+            attempt.ratingCriteria = []
+            attempt.manualRating = nil
+        }
+        attempt.rating = value
+    }
+
+    private func saveMake() {
+        guard !didSave else { return }
+        autosaveTask?.cancel()
+        do {
+            guard store.scope == originalScope else {
+                throw HomeRecipeWorkspaceError.invalid("Your account changed. This make was not moved to another account.")
+            }
+            try store.saveAttempt(attempt, updateRecipe: !isEditing && updateRecipe)
+            didSave = true
+            MugshotAnalytics.shared.capture(.homeRecipe(.logSaved, hasRecipe: attempt.recipe != nil,
+                durationSeconds: Int(Date.now.timeIntervalSince(openedAt ?? .now))))
+            onSaved(attempt.editingAttemptID ?? attempt.id)
+        } catch {
+            self.error = error.localizedDescription
+            MugshotAnalytics.shared.capture(.homeRecipe(.saveFailed, hasRecipe: attempt.recipe != nil, durationSeconds: 0))
         }
     }
+
 }
 
 struct HomeActualsEditor: View {
@@ -886,14 +1025,14 @@ struct HomeActualsEditor: View {
                 value: $actuals.output
             )
             HomeNumberField(title: "Temperature (°C)", value: $actuals.temperature)
-            if method != .pod { TextField("Grinder setting", text: $actuals.grind) }
+            if method != .pod { HomeEditorField("Grinder setting", text: $actuals.grind, placeholder: "Optional") }
         } else {
             HomeNumberField(title: "Amount made (ml)", value: $actuals.batchMilliliters)
         }
         HomeNumberField(title: "Actual time (seconds)", value: $actuals.seconds)
         if method == .coldBrew {
             HomeNumberField(title: "Batch made (ml)", value: $actuals.batchMilliliters)
-            TextField("Serving dilution", text: $actuals.dilution)
+            HomeEditorField("Serving dilution", text: $actuals.dilution, placeholder: "Optional")
         }
     }
 }

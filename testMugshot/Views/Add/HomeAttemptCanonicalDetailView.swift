@@ -10,6 +10,8 @@ struct HomeAttemptCanonicalDetailView: View {
     let onDone: () -> Void
     var onHistory: (() -> Void)? = nil
     var onLogServing: (() -> Void)? = nil
+    var onChangeNextBrew: ((HomeBrewPlanChange) -> Void)? = nil
+    @State private var originalScope: LocalAccountScope
 
     @EnvironmentObject private var authModel: AppAuthModel
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
@@ -19,15 +21,47 @@ struct HomeAttemptCanonicalDetailView: View {
     @State private var viewer: SipDetailPhotoViewerPresentation?
     @State private var showsActions = false
     @State private var assistance: CoffeeAssistancePresentation?
+    @State private var editingDraft: HomeAttemptRecord?
+    @State private var confirmsDelete = false
+    @State private var isDeleting = false
+    @State private var deletionError: String?
+    @State private var showsRepeatPlan = false
     @FocusState private var commentFocused: Bool
 
+    init(attemptID: UUID, receipt: MugshotSaveReceipt? = nil,
+         onShare: @escaping () -> Void, onMakeAgain: @escaping () -> Void, onDone: @escaping () -> Void,
+         onHistory: (() -> Void)? = nil, onLogServing: (() -> Void)? = nil,
+         onChangeNextBrew: ((HomeBrewPlanChange) -> Void)? = nil) {
+        self.attemptID = attemptID; self.receipt = receipt
+        self.onShare = onShare; self.onMakeAgain = onMakeAgain; self.onDone = onDone
+        self.onHistory = onHistory; self.onLogServing = onLogServing
+        self.onChangeNextBrew = onChangeNextBrew
+        _originalScope = State(initialValue: HomeRecipeWorkspaceStore.shared.scope)
+    }
+
+    private var isCurrentOwner: Bool {
+        store.scope == originalScope && originalScope == .forUserID(authModel.authenticatedUser?.id)
+    }
     private var attempt: HomeAttemptRecord? {
-        store.workspace.attempts.first { $0.id == attemptID }
+        guard isCurrentOwner else { return nil }
+        return store.workspace.attempts.first { $0.id == attemptID }
+    }
+
+    private func comparison(for attempt: HomeAttemptRecord) -> HomeAttemptComparison {
+        HomeAttemptComparison(attempt, history: store.workspace.attempts,
+                           resolveLinked: { store.workspace.version($0)?.content })
+    }
+
+    private func repeatPlan(_ comparison: HomeAttemptComparison) {
+        guard isCurrentOwner, !isDeleting else { return }
+        if onChangeNextBrew != nil && !comparison.changes.isEmpty { showsRepeatPlan = true }
+        else { onMakeAgain() }
     }
 
     var body: some View {
         Group {
             if let attempt {
+                let brew = comparison(for: attempt)
                 let presentation = SipDetailPresentationAdapter.homeAttempt(
                     attempt,
                     authorName: authModel.profile?.displayName ?? "You",
@@ -40,7 +74,7 @@ struct HomeAttemptCanonicalDetailView: View {
                     commentText: $comment,
                     toolbarProgress: $toolbarProgress,
                     commentFocus: $commentFocused,
-                    isWorking: false,
+                    isWorking: isDeleting,
                     statusMessage: store.errorMessage
                         ?? (!attempt.pendingKeptIngredientIDs.isEmpty
                             ? "Sip saved · Recipe change pending"
@@ -48,9 +82,10 @@ struct HomeAttemptCanonicalDetailView: View {
                     mentionSuggestions: [],
                     composerMentionTokens: [],
                     onAction: { action in
+                        guard isCurrentOwner, !isDeleting else { return }
                         switch action {
                         case .share: onShare()
-                        case .repeatSip: onMakeAgain()
+                        case .repeatSip: repeatPlan(brew)
                         case .more: showsActions = true
                         default: break
                         }
@@ -61,18 +96,22 @@ struct HomeAttemptCanonicalDetailView: View {
                     onCancelReply: {},
                     onSelectMention: { _ in },
                     onPhotoTap: { index in
-                        guard presentation.content.photos.indices.contains(index) else { return }
+                        guard isCurrentOwner, presentation.content.photos.indices.contains(index) else { return }
                         viewer = SipDetailPhotoViewerPresentation(
                             photos: presentation.content.photos,
                             initialIndex: index,
                             drinkName: presentation.content.drinkName,
-                            locationName: "Home"
+                            locationName: attempt.journalLocationName
                         )
                     },
                     onRecipeAction: { _ in },
                     onTaggedAccount: { _ in },
                     onCommentMention: { _ in },
-                    onRemoveOwnTag: {}
+                    onRemoveOwnTag: {},
+                    privateHomeBrewReview: HomeBrewReviewPresentation(
+                        comparison: brew, versionNumber: attempt.recipe.flatMap { store.workspace.version($0)?.number },
+                        onMakeAgain: { repeatPlan(brew) }
+                    )
                 )
                 .safeAreaInset(edge: .top, spacing: 0) {
                     if let receipt {
@@ -89,12 +128,17 @@ struct HomeAttemptCanonicalDetailView: View {
                     }
                 }
                 .confirmationDialog("Your Home sip", isPresented: $showsActions) {
-                    Button("Make again", action: onMakeAgain)
+                    if isCurrentOwner {
+                        Button("Edit sip") { beginEditing(attempt) }
+                            .disabled(attempt.publicationStatus == .posting)
+                            .accessibilityIdentifier("home.sip.edit")
+                    }
+                    Button("Make again") { repeatPlan(brew) }
                     if let ownerID = store.scope.userID, ownerID == authModel.authenticatedUser?.id {
                         Button("Explore a next experiment") {
                             assistance = CoffeeAssistancePresentation(ownerID: ownerID, task: .brewExperiment,
-                                query: "Offer one optional next experiment from this saved attempt and its recorded feedback. Unknown actuals stay unknown.",
-                                evidence: [CoffeeAssistanceContext.attempt(attempt, includePrivateNotes: true)],
+                                query: "Explain one recorded difference or offer one small trial. Use only recorded values and feedback. Plans are not actuals; leave unknowns unknown. Never infer espresso extraction from a flavored drink alone.",
+                                evidence: brew.assistanceEvidence(for: attempt),
                                 image: nil, allowsPhoto: false)
                         }
                     }
@@ -115,6 +159,10 @@ struct HomeAttemptCanonicalDetailView: View {
                     }
                     Button("Share", action: onShare)
                     if let onHistory { Button("History", action: onHistory) }
+                    if isCurrentOwner {
+                        Button("Delete sip", role: .destructive) { deletionError = nil; confirmsDelete = true }
+                            .accessibilityIdentifier("home.sip.delete")
+                    }
                     Button("Done", action: onDone)
                 }
             } else {
@@ -123,8 +171,77 @@ struct HomeAttemptCanonicalDetailView: View {
         }
         .background(Color.creamWhite)
         .fullScreenCover(item: $viewer) { SipDetailPhotoViewer(presentation: $0) }
+        .sheet(item: $editingDraft) { draft in
+            NavigationStack {
+                HomeQuickLogScreen(store: store, initial: draft, onSaved: { _ in
+                    editingDraft = nil
+                }, onDiscard: {
+                    guard isCurrentOwner else { throw HomeRecipeWorkspaceError.invalid("Your account changed. This draft was left in its original account.") }
+                    try store.discardAttemptDraft(id: draft.id, expectedScope: originalScope)
+                    editingDraft = nil
+                }, onKeep: { editingDraft = nil }, startsAtReflection: true)
+            }
+        }
         .sheet(item: $assistance) { item in
             CoffeeAssistanceReviewSheet(presentation: item)
+        }
+        .sheet(isPresented: $showsRepeatPlan) {
+            if let attempt {
+                HomeBrewRepeatSheet(choices: comparison(for: attempt).changes, onSamePlan: {
+                    showsRepeatPlan = false
+                    if isCurrentOwner { onMakeAgain() }
+                }, onChange: { change in
+                    showsRepeatPlan = false
+                    if isCurrentOwner { onChangeNextBrew?(change) }
+                })
+            }
+        }
+        .sheet(isPresented: $confirmsDelete) {
+            SipDeleteConfirmationSheet(isDeleting: isDeleting, errorMessage: deletionError,
+                message: "This removes your Home sip. Saved recipes and other servings stay. Unshared photo cleanup finishes after syncing.",
+                onDelete: deleteAttempt)
+                .presentationDetents([.medium, .large])
+                .interactiveDismissDisabled(isDeleting)
+        }
+        .onChange(of: store.scope) { _, scope in
+            if scope != originalScope { editingDraft = nil; viewer = nil; assistance = nil; confirmsDelete = false; showsRepeatPlan = false }
+        }
+        .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+            if !isCurrentOwner { editingDraft = nil; viewer = nil; assistance = nil; confirmsDelete = false; showsRepeatPlan = false; onDone() }
+        }
+    }
+
+    private func beginEditing(_ source: HomeAttemptRecord) {
+        guard isCurrentOwner, !isDeleting,
+              let current = store.workspace.attempts.first(where: { $0.id == source.id }),
+              current.publicationStatus != .posting else { return }
+        if let existing = store.workspace.attemptDrafts.first(where: { $0.editingAttemptID == current.id }) {
+            editingDraft = existing
+            return
+        }
+        var draft = current
+        draft.id = UUID()
+        draft.editingAttemptID = current.id
+        draft.savedAt = nil
+        draft.publicationDraftID = nil
+        draft.publicationStatus = nil
+        draft.resumeAtReflection = true
+        do {
+            try store.saveAttemptDraft(draft)
+            store.errorMessage = nil
+            editingDraft = draft
+        } catch { store.errorMessage = "This sip could not be opened for editing. Your saved entry is safe. \(error.localizedDescription)" }
+    }
+
+    private func deleteAttempt() {
+        guard isCurrentOwner, !isDeleting else { return }
+        isDeleting = true
+        do {
+            try store.deleteAttempt(id: attemptID, expectedScope: originalScope)
+            confirmsDelete = false; isDeleting = false; onDone()
+            Task { if store.scope == originalScope { await store.synchronize() } }
+        } catch {
+            deletionError = error.localizedDescription; isDeleting = false
         }
     }
 }

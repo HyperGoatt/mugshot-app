@@ -3,9 +3,9 @@ import XCTest
 final class LogASipV3CentralHomeUITests: XCTestCase {
     private enum Identifier {
         static let homeContext = "logASipV3.context.home"
-        static let homeQuickLog = "logASipV3.home.quickLog"
+        static let homeQuickLog = "logASipV3.primaryAction"
         static let homeChooseRecipe = "logASipV3.home.chooseRecipe"
-        static let homeChooseMethod = "logASipV3.home.chooseMethod"
+        static let homeChooseMethod = "logASipV4.home.starter.other"
         static let homeProgress = "logASipV3.home.progress"
         static let addPhotos = "logASipV3.photos.add"
         static let missedPhoto = "logASipV3.photoFallback.missed"
@@ -48,13 +48,87 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         homeContext.tap()
 
         XCTAssertTrue(app.staticTexts["Log a Sip"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["What are you making?"].exists)
+        XCTAssertTrue(app.staticTexts["Make or log a sip"].exists)
         XCTAssertTrue(element(Identifier.homeChooseRecipe, in: app).exists)
         XCTAssertTrue(element(Identifier.homeChooseMethod, in: app).exists)
         XCTAssertTrue(element(Identifier.homeQuickLog, in: app).exists)
         XCTAssertFalse(app.navigationBars["What did you make?"].exists)
         XCTAssertFalse(app.staticTexts["Home is under construction"].exists)
         attachScreenshot(named: "01-central-add-home-setup-first", app: app)
+    }
+
+    @MainActor
+    func testSetupKeepsHeaderAndPillsFixedAsContextsAndScrollChange() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out", "--ui-testing-reduce-motion"]
+        app.launch()
+        let add = app.buttons["mugshot.tab.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        let title = app.staticTexts["Log a Sip"]
+        let autosave = app.staticTexts["Drafts save automatically"]
+        let pills = ["cafe", "home", "elsewhere"].map { element("logASipV3.context.\($0)", in: app) }
+        XCTAssertTrue(pills[0].waitForExistence(timeout: 3))
+        let chrome = [title, autosave] + pills
+        let frames = chrome.map(\.frame)
+        for frame in frames { XCTAssertFalse(frame.isEmpty) }
+
+        for (index, panel) in [
+            (1, app.staticTexts["Make or log a sip"]),
+            (2, element(Identifier.locationName, in: app)),
+            (0, element(Identifier.cafeSelector, in: app))
+        ] {
+            pills[index].tap()
+            XCTAssertTrue(panel.waitForExistence(timeout: 3))
+            XCTAssertTrue(pills[index].isSelected)
+            for (control, frame) in zip(chrome, frames) {
+                XCTAssertEqual(control.frame.minX, frame.minX, accuracy: 1, control.label)
+                XCTAssertEqual(control.frame.minY, frame.minY, accuracy: 1, control.label)
+            }
+        }
+
+        app.scrollViews["logASipV3.scroll"].swipeUp()
+        XCTAssertTrue(pills.allSatisfy(\.isHittable))
+        XCTAssertEqual(title.frame.minY, frames[0].minY, accuracy: 1)
+        app.buttons["Close Log a Sip"].tap()
+        add.tap()
+        XCTAssertFalse(element("logASipV3.resumeDraft", in: app).exists, "Context selection alone must not create a draft.")
+    }
+
+    @MainActor
+    func testElsewhereSettingAloneAutosavesAcrossRelaunch() throws {
+        let app = XCUIApplication()
+        let launchArguments = ["--ui-testing", "--ui-testing-signed-out", "--ui-testing-reduce-motion"]
+        app.launchArguments = launchArguments + ["--ui-testing-reset"]
+        app.launch()
+        let add = app.buttons["mugshot.tab.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        let elsewhere = element("logASipV3.context.elsewhere", in: app)
+        XCTAssertTrue(elsewhere.waitForExistence(timeout: 3))
+        elsewhere.tap()
+        type("Sunday market", into: Identifier.locationName, in: app)
+        dismissKeyboardIfNeeded(in: app)
+
+        // Stop without using Close, which also writes a draft.
+        app.terminate()
+        app.launchArguments = launchArguments
+        app.launch()
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        let resume = element("logASipV3.resumeDraft", in: app)
+        XCTAssertTrue(resume.waitForExistence(timeout: 3), "An entered setting must be enough for autosave.")
+        resume.tap()
+        let draft = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "home.drafts.resume.sip-"))
+        XCTAssertTrue(draft.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertEqual(draft.count, 1)
+        XCTAssertEqual(draft.firstMatch.label, "Resume Sunday market")
+        draft.firstMatch.tap()
+        let setting = element(Identifier.locationName, in: app)
+        XCTAssertTrue(setting.waitForExistence(timeout: 3))
+        XCTAssertEqual(setting.value as? String, "Sunday market")
+        XCTAssertTrue(elsewhere.isSelected)
     }
 
     @MainActor
@@ -91,7 +165,12 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         // Rating, criteria, note, make-again intent, and photo are all optional.
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Save to journal"].exists)
+        XCTAssertTrue(app.staticTexts["Save to Journal · Private"].exists)
+        XCTAssertTrue(element("home.review.audiencePreview", in: app).exists)
+        app.buttons["Previous step"].tap()
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
+        tapPrimaryAction(in: app)
+        XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Not rated"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Afternoon matcha"].exists)
@@ -112,27 +191,59 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         let latte = element("logASipV4.home.starter.complete_drink", in: app)
         XCTAssertTrue(latte.waitForExistence(timeout: 4))
         latte.tap()
-        XCTAssertTrue(app.staticTexts["What makes this drink"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Espresso"].exists)
-        XCTAssertTrue(app.staticTexts["Milk"].exists)
-        tapPrimaryAction(in: app)
+        XCTAssertTrue(element("home.setup.appliedInputs", in: app).waitForExistence(timeout: 3))
+        XCTAssertEqual(element("home.setup.ingredientsPreview", in: app).value as? String, "Espresso · Milk")
+        XCTAssertTrue(app.buttons["home.setup.changeForThisBrew"].exists)
+        app.buttons["home.makeWithGuidance"].tap()
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["36 g"].exists)
-        tapPrimaryAction(in: app)
+        for _ in 0..<8 where !app.staticTexts["Capture your sip"].exists { tapPrimaryAction(in: app) }
+        XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
+        let measurements = app.buttons["home.capture.measurements"]
+        XCTAssertTrue(measurements.waitForExistence(timeout: 3))
+        tapAboveComposerFooter(measurements, in: app)
         XCTAssertTrue(app.staticTexts["How did it go?"].waitForExistence(timeout: 4))
         let confirm = app.buttons["As planned"].firstMatch
         XCTAssertTrue(confirm.exists)
         confirm.tap()
         XCTAssertTrue(app.staticTexts["✓ As planned"].exists)
-        tapPrimaryAction(in: app)
+        app.buttons["home.measurements.done"].tap()
         XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Save to journal"].exists)
+        XCTAssertTrue(app.staticTexts["Save to Journal · Private"].exists)
         tapPrimaryAction(in: app)
         XCTAssertTrue(app.staticTexts["How you made it"].waitForExistence(timeout: 4))
+        let makeAgain = app.buttons["home.brewReview.makeAgain"]
+        reveal(makeAgain, in: app)
+        XCTAssertTrue(makeAgain.isHittable)
+        XCTAssertTrue(app.staticTexts["Compare your brew"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Coffee, Plan: 18 g, Actual: 18 g")).firstMatch.exists)
+        attachScreenshot(named: "03-home-plan-and-actual", app: app)
+        makeAgain.tap()
+        let choose = app.buttons["home.repeat.chooseMeasurement"]
+        XCTAssertTrue(choose.waitForExistence(timeout: 4))
+        choose.tap()
+        app.buttons["Yield"].tap()
+        let amount = app.textFields["home.repeat.amount"]
+        reveal(amount, in: app)
+        amount.tap()
+        amount.typeText("40")
+        XCTAssertEqual(amount.value as? String, "40")
+        let done = app.buttons["home.repeat.keyboardDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 4))
+        done.tap()
+        XCTAssertEqual(amount.value as? String, "40", "Closing the keyboard must keep the final digit.")
+        let start = app.buttons["home.repeat.apply"]
+        reveal(start, in: app)
+        start.tap()
+        let guide = app.buttons["home.makeWithGuidance"]
+        XCTAssertTrue(guide.waitForExistence(timeout: 4))
+        guide.tap()
+        XCTAssertTrue(app.staticTexts["40 g"].waitForExistence(timeout: 4))
     }
 
     @MainActor
@@ -192,6 +303,15 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         let primaryAction = element(Identifier.primaryAction, in: app)
         reveal(primaryAction, in: app)
         XCTAssertTrue(primaryAction.isEnabled)
+
+        let home = element(Identifier.homeContext, in: app)
+        home.tap()
+        XCTAssertTrue(home.isSelected)
+        element("logASipV3.context.elsewhere", in: app).tap()
+        XCTAssertTrue(element(Identifier.locationName, in: app).waitForExistence(timeout: 3))
+        XCTAssertEqual(element(Identifier.drinkName, in: app).value as? String, "Iced latte")
+        XCTAssertTrue(element("logASipV3.photos.thumbnail.0", in: app).exists)
+        XCTAssertFalse(cafeSelector.exists, "The cafe picker and selection belong to the cafe context.")
     }
 
     @MainActor

@@ -1,8 +1,124 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-09
 ---
+
+## Home library and repeat brew data boundaries — November 9 candidate
+
+Browse options are presentation state in the current owner scope. Starter
+plans, ingredient quantities and a one-brew change copy into local drafts;
+recipe and component versions remain immutable. No new workspace JSON field,
+Supabase contract or public comparison payload is introduced. Comparison
+reads completed, compatible measurements from the current owner workspace.
+Missing actuals are never replaced by targets. Optional Luna review selects
+bounded facts from the saved sip and comparable readings.
+
+## Shared setup and early draft persistence — November 9 candidate
+
+A nonblank Elsewhere setting is meaningful local draft content before a name,
+photo or rating. Setup navigation and automatic Home labels still do not
+create drafts. Autosave and resume use the existing draft ID, owner scope and
+local photo files. The selector does not unlock a protected submission. No
+new backend write, inventory requirement or AI call is part of switching.
+
+## Home control ownership and deletion — November 5 candidate
+
+Private Home records now freeze optional location nicknames and coffee-bag IDs;
+profile IDs and private gear inventories are not public post fields. Shared
+Journal presentation deduplicates canonical posts. Edit drafts have a distinct ID
+and optional original-attempt ID; Save changes replaces the saved private copy
+while retaining its ID/date, recipe snapshots and publication identity.
+
+Account-scoped deletion markers travel with workspace JSON and are unioned before
+conflict recovery. A new additive trigger retains them across older-client saves,
+normalizes UUID case, removes only matching records, and prevents deleting a live
+canonical post through private workspace JSON. Draft discard cannot erase another
+device's saved make. Confirmed server post deletion writes only an original-owner
+identifier receipt; failure does not hide the private sip. Private photos are
+removed through Storage only after metadata acknowledgment and only while
+unreferenced, with durable retry receipts. Protected outbox/read failures block
+ordinary deletion. Guest adoption preserves deletion intent and rebinds validated
+Home profiles before removing verified source data.
+
+Source and deletion guard are implemented and verified: 106 native tests, 18
+selected Simulator paths and 68 hosted contracts plus real Auth/Storage probes.
+The additive migration is live at 20261105183000; all 75 protected fingerprints
+are unchanged and the paid QA branch is deleted. The development app is installed
+with all 40 local files preserved through install; physical acceptance passes 106
+native cases, 18 fixture screen paths and the separate owner read-only check.
+The complete owner workspace/content remain unchanged; only shelf updatedAt refreshes.
+[Behavior and current gates](HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate).
+
+## Draft recipe replacement and confirmed post presentation — November 5
+
+Capture tracks only automatically generated ingredient/step/name/method fields.
+Luna replaces untouched generated sections; edited/deleted source identities stay
+protected, and missing sections retain their native fallback. The selected recipe
+name/use and attribution fit the existing bounded evidence contract. Saved workspace
+versions, linked drinks and published instructions are never silently cleaned.
+The production change replaces only `coffee-assistance/provider.ts`; no schema,
+auth, ownership, quota, analytics or sharing contract changes. Original whole-row
+hashes/counts across 75 protected tables are unchanged, and the paid QA is deleted.
+
+The post-result policy requires a confirmed receipt, completed save and active
+matching owner. One cover hosts celebration, share preview and existing detail
+routing. Share preparation is deferred until chosen; late link work is fenced by
+visit/account/cancellation. Private receipts remain private. The signed native
+candidate preserves owner files through install and leaves the saved PSL unchanged.
+[Exact verification and data-preservation evidence](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
+## Recipe composition uses existing ownership — November 4 follow-up
+
+Recipe use is a presentation choice over existing templates. New drink recipes
+store exact saved-version references and their own optional ingredient amounts.
+No source recipe is copied, retagged, resized or edited by adding it to a drink.
+The existing workspace validates available references, cycles, numeric inputs,
+attribution and immutable-version conflicts. Builder draft work remains in the
+originating account; source inspection preserves it. Final Save remains explicit.
+No new Supabase contract, provider call, analytics payload or recursive sharing
+behavior is introduced. [Design and acceptance](design/home-recipe-composer-2026-11-04/README.md).
+Debug UI fixtures now use a dedicated resettable Home workspace. Ordinary owner
+storage and the explicitly promoted read-only phone run retain their existing
+paths; resetting a fixture never targets that owner workspace.
+
+November 5 physical verification confirms the boundary: all 43 original
+Application Support files match after the isolated run and owner installation.
+After the owner read-only journey, the entire recipe workspace is byte-identical;
+all shelf content is unchanged apart from `updatedAt`. Two local battery-metric
+files rotate during normal launch. No synthetic record is saved in the owner app.
+[Exact preservation and hardware receipts](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
+
+## Native recipe-source reading — November 4 follow-up
+
+Selected public social captions are read through an unauthenticated ephemeral
+session with allowlisted hosts, revalidated redirects and body/time bounds.
+Selected screenshots/video frames can be read with Apple Vision; optional speech
+recognition requires on-device support and sends no raw audio to OpenAI. Clips
+stay in private temporary files and are removed when the capture closes. Only
+the user-saved editable recipe/source/credit persist in the existing workspace.
+Luna uses the unchanged authenticated bounded text/image contract. No source URL
+becomes an unrestricted server-side fetch, and no webpage script is executed.
+[Current verification and hardware boundary](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
+## Home library ownership and Luna permission — 2026-11-04 candidate
+
+The standalone library reuses existing bags/gear and the versioned recipe workspace;
+no sip is created when managing it. Device-local defaults are stored in the typed
+account/guest shelf JSON, included in its existing owner export and erased with
+that scope. Sync binds the originating bearer, serializes account writes, retains
+newer local edits, skips unchanged rows and cancels before account erasure.
+
+Luna enablement is a separate versioned per-account UserDefaults choice, never
+copied from guest/other accounts, revoked in Home preferences and cleared on owner
+erasure. Revocation invalidates active UI work/cache. After enablement, selecting
+a bag photo or invoking a contextual tool starts the bounded request directly;
+recipe copying permission and private-note inclusion remain explicit. Results
+update editable capture fields or reviewed suggestions, never save/publish or
+change ratings/audiences automatically. Server authorization, input limits,
+quota reservation and model remain unchanged.
+[Current evidence](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md) supersedes the
+initial per-request checkbox interaction described below.
 
 ## Luna live path and preserved data — 2026-11-04
 

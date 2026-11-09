@@ -665,6 +665,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/testMugshot.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/testMugshot";
+				"TEST_HOST[sdk=iphoneos*]" = "$(BUILT_PRODUCTS_DIR)/MugshotDiagnostics.app/MugshotDiagnostics";
 			};
 			name = Debug;
 		};

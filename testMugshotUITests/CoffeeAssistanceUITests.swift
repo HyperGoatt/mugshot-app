@@ -14,21 +14,14 @@ final class CoffeeAssistanceUITests: XCTestCase {
     }
     @MainActor
     private func allowAndAsk(_ app: XCUIApplication) {
-        let consent = app.switches["coffeeAssistance.consent"]
-        for _ in 0..<4 where !consent.isHittable { app.swipeUp() }
-        XCTAssertTrue(consent.waitForExistence(timeout: 3))
-        // A multiline native Toggle exposes the entire row as its AX frame.
-        // Tap the actual trailing switch rather than the label's midpoint.
-        consent.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
-        let enabledConsent = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "1"), object: consent)
-        XCTAssertEqual(XCTWaiter.wait(for: [enabledConsent], timeout: 3), .completed)
-        let generate = app.buttons["coffeeAssistance.generate"]
-        for _ in 0..<4 where !generate.isHittable { app.swipeUp() }
-        XCTAssertTrue(generate.isEnabled)
-        generate.tap()
+        let enable = app.buttons["coffeeAssistance.enable"]
+        for _ in 0..<4 where !enable.isHittable { app.swipeUp() }
+        XCTAssertTrue(enable.waitForExistence(timeout: 3))
+        enable.tap()
+
     }
     @MainActor
-    func testConsentStartsOffAndClosingNeverChangesOriginal() {
+    func testPermissionStartsOffAndClosingNeverChangesOriginal() {
         let app = launch()
         XCTAssertFalse(app.buttons["coffeeAssistance.generate"].isEnabled)
         app.buttons["Done"].tap()
@@ -66,7 +59,7 @@ final class CoffeeAssistanceUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["coffeeAssistance.fixture.origin"].label, "Original origin")
     }
     @MainActor
-    func testConsentAndFailureRemainReachableWithLargestTextAndReduceMotion() {
+    func testPermissionAndFailureRemainReachableWithLargestTextAndReduceMotion() {
         let app = launch(failure: true, accessible: true)
         allowAndAsk(app)
         let message = app.staticTexts["Suggestions are unavailable right now. You can continue with your original details."]

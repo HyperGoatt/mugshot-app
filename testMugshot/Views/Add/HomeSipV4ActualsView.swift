@@ -6,6 +6,7 @@ struct HomeSipV4ActualsView: View {
     @Binding var draft: SipDraft
     let content: HomeRecipeContent
     let isRecoveryLocked: Bool
+    var primaryActionID = "logASipV3.primaryAction"
     let onContinue: () -> Void
 
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
@@ -121,12 +122,12 @@ struct HomeSipV4ActualsView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 6) {
                 Button(action: onContinue) {
-                    Text("Continue to my sip")
+                    Text("Use measurements")
                         .frame(maxWidth: .infinity, minHeight: 54)
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(isRecoveryLocked)
-                .accessibilityIdentifier("logASipV3.primaryAction")
+                .accessibilityIdentifier(primaryActionID)
                 Text("You can skip anything unmeasured")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.mugshotSage)

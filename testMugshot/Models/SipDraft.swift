@@ -821,7 +821,8 @@ struct SipDraft: Identifiable, Codable, Equatable {
                 session.returnIntention != nil || session.repeatComparison != nil
         } ?? false
 
-        return cafe != nil || launchContext.preselectedCafe != nil ||
+        let hasElsewhereSetting = context == .elsewhere && locationName.remoteTrimmedNonEmpty != nil
+        return cafe != nil || launchContext.preselectedCafe != nil || hasElsewhereSetting ||
             drinkType != .coffee || customDrinkType.remoteTrimmedNonEmpty != nil ||
             drinkName.remoteTrimmedNonEmpty != nil || overallScore > 0 ||
             socialCaption.remoteTrimmedNonEmpty != nil || privateNotes.remoteTrimmedNonEmpty != nil ||

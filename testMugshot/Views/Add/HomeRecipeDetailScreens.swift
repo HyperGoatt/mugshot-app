@@ -7,20 +7,38 @@ struct HomeRecipeDetailScreen: View {
     let onLog: (HomeRecipeRecord) -> Void
     let onMake: (HomeRecipeRecord) -> Void
     let onAttempt: (UUID) -> Void
+    var onCreatedDrink: (UUID) -> Void = { _ in }
     @State private var linked: HomeLinkedRecipeSheet?
+    @State private var drinkDraft: HomeRecipeEditorDraft?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var recipe: HomeRecipeRecord? { store.workspace.recipes.first { $0.id == recipeID } }
 
     var body: some View {
         List {
             if let recipe, let version = recipe.current {
                 Section {
-                    HomeRecipeRow(content: version.content)
-                    Text("Your recipe · Version \(version.number)").font(.caption).foregroundStyle(.secondary)
-                    if version.content.isActionable {
-                        Button("Make this", systemImage: "play.fill") { onMake(recipe) }
-                            .buttonStyle(.borderedProminent).tint(.mugshotSage)
-                            .accessibilityIdentifier("home.recipe.make")
-                    } else { Button("Add preparation details") { edit(recipe, version: version) } }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label(HomeRecipeUse.suggested(for: version.content).title, systemImage: HomeRecipeUse.suggested(for: version.content).symbol)
+                            .font(.caption.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
+                        Text(version.content.name).mugshotDisplay(size: 32)
+                        Text(version.content.recipeContentsSummary)
+                            .font(.subheadline).foregroundStyle(Color.secondaryText)
+                        if HomeRecipeUse.suggested(for: version.content) == .component {
+                            useInDrink(recipe).buttonStyle(PrimaryButtonStyle())
+                            if version.content.isReadyToMake {
+                                Button("Make this add-in", systemImage: "play.fill") { onMake(recipe) }
+                                    .buttonStyle(SecondaryButtonStyle()).accessibilityIdentifier("home.recipe.make")
+                            } else { Button("Add preparation details") { edit(recipe, version: version) } }
+                        } else {
+                            if version.content.isReadyToMake {
+                                Button("Make this", systemImage: "play.fill") { onMake(recipe) }
+                                    .buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("home.recipe.make")
+                            } else { Button("Add preparation details") { edit(recipe, version: version) } }
+                            if HomeRecipeUse.suggested(for: version.content) != .drink {
+                                useInDrink(recipe).buttonStyle(SecondaryButtonStyle())
+                            }
+                        }
+                    }.padding(.vertical, 12)
                     Button("Log a make", systemImage: "plus") { onLog(recipe) }
                         .accessibilityIdentifier("home.recipe.log")
                 }
@@ -68,10 +86,24 @@ struct HomeRecipeDetailScreen: View {
         .scrollContentBackground(.hidden).background(Color.creamWhite)
         .sheet(item: $linked) { item in
             HomeLinkedRecipeDetail(store: store, reference: item.reference)
+                .environment(\.dynamicTypeSize, dynamicTypeSize)
+        }
+        .sheet(item: $drinkDraft) { draft in
+            HomeDrinkBuilderSheet(store: store, draft: draft) { id in
+                drinkDraft = nil
+                if id != recipeID { onCreatedDrink(id) }
+            }.environment(\.dynamicTypeSize, dynamicTypeSize)
         }
     }
+    private func useInDrink(_ recipe: HomeRecipeRecord) -> some View {
+        Button { drinkDraft = HomeRecipeEditorDraft(content: HomeDrinkComposition.starting(with: recipe)) } label: {
+            Label("Use in a drink", systemImage: "mug").frame(maxWidth: .infinity)
+        }.accessibilityIdentifier("home.recipe.useInDrink")
+    }
     private func edit(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion) {
-        onEdit(HomeRecipeEditorDraft(recipeID: recipe.id, baseVersionID: version.id, content: version.content))
+        let draft = HomeRecipeEditorDraft(recipeID: recipe.id, baseVersionID: version.id, content: version.content)
+        if HomeRecipeUse.suggested(for: version.content) == .drink { drinkDraft = draft }
+        else { onEdit(draft) }
     }
     private func change(_ update: (inout HomeRecipeRecord) -> Void) {
         do {
@@ -122,13 +154,19 @@ struct HomeLinkedRecipeDetail: View {
         NavigationStack {
             List {
                 if let version = store.workspace.version(reference) {
-                    HomeRecipeRow(content: version.content)
-                    Text("Version \(version.number)").font(.caption)
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label(HomeRecipeUse.suggested(for: version.content).title, systemImage: HomeRecipeUse.suggested(for: version.content).symbol)
+                                .font(.caption.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
+                            Text(version.content.name).mugshotDisplay(size: 30)
+                            Text(version.content.recipeContentsSummary).font(.subheadline).foregroundStyle(Color.secondaryText)
+                        }.padding(.vertical, 10)
+                    }
                     HomeRecipeInformation(content: version.content, onLinked: nil)
                 } else { Text("This version is unavailable. Your parent recipe is unchanged.") }
             }
-            .navigationTitle("Linked recipe")
-            .toolbar { Button("Done") { dismiss() } }
+            .navigationTitle("Recipe").navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Done") { dismiss() }.accessibilityIdentifier("home.recipe.linked.done") }
             .scrollContentBackground(.hidden).background(Color.creamWhite)
         }
     }
@@ -138,7 +176,8 @@ struct HomeRecipeInformation: View {
     let content: HomeRecipeContent
     var onLinked: ((HomeRecipeReference) -> Void)?
     var body: some View {
-        if content.template == .coffee || content.template == .preparation {
+        if (content.template == .coffee || content.template == .preparation),
+           content.method != .other || content.targets != HomeRecipeTargets() || content.coffee != nil || !content.equipment.isEmpty {
             Section("Preparation targets") {
                 Text(content.methodDisplayName)
                 if content.metricConfiguration != nil {
@@ -555,7 +594,7 @@ struct HomePreparationScreen: View {
             .confirmationDialog("Discard this preparation?", isPresented: $confirmsDiscard) {
                 Button("Keep for later", action: onKeep)
                 Button("Discard preparation", role: .destructive, action: onDiscard)
-                Button("Continue making", role: .cancel) { }
+                Button("Continue making") { confirmsDiscard = false }
             } message: {
                 Text("Discard removes this unfinished session. The saved recipe is unchanged.")
             }

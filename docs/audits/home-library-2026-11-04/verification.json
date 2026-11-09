@@ -1,0 +1,361 @@
+{
+  "date": "2026-11-04",
+  "evidenceScope": "Native Simulator tests with synthetic/local data; no new provider or production acceptance",
+  "distinctUnitPasses": 51,
+  "distinctUIPasses": 16,
+  "runs": [
+    {
+      "path": "/tmp/mugshot-home-library-coverage.xcresult",
+      "result": "Passed",
+      "passed": 51,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "/tmp/mugshot-home-library-green.xcresult",
+      "result": "Failed",
+      "passed": 52,
+      "failed": 2,
+      "skipped": 0
+    },
+    {
+      "path": "/tmp/mugshot-home-library-acceptance.xcresult",
+      "result": "Passed",
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "/tmp/mugshot-home-library-guidance.xcresult",
+      "result": "Passed",
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "/tmp/mugshot-home-library-final-ui.xcresult",
+      "result": "Passed",
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "path": "/tmp/mugshot-home-library-final-boundaries.xcresult",
+      "result": "Passed",
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "tests": {
+    "CoffeeAssistanceTests/requestAlwaysEncodesConsentAndNullImageWithBoundedUnicode()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/untrustedReferencesOrWriteFieldsNeverBecomeUsableSuggestions()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/extractionRequiresSourceEvidenceAndIsNeverAnAutomaticSave()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/cacheIsOwnerBoundShortLivedAndSensitiveToSourceChanges()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/noConsentOrChangedOwnerMeansNoTransportCall()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/successfulRequestsReuseExactEvidenceWithoutCallingAgain()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/providerFailureLeavesAnHonestFallbackAndRetryWorks()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/invalidationWhileRequestIsRunningDropsLateResult()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/accountChangesWhileRequestIsRunningDropResultAndCache()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/journalContextRequiresOwnerCompletionAndExplicitPrivateNoteInclusion()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/homeEvidenceExcludesDraftsDuplicatesPlannedTargetsAndRoasterClaims()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/homeExperimentUsesRecordedIngredientAmountsInsteadOfRecipeTargets()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/homeEvidenceRejectsAWorkspaceStillBelongingToAnotherAccount()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/recipeImportPreservesRightsAttributionAndExistingContent()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/recipeSourcePreservesUnicodeWithoutSilentlyDroppingPrintedText()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/localCandidatesPreferRememberedWordsAndQuietWeekHasVerifiedZeroCounts()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/reviewedRecipeFieldsCannotInstallUnsafeLinksOrInventMethodTargets()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/analyticsContainOnlyTaskAndOutcomeEnums()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceTests/selectedImagesLoseMetadataAndAreBoundedJPEGs()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeLibraryExperienceTests/lunaPermissionIsExplicitRememberedAndAccountScoped()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/permissionErasureDoesNotChangeAnotherAccount()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/oldShelfDecodesWithoutPreferences()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/defaultsPersistWithoutCrossingAccountOrChangingSnapshots()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/archivedOrMissingDefaultsStayUnknown()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/coffeeDefaultsDoNotBecomeTeaOrMatchaIngredients()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/autofillPreservesTypingWhileReadingAndIgnoresBlankFields()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/autofillCannotChangeInventoryOrInventInvalidRoastDate()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/failedSyncPreservesOfflineEditsAndRetryKeepsTheSameID()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/changedAccountDuringFetchCannotMergeOrWrite()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/unchangedRemoteRowsAreNotRewrittenAndForeignRowsAreExcluded()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/anEditDuringUploadWinsOverTheOlderResponse()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/erasureCancelsAReadBeforeItCanRestoreTheShelf()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/photoSyncPreservesTheLocalPhotoAndAcknowledgesThePrivatePath()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/anAccountChangeDuringPhotoUploadCannotWriteBagMetadata()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/gearSyncAcknowledgesOnceAndDoesNotRewriteUnchangedGear()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeLibraryExperienceTests/aGearEditDuringSyncSurvivesTheOlderAcknowledgement()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "HomeWorkbenchTests/coffeeMethodNormalizationAndRatioStayMethodAware()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/measurementUnitsNormalizeIntoCanonicalStorageValues()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/advancedFieldsStayMethodSpecific()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/comparisonReportsOnlyChangedEvidence()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/bagSnapshotCannotCarryInventoryPhotoOrOwnerIdentity()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/scanParserPrefersLabelsAndMarksLayoutGuesses()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/localLibraryIsAccountScopedAndKeepsImmutableRecentSetup()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/oldBrewDetailsDecodeWithoutHomeWorkbenchFields()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/homeDraftRestoresPrivateBaselineAndBagRelationship()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/homeDraftRestoresItsExactWorkbenchStage()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/creatingRecipeVersionPreservesTheSourceAndFreezesANewVersion()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/keepingRecipeLeavesTheSourceVersionUnchanged()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/homeCriterionSuggestionsFollowTheSelectedMethodWithoutAddingRatings()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/remoteMergeUsesUpdatedAtAndPreservesArchiveTombstones()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeWorkbenchTests/guestLibraryAdoptionCopiesPhotosBeforeRemovingGuestScope()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceUITests/testGeneratedSuggestionDoesNotChangeDraftUntilAccepted()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceUITests/testOnlyExplicitReviewedAcceptanceChangesEditableField()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceUITests/testPermissionAndFailureRemainReachableWithLargestTextAndReduceMotion()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceUITests/testPermissionStartsOffAndClosingNeverChangesOriginal()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "CoffeeAssistanceUITests/testProviderFailureKeepsOriginalAndCanBeDismissed()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-green.xcresult"
+    },
+    "HomeLibraryFlowUITests/testHomeQuickPathUsesSharedRatingAndReview()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-ui.xcresult"
+    },
+    "HomeLibraryFlowUITests/testSavedHasStandaloneBeansAndGear()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-ui.xcresult"
+    },
+    "JournalAndBeansUITests/testCurrentHomeSetupOffersManualAndScannedBeans()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "JournalAndBeansUITests/testJournalOpensAndReturnsWithoutTerminating()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-boundaries.xcresult"
+    },
+    "AutomaticBagScanUITests/testFailedLunaReadFallsBackToTheOnDeviceScanner()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-acceptance.xcresult"
+    },
+    "AutomaticBagScanUITests/testLunaFillsTheActualBagEditorWithoutAnImproveOrReviewStep()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-acceptance.xcresult"
+    },
+    "HomeLibraryFlowUITests/testRecipeDiscoveryCanSaveAnIdeaWithoutStartingASip()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-final-ui.xcresult"
+    },
+    "LogASipV3CentralHomeUITests/testCentralAddHomeOpensSetupFirstInsideComposer()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-guidance.xcresult"
+    },
+    "LogASipV3CentralHomeUITests/testCompactCriteriaInteractionsAndSipToCafeHandoff()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-guidance.xcresult"
+    },
+    "LogASipV3CentralHomeUITests/testHomeQuickLogSavesAnUnratedPrivateSipInTwoInputSurfaces()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-guidance.xcresult"
+    },
+    "LogASipV3CentralHomeUITests/testV4LatteGuidanceActualsAndStandardPrivateDetail()": {
+      "result": "Passed",
+      "sourceResult": "/tmp/mugshot-home-library-guidance.xcresult"
+    }
+  },
+  "focusedCoverage": {
+    "HomeLibraryPreferences.swift": {
+      "coveredLines": 29,
+      "executableLines": 35
+    },
+    "CoffeeAssistancePermissionStore.swift": {
+      "coveredLines": 19,
+      "executableLines": 19
+    },
+    "HomeLibrarySynchronizer.swift": {
+      "coveredLines": 163,
+      "executableLines": 172
+    },
+    "newThreeFileAggregate": {
+      "coveredLines": 211,
+      "executableLines": 226
+    },
+    "HomeLibraryStore.swift": {
+      "coveredLines": 282,
+      "executableLines": 363
+    }
+  },
+  "noSimulatorFast": "7/7 passed",
+  "phoneDebugBuild": "passed",
+  "documentationCheck": "passed",
+  "diffCheck": "passed",
+  "credentialExclusion": "actual key absent from change scope and signed app package",
+  "notRun": [
+    "New backend deployment",
+    "TestFlight archive or upload",
+    "Full physical scan/save and guided Home end-to-end acceptance",
+    "New production AI content probe"
+  ],
+  "emptyLegacySelector": "/tmp/mugshot-home-library-legacy-cache.xcresult selected zero tests and is excluded; final-boundaries reruns the entire 17-test class including the extended legacy-file decode case",
+  "physicalDeviceChecks": [
+    "Successful launch after owner unlock",
+    "Journal renders existing account",
+    "Physical Saved and Home library navigation",
+    "All four library sections",
+    "Manual-bag editor open/cancel without a sip or record save"
+  ]
+}

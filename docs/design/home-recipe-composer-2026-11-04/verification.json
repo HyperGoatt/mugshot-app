@@ -1,0 +1,184 @@
+{
+  "date": "2026-11-04",
+  "platform": "iPhone 17 Pro Simulator / iOS 27.0",
+  "runs": [
+    {
+      "label": "initial composition GREEN",
+      "resultBundle": "/tmp/mugshot-recipe-composition-model-green.xcresult",
+      "result": "Passed",
+      "distinctCases": 9,
+      "passedCases": 9,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "executions": 9,
+      "failedCaseNames": []
+    },
+    {
+      "label": "imported base RED",
+      "resultBundle": "/tmp/mugshot-recipe-imported-base-red.xcresult",
+      "result": "Failed",
+      "distinctCases": 10,
+      "passedCases": 9,
+      "failedCases": 1,
+      "skippedCases": 0,
+      "executions": 10,
+      "failedCaseNames": [
+        "choosingABaseForAnImportedDrinkMustNotDeleteItsFirstIngredient()"
+      ]
+    },
+    {
+      "label": "numeric and version RED",
+      "resultBundle": "/tmp/mugshot-recipe-input-repeat-red.xcresult",
+      "result": "Failed",
+      "distinctCases": 14,
+      "passedCases": 12,
+      "failedCases": 2,
+      "skippedCases": 0,
+      "executions": 14,
+      "failedCaseNames": [
+        "choosingTheUnchangedBaseMustNotCreateANewRecipeVersion()",
+        "testSyrupCanBeSavedThenCombinedAndPreviewedWithoutLosingTheLatte()"
+      ]
+    },
+    {
+      "label": "first focused GREEN - later superseded",
+      "resultBundle": "/tmp/mugshot-recipe-composer-green2.xcresult",
+      "result": "Passed",
+      "distinctCases": 16,
+      "passedCases": 16,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "executions": 16,
+      "failedCaseNames": []
+    },
+    {
+      "label": "broader numeric RED",
+      "resultBundle": "/tmp/mugshot-recipe-composer-final-sim.xcresult",
+      "result": "Failed",
+      "distinctCases": 75,
+      "passedCases": 74,
+      "failedCases": 1,
+      "skippedCases": 0,
+      "executions": 75,
+      "failedCaseNames": [
+        "testSyrupCanBeSavedThenCombinedAndPreviewedWithoutLosingTheLatte()"
+      ]
+    },
+    {
+      "label": "picker and adjusted target RED",
+      "resultBundle": "/tmp/mugshot-recipe-composer-boundaries-red.xcresult",
+      "result": "Failed",
+      "distinctCases": 17,
+      "passedCases": 13,
+      "failedCases": 4,
+      "skippedCases": 0,
+      "executions": 17,
+      "failedCaseNames": [
+        "reselectingTheCurrentPresetPreservesAdjustedDrinkTargets()",
+        "reselectingTheSavedBasePreservesTheDrinksOwnOverrides()",
+        "testSavedHasStandaloneBeansAndGear()",
+        "testSyrupCanBeSavedThenCombinedAndPreviewedWithoutLosingTheLatte()"
+      ]
+    },
+    {
+      "label": "repeated composition GREEN",
+      "resultBundle": "/tmp/mugshot-recipe-composer-final-green.xcresult",
+      "result": "Passed",
+      "distinctCases": 20,
+      "passedCases": 20,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "executions": 40,
+      "failedCaseNames": []
+    },
+    {
+      "label": "guidance and layout GREEN",
+      "resultBundle": "/tmp/mugshot-recipe-guidance-and-layout-green.xcresult",
+      "result": "Passed",
+      "distinctCases": 22,
+      "passedCases": 22,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "executions": 22,
+      "failedCaseNames": []
+    },
+    {
+      "label": "final accessibility quantity GREEN",
+      "resultBundle": "/tmp/mugshot-recipe-composer-accessibility-green.xcresult",
+      "result": "Passed",
+      "distinctCases": 1,
+      "passedCases": 1,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "executions": 1,
+      "failedCaseNames": []
+    },
+    {
+      "label": "legacy caption guidance GREEN",
+      "resultBundle": "/tmp/mugshot-recipe-legacy-guidance-green.xcresult",
+      "result": "Passed",
+      "distinctCases": 1,
+      "passedCases": 1,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "executions": 1,
+      "failedCaseNames": []
+    }
+  ],
+  "currentSwiftSHA256": {
+    "testMugshot/Models/HomeRecipeComposition.swift": "f3309a919c738364aa486485a86b0dbe91d241c9b28a1a723012c9cf5038f914",
+    "testMugshot/Services/HomeRecipeWorkspaceStore.swift": "1a92c078d3407378be1bb9ff0d8270c78a38bc3e2bf5b1a405c4d3a094b983c2",
+    "testMugshot/Views/Add/HomeDrinkBuilderView.swift": "f22a681f10b9f061118f674c1b64ede7002a51c66dd14f8a779a2c05e872b2bd",
+    "testMugshot/Views/Add/HomeLibraryView.swift": "0a4fe14992afec098ca3642c45d192be6ec1098b80cff74147a13007a55e5110",
+    "testMugshot/Views/Add/HomeRecipeCaptureView.swift": "9fed818ad7a8a7ec75c036448d57e2e6728c59bf1233c063f3bf9e384f386523",
+    "testMugshot/Views/Add/HomeRecipeDetailScreens.swift": "70406da61520399eb788e8a01305a1f8b3c77a3c91a81c09bd462a96bf76da6e",
+    "testMugshot/Views/Add/HomeRecipeEditorView.swift": "3f0242fd07a21d4c6b9c0892dbda4452aa20339ad0bb565b247a7e4999cff852",
+    "testMugshot/Views/Add/HomeRecipeExperienceView.swift": "ae987339cca6fd2feeab1598e69c2b292c1618cb2be448498c488188f57ae08d",
+    "testMugshot/Views/Add/HomeWorkbenchView.swift": "0476ef18c878dbaac05ad5203716ead774ab6cbeba7662b2d8800ed3cd807284",
+    "testMugshot/Views/Add/LogASipV3ProductionViews.swift": "20b328e3c4ecfac1519afcaebe0a23b31ec137b1c70476c638e04d73523ab3f7",
+    "testMugshotTests/HomeRecipeCompositionTests.swift": "f1d0774637735029744b1e3fa64373c4894fd7dc916dc5b9ea4571e119fc2b5a",
+    "testMugshotUITests/HomeLibraryFlowUITests.swift": "fb340f88e5517840c9e429d3f3d2c4d59e444bd065ad276b8869722e592b8392",
+    "testMugshotUITests/HomeRecipeComposerUITests.swift": "89fbe8ca240ca7eac77ad658c28afb6a808805e7fa648add98b83b80bfdd215b",
+    "testMugshotUITests/OwnerHomePhoneUITests.swift": "3bb199efdaa8abe4d883f2e2bfbe72ccd75ef8bd39204ab0a0e7657f0da752d9"
+  },
+  "ownerPackage": {
+    "bundleID": "co.mugshot.app.dev",
+    "displayName": "Mugshot Luna QA",
+    "version": "0.5.3",
+    "build": "8",
+    "signature": "deep-strict-pass",
+    "entitlements": "unchanged",
+    "analytics": "disabled",
+    "credentialExclusion": "pass",
+    "debugDylibSHA256": "9cc76f80d52401cf59254360cbc2abd39cf28f945d1dc09525549293cced1ae2"
+  },
+  "fixturePackage": {
+    "bundleID": "co.mugshot.app.homeqa",
+    "displayName": "Mugshot Flow QA",
+    "version": "0.5.3",
+    "build": "8",
+    "signature": "deep-strict-pass",
+    "backend": "invalid fixture",
+    "analytics": "disabled",
+    "sharedOwnerKeychain": false,
+    "appGroups": false,
+    "extensions": false,
+    "urlSchemes": false,
+    "credentialExclusion": "pass",
+    "sourceSwiftMatches": true
+  },
+  "installation": "installed and owner read-only launch verified - Mugshot Luna QA 0.5.3 (8)",
+  "physicalAcceptance": "27 selected isolated fixture cases plus 1 owner read-only component check passed; see dated phone ledger",
+  "testFlight": "no archive/export/upload/assignment",
+  "merge": "held draft stack",
+  "privacy": "fictional screenshots only; owner recipe and backup excluded",
+  "staticChecks": {
+    "fast": "7 passed, 0 failed, 0 skipped",
+    "documentation": "passed",
+    "diffWhitespace": "passed",
+    "actualCredentialExclusion": "passed",
+    "unrelatedWeeklyPour": "excluded"
+  },
+  "currentStatusDate": "2026-11-05",
+  "hardwareVerification": "phone-verification-2026-11-05.json"
+}

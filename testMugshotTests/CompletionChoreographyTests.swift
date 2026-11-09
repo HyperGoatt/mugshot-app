@@ -4,6 +4,20 @@ import Testing
 
 @MainActor
 struct CompletionChoreographyTests {
+    @Test func fullScreenPostResultRequiresAConfirmedPublicationForTheCurrentOwner() {
+        let owner = UUID()
+        let posted = MugshotSaveReceipt(id: UUID(), ownerID: owner, drinkName: "Latte", isExpressive: true, audience: .friends)
+        #expect(MugshotPostCompletionPolicy.shouldPresent(receipt: posted, activeOwnerID: owner, hasCompletedSave: true))
+        #expect(!MugshotPostCompletionPolicy.shouldPresent(receipt: posted, activeOwnerID: owner, hasCompletedSave: false))
+        #expect(!MugshotPostCompletionPolicy.shouldPresent(receipt: posted, activeOwnerID: UUID(), hasCompletedSave: true))
+        #expect(!MugshotPostCompletionPolicy.shouldPresent(receipt: nil, activeOwnerID: owner, hasCompletedSave: true))
+        var privateSave = posted
+        privateSave.audience = nil
+        #expect(!MugshotPostCompletionPolicy.shouldPresent(receipt: privateSave, activeOwnerID: owner, hasCompletedSave: true))
+        privateSave.audience = .private
+        #expect(!MugshotPostCompletionPolicy.shouldPresent(receipt: privateSave, activeOwnerID: owner, hasCompletedSave: true))
+    }
+
     @Test func completionCannotReplayAfterRelaunchOrBorrowAnotherAccount() throws {
         let name = "CompletionChoreographyTests.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: name))

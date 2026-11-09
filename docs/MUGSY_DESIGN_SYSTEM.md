@@ -1,3 +1,21 @@
+---
+document_type: living
+status: current
+last_verified: 2026-11-05
+---
+
+## Home editors and shared Journal row — November 5 candidate
+
+`HomeEditorCanvas` composes a cream background, Mugshot section cards, clear field
+labels, keyboard Done and accessible add/remove/reorder controls for advanced
+recipes, legacy make/share and gear. Saved private Home and canonical Journal
+entries share `JournalSipRow` with a 92 × 96 image and common metadata hierarchy.
+Destructive confirmation keeps scrollable explanation separate from reachable,
+growing confirm/cancel controls. Largest-text delete cancellation and editor
+actions pass in Simulator; [native captures](design/home-flow-controls-2026-11-05/README.md)
+record regular/large-text controls. The same 18 selected screen paths pass on signed hardware.
+[Controls audit](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md).
+
 # Canonical Mugsy Design System
 
 Status: approved model, motion, and product-placement implementation
@@ -255,6 +273,18 @@ identity was introduced. Runtime/physical acceptance remains tracked in the
 Named accessibility refresh keeps the current scroll position and displays a quiet
 progress label. It does not pour coffee or insert the pull gesture gap.
 
+
+## Full-screen confirmed posts — 2026-11-05
+
+Confirmed Home, cafe and Elsewhere posts present one full-screen cream result
+with a large native Mugsy, the actual audience and drink, Share and See post.
+Share opens a focused artwork preview with Story/Post and a compact Style menu;
+See post uses the existing owned post-detail destination within that same cover.
+Private saves keep their compact private receipt. No action waits for animation,
+and the durable account/operation marker prevents replay after returning from Share.
+The existing finite sequence, haptic preference and scene/owner cancellation remain.
+Accessibility sizes use a smaller static hero, scrollable content and fixed bottom
+actions. Reduce Motion retains a static acknowledgment. [Native captures and actual acceptance](design/recipe-focus-post-celebration-2026-11-05/README.md).
 
 ## Coordinated completed-operation acknowledgment — 2026-10-30
 

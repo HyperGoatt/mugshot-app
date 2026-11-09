@@ -1,0 +1,43 @@
+{
+  "resultBundle": "/tmp/mugshot-recipe-guidance-and-layout-green.xcresult",
+  "scope": "Passing 17-domain / 5-composer batch; before final accessibility quantity-spacing polish",
+  "files": [
+    {
+      "file": "HomeRecipeComposition.swift",
+      "coveredLines": 126,
+      "executableLines": 128,
+      "coverage": 98.44
+    },
+    {
+      "file": "HomeRecipeDetailScreens.swift",
+      "coveredLines": 381,
+      "executableLines": 1949,
+      "coverage": 19.55
+    },
+    {
+      "file": "LogASipV3ProductionViews.swift",
+      "coveredLines": 5503,
+      "executableLines": 12404,
+      "coverage": 44.36
+    },
+    {
+      "file": "HomeDrinkBuilderView.swift",
+      "coveredLines": 1206,
+      "executableLines": 1263,
+      "coverage": 95.49
+    },
+    {
+      "file": "HomeLibraryView.swift",
+      "coveredLines": 594,
+      "executableLines": 944,
+      "coverage": 62.92
+    },
+    {
+      "file": "HomeRecipeCaptureView.swift",
+      "coveredLines": 667,
+      "executableLines": 848,
+      "coverage": 78.66
+    }
+  ],
+  "interpretation": "No app-wide coverage claim. Existing large UI/media modules include unrelated and unexercised paths. Final accessibility input polish passed its own compiled runtime case."
+}

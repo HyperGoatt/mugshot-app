@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-14
+last_verified: 2026-11-05
 ---
+
+## November 5 development follow-up
+
+Recipe-only screenshot extraction and a full-screen result for confirmed Home,
+cafe and Elsewhere posts are installed in Mugshot Luna QA 0.5.3 (8). The isolated
+iPhone passes 52 checks; a separate owner read-only component check passes.
+The optional Luna provider is version 4 after disposable hosted QA, with 75 live
+protected table fingerprints preserved and the paid branch deleted. This changes
+neither the held Home V4 migration nor the draft-stack/TestFlight gates. Real
+owner publication/external sharing and fresh-source quality remain human QA.
+[Exact delivery and preservation ledger](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
 
 Current amendment (2026-09-14): production is at 170 migrations with local shared-text
 validation and reactive human moderation. OpenAI execution, schedule and server

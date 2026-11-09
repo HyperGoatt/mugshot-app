@@ -1,8 +1,82 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-09
 ---
+
+## Home library and repeat brewing — November 9 candidate
+
+Source implements offline starters, manual recipe capture, shelf sorting and
+restore, independent inventory controls, distinct quick and guided paths,
+audience preview and an owner-only comparison and repeat flow. See
+[Home implementation](HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate)
+for the scope. [Mugshot Luna QA 0.5.3 (9)](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+is installed and launched on the owner iPhone. Full hardware journey acceptance
+and TestFlight remain separate from this install.
+
+## Log a Sip setup — November 9 candidate
+
+One stable title, autosave cue and pill row in setup; cafe, Home and Elsewhere
+panels change below. Setting-only Elsewhere drafts can resume. The
+[Home walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md) records local
+acceptance and the original library recommendations.
+
+## Home controls — November 5 accepted development candidate
+
+Journal parity, named setups, private-sip edit/delete, complete counted drafts,
+composed editors and optional measurements are implemented and verified. All
+106 focused native tests and 18 selected UI paths pass in Simulator and on signed
+iPhone 16 Pro / iOS 27.0.1; the separate owner read-only recipe check passes.
+Mugshot Luna QA 0.5.3 (8) is installed/launched with owner content preserved. The
+additive deletion guard is live after 68 hosted contracts and real Auth/Storage
+probes, with 75 protected fingerprints unchanged. Paid QA and fixture apps/runners
+are removed; held Home V4 and TestFlight remain separate.
+[Current behavior and gates](HOME_RECIPES_IMPLEMENTATION.md#home-journal-and-flow-controls--november-5-candidate).
+
+## Recipe focus and posted-result follow-up — 2026-11-05
+
+Implemented, installed and launched: cleaner recipe-only fallback/Luna extraction,
+preserved user edits and a shared full-screen result for confirmed Home/cafe/
+Elsewhere posts. Share opens a clean preview; See post reuses owned post detail.
+The isolated iPhone passes 48 native and four UI cases, followed by one read-only
+owner component check. The tighter provider is production version 4 after 67
+hosted QA contracts and recipe/access/quota checks. Existing saved versions and
+production content are preserved. Real-source fidelity and actual owner publishing/
+external sharing remain human QA; draft merges and TestFlight stay held.
+[Exact acceptance ledger](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
+## Recipe canvas and drink composition — 2026-11-04 follow-up
+
+Native source-first capture and a dedicated drink builder are implemented. The
+recipe book exposes Build a drink; saved components/brews expose Use in a drink.
+Optional parent amounts and exact saved links keep source batches independent.
+Current validation/install evidence is in the [native package](design/home-recipe-composer-2026-11-04/README.md).
+Simulator accepted: 22-case domain/composer batch, final largest-text quantity
+entry and the legacy caption-guidance review path. Earlier 20-case repeat gate
+passes 40 executions. The same candidate is installed in Mugshot Luna QA
+0.5.3 (8) on November 5. Hardware acceptance passes 17 domain and 10 isolated UI
+cases, then the owner's existing-component open/close check. Owner records and
+drafts are preserved; real-source fidelity, VoiceOver and broader device coverage
+remain separate human QA. [Physical evidence](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
+
+## Recipe source capture and Home journey — 2026-11-04 follow-up
+
+Available public Instagram/TikTok captions and selected screenshots/short clips
+can fill editable recipe facts automatically. Native labelled-section parsing
+and OCR work without Luna; blocked links keep manual/attachment fallbacks.
+The caption-to-library-to-guidance-to-rating/review journey passes on an isolated
+iPhone app with fixture data. This does not establish universal social access,
+the Photos picker or optional on-device speech acceptance. Owner content is
+preserved; TestFlight and parent merges remain held.
+[Exact results and limitations](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
+## Home library candidate — 2026-11-04
+
+Standalone recipe/bean/gear management and account-local defaults are implemented
+in Saved → Home library. Home logging keeps the common reflection/review finish
+and makes guidance explicit. Luna bag filling is automatic after one-time,
+revocable account enablement; other contextual helpers reuse that permission.
+All ordinary paths remain independent of AI. [Audit and acceptance](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
 
 ## Luna activation and physical install — 2026-11-04
 

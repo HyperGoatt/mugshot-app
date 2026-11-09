@@ -1,8 +1,81 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-09
 ---
+
+## Home novice and expert recommendations — November 9
+
+The [accepted Home plan](plans/home-library-and-brewing-2026-11-09.plan.md)
+covers the library, capture and builder, quick and guided making, and private
+brew comparison. The [ECC verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md)
+passes the native and Simulator gates. [Build 9 is installed and launch checked](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+on the owner's iPhone. Preserve the Home draft stack and release holds.
+
+## Home novice and expert walkthrough — November 9
+
+The common setup header and setting-only autosave pass their Simulator
+regressions. Use the [walkthrough](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md)
+to prioritize a clear quick-versus-guided choice, a discoverable recipe shelf
+and optional precision tools. The approved recommendations are implemented in
+the candidate above. Keep the existing delivery holds.
+
+## Home controls audit → plan → implementation — November 5 accepted candidate
+
+The [Home controls plan](plans/home-flow-controls-2026-11-05.plan.md) is implemented:
+shared Journal rows, named setups, edit/delete, protected complete drafts, composed
+editors and optional measurements. All 106 native tests and 18 selected UI paths
+pass in Simulator and on the isolated signed iPhone app; the separate owner
+read-only existing-recipe check passes. Mugshot Luna QA 0.5.3 (8) is installed and
+launched. Forty original files are preserved through install; final owner content
+and complete recipe workspace are unchanged (only shelf updatedAt refreshes).
+The reviewed deletion migration is live after 68 hosted contracts and real
+Auth/Storage probes; protected fingerprints are unchanged and the paid branch
+and disposable fixture apps/runners are deleted. Reviewed checkpoint `2bae8ef` is pushed on `codex/home-library-flow`; held draft
+PR #109 is updated. Preserve parent/Home V4/TestFlight holds.
+
+## Recipe focus and post celebration — November 5 follow-up
+
+Cleaner screenshot extraction and a full-screen confirmed-post result are installed
+in Mugshot Luna QA 0.5.3 (8). The new iPhone gate passes 52 isolated checks plus a
+read-only existing-owner component check. Provider version 4 is live after data-less
+QA and unchanged protected-data fingerprints; the paid branch is deleted. Human
+QA should try a fresh PSL import and a real post's Share/See post actions. Keep the
+draft stack, Home V4 migration and TestFlight holds.
+[Exact current acceptance and checklist](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
+## Owner-requested recipe UX and component composition — November 4 follow-up
+
+Use the original Home interview and accepted September V4 read-back to improve
+capture and composition. The core journey is save a syrup → use it in a latte →
+inspect the source and return → save the drink → existing guidance/reflection.
+Preserve all owner content and source attribution; synthetic saves use isolated
+fixtures. [Native package and verification](design/home-recipe-composer-2026-11-04/README.md).
+Implementation and focused Simulator acceptance are complete, including reusable
+components, stable quantity entry, same-base target preservation, method-correct
+guidance and largest-text entry. November 5 owner backup/install and the selected
+hardware gate are complete: 27 fixture checks plus the separate existing-owner
+component check pass. Original recipe records and drafts remain unchanged.
+Human QA can now try the installed development app; keep the stack draft and
+retain the separate TestFlight/backend release gates.
+[Physical receipt and owner checklist](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
+
+## Owner-promoted complete Home QA and source capture — November 4 follow-up
+
+The caption recipe → library → guidance → shared rating/review journey passes on
+hardware, including a selected four-star rating. Source capture adds available
+public social captions and selected screenshots/short clips, keeping an editable,
+usable non-AI path. Mutable fixtures run in a separate local QA app; the owner's
+library/draft are preserved. Parent merge/TestFlight holds remain.
+[Current evidence and remaining media/accessibility checks](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
+## Owner-requested Home simplification — 2026-11-04
+
+Work on `codex/home-library-flow` adds standalone Home library management, shorter
+Home logging, optional guidance and automatic Luna bag reading with remembered
+account permission. Preserve shared reflection/review, offline core paths, source
+rights, account scope and the existing parent merge/TestFlight holds.
+[Audit and verification](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
 
 ## Luna phone handoff — 2026-11-04
 

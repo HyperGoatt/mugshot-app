@@ -96,6 +96,23 @@ Deno.test("provider errors, refusals, partial results and malformed JSON fail wi
   }
 });
 
+Deno.test("recipe requests retain their structured output budget without increasing other task budgets", async () => {
+  const recipe: Input = { ...input, task: "recipe_import", query: "" };
+  await generate(
+    recipe,
+    { key: "fixture-only", model: "gpt-6-luna" },
+    new AbortController().signal,
+    async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      equal(body.max_output_tokens, 2400);
+      equal(body.store, false);
+      equal(body.tools, undefined);
+      equal(body.text.format.strict, true);
+      return completed(JSON.stringify({ ...suggestion, search_terms: [] }));
+    },
+  );
+});
+
 Deno.test("capture validation rejects invented quotes, duplicate citations, blank text and oversized fields", () => {
   const bag: Input = { ...input, task: "bag_scan" };
   for (

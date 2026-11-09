@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mugshot · Save it. Mix it. Make it yours.</title>
+<style>
+  :root { color-scheme: light; --cream:#f9f6ef; --ink:#2b211b; --sage:#4d715e; --line:#ddd8ce }
+  * { box-sizing:border-box } body { margin:0; background:var(--cream); color:var(--ink); font:16px/1.6 system-ui,sans-serif }
+  main { max-width:1400px; margin:auto; padding:56px 28px } .eyebrow { color:var(--sage); font-size:12px; font-weight:700; letter-spacing:.18em; text-transform:uppercase }
+  h1 { font:clamp(36px,5vw,64px)/1.1 Georgia,serif; max-width:850px; margin:18px 0 } .intro { max-width:740px; color:#64584d }
+  .screens { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:32px; margin:42px 0 }
+  figure { margin:0; min-width:0 } figure img { display:block; width:100%; height:auto; border-radius:28px; border:1px solid var(--line); box-shadow:0 12px 35px #34221412 }
+  figcaption { padding:16px 3px } h2 { font-size:18px; margin:0 0 5px } p { margin:0 0 12px } .note { font-size:14px; color:#64584d }
+  .accessibility { border-top:1px solid var(--line); padding-top:28px } .accessibility .screens { max-width:700px } a { color:var(--sage) }
+</style>
+<main>
+  <div class="eyebrow">Mugshot · Native recipe composition</div>
+  <h1>Save it. Mix it.<br>Make it yours.</h1>
+  <p class="intro">A recipe can be a syrup, a brew, or the whole drink. Bring in an idea, keep it in your recipe book, then use it in as many drinks as you like. Optional amounts belong to the drink; the component batch stays its own recipe.</p>
+  <p class="note">Fictional native captures only; the owner's recipe is excluded. The first sections preserve November 4 Simulator evidence. November 5 physical captures and delivery evidence appear <a href="#phone">below</a> and in <a href="README.md">the review report</a>.</p>
+  <div class="screens">
+    <figure><img src="screens/01-capture.png" alt="Source-first Add a recipe screen with link, screenshot and video choices"><figcaption><h2>1. Bring in an idea</h2><p>Paste a source or caption, choose a screenshot, or just name a recipe. Structured details can come later.</p></figcaption></figure>
+    <figure><img src="screens/02-component.png" alt="Editable saved syrup preview"><figcaption><h2>2. Keep a reusable component</h2><p>Use a syrup or foam in a drink without copying its batch instructions into the parent.</p></figcaption></figure>
+    <figure><img src="screens/03-builder.png" alt="Drink builder combining a base, milk and a saved syrup"><figcaption><h2>3. Put the drink together</h2><p>Choose a base, add saved parts and optional amounts. Open a part, then return to the same mix.</p></figcaption></figure>
+    <figure><img src="screens/04-review.png" alt="Composed Home drink on the shared private review screen"><figcaption><h2>4. Make and reflect</h2><p>Optional guidance rejoins the shared capture, rating and review experience.</p></figcaption></figure>
+  </div>
+  <div class="accessibility">
+    <div class="eyebrow">Largest accessibility text</div>
+    <p class="note">The same native capture and builder, with optional content stacked and scrollable.</p>
+    <div class="screens">
+      <figure><img src="screens/05-largest-capture.png" alt="Recipe capture with the largest accessibility text size"><figcaption>Capture at the largest accessibility text size.</figcaption></figure>
+      <figure><img src="screens/06-largest-builder.png" alt="Drink builder with the largest accessibility text size"><figcaption>Drink composition at the largest accessibility text size.</figcaption></figure>
+    </div>
+  </div>
+  <section class="accessibility" id="phone">
+    <div class="eyebrow">On iPhone · November 5</div>
+    <p class="intro">Inspected iPhone 16 Pro captures from the isolated hardware run. All 27 selected fixture checks and the separate owner read-only check pass. Mugshot Luna QA 0.5.3 (8) is installed; <a href="../../audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md">exact evidence and remaining human QA</a>.</p>
+    <div class="screens" style="max-width:none">
+      <figure><img src="phone-screens/01-capture.png" alt="Source-first recipe capture on the physical iPhone"><figcaption>Bring in a recipe without a long form.</figcaption></figure>
+      <figure><img src="phone-screens/03-builder.png" alt="Physical iPhone drink builder with espresso, milk and 15 ml of fictional berry syrup"><figcaption>A saved component keeps its own instructions; the drink owns its usage amount.</figcaption></figure>
+      <figure><img src="phone-screens/04-review.png" alt="Composed drink on the physical iPhone's shared private review screen"><figcaption>Guidance rejoins shared rating and private review.</figcaption></figure>
+      <figure><img src="phone-screens/06-largest-builder.png" alt="Physical iPhone builder retaining 125 ml at the largest accessibility text size"><figcaption>Largest accessibility text retains the complete amount.</figcaption></figure>
+    </div>
+  </section>
+</main>
+</html>

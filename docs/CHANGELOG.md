@@ -1,8 +1,141 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-04
+last_verified: 2026-11-09
 ---
+
+## 2026-11-09 — Home library iPhone development install
+
+- Install and launch Mugshot Luna QA 0.5.3 (9) in place. Verify all 40 app data
+  files and one preferences file remain byte-identical through launch.
+- [Signed iPhone receipt](audits/HOME_LIBRARY_PHONE_2026-11-09.md).
+
+## 2026-11-09 — Easier Home library and repeat brewing candidate
+
+- Give the library a starter path, direct recipe detail, useful sorting and
+  filters, archive restore and separate beans and gear controls.
+- Add a source chooser and manual recipe entry, clear recipe kinds, and a drink
+  builder with distinct parts, source/version links and local serving scaling.
+- Clarify quick versus guided Home logging, applied setup and today-only edits.
+  Advance one step at a time and preview the selected audience before saving.
+- Compare frozen plans with recorded measurements and the last compatible sip;
+  repeat a plan with one optional change. Keep AI assistance optional.
+- Pass 185 native cases and 16 focused Simulator journeys before phone promotion.
+- [Implementation plan](plans/home-library-and-brewing-2026-11-09.plan.md)
+  and [ECC verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md).
+
+## 2026-11-09 — Stable Log a Sip setup and Home walkthrough
+
+- Keep the Log a Sip title, autosave cue and three context pills in one place.
+  Only the setup panel scrolls or changes when switching between cafe, Home and
+  Elsewhere. Existing draft access remains below the pills.
+- Autosave an Elsewhere draft even when its setting is the first entered field.
+  Use that setting to identify the draft until it has a drink name.
+- Verify both regressions in Simulator with 46 native checks and seven focused
+  composer screen paths passing. No updated phone build.
+- [Novice and expert walkthrough, priorities and evidence](audits/HOME_PERSONA_WALKTHROUGH_2026-11-09.md).
+
+## 2026-11-05 — Home Journal and flow controls candidate
+
+- Implement shared Journal rows/chronology, optional named Home setups, saved
+  private-sip edit/delete and complete protected draft management.
+- Replace four remaining Home Form shells with composed editors; make measurements
+  optional and preserve cover choice, source recipes and account ownership.
+- Add durable deletion retention/reconciliation and acknowledged private-photo
+  cleanup. The reviewed additive deletion guard is live after 68 hosted contracts
+  and real Auth/Storage probes; all 75 protected fingerprints are unchanged and
+  the paid QA branch is deleted. All 106 focused native tests and 17 selected
+  Simulator paths pass, plus confirmed private-delete UI acceptance (18 total).
+  The signed phone gate passes the same 106 native cases/18 screen paths and
+  separate owner read-only acceptance. All 40 original files survive install;
+  final owner content/workspace remain unchanged (only shelf updatedAt refreshes).
+- [Audit and ECC evidence](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md),
+  [code action plan](plans/home-flow-controls-2026-11-05.plan.md).
+
+## 2026-11-05 — Home journey control audit and action plan
+
+- Audit Journal card parity, missing Home deletion, draft/session overlap, named
+  Home identity, four remaining Form screens and flow/permission controls.
+- Record the ordered [implementation plan](plans/home-flow-controls-2026-11-05.plan.md)
+  and [audit evidence](audits/HOME_JOURNEY_CONTROLS_2026-11-05.md) before changing app code.
+- Implementation and new acceptance remain pending at this planning checkpoint.
+
+## 2026-11-05 — Cleaner recipe imports and full-screen post celebration
+
+- Recognize preparation headings, join wrapped ingredients/steps and exclude page
+  controls, promotions and later recipes in the non-AI source parser.
+- Replace untouched generated draft fields with Luna's clean sections while
+  preserving typing/deletions, partial-result fallbacks and immutable saved recipes.
+- Focus Luna on one selected recipe with exact supporting quotes; identify cropped
+  details rather than inventing them. Recipe output has a 2,400-token ceiling;
+  other tasks retain 1,000. Model, permissions, quotas and explicit Save remain.
+- Present confirmed Home, cafe and Elsewhere posts full screen, with Share opening
+  a clean native artwork preview and See post using the existing post destination.
+  Retain private-save behavior, audience safeguards and reduced-motion support.
+- Install and launch Mugshot Luna QA 0.5.3 (8); pass 52 isolated hardware checks
+  and an owner read-only existing-component check. Deploy only the provider update
+  as function version 4 after disposable QA; preserve all 75 protected table
+  fingerprints. Delete the paid QA branch. Draft stack and TestFlight remain held.
+- [Exact ECC, preservation and acceptance ledger](audits/RECIPE_FOCUS_AND_POST_CELEBRATION_2026-11-05.md).
+
+## 2026-11-05 — Recipe composer installed and physically verified
+
+- Install the verified recipe canvas/drink builder in Mugshot Luna QA 0.5.3 (8).
+- Pass 17 composition-domain and 10 isolated UI cases on iPhone, then a separate
+  read-only check of the owner's existing component and prefilled drink builder.
+- Preserve all 43 Application Support files byte-for-byte through installation.
+  After launch, the complete recipe workspace and shelf content are unchanged;
+  only the shelf timestamp and local battery diagnostics rotate.
+- Remove the disposable flow app/test runners. Keep the draft stack, production
+  backend and TestFlight state unchanged. [Physical ledger](audits/HOME_RECIPE_COMPOSER_PHONE_2026-11-05.md).
+
+## 2026-11-04 — Recipe canvas and reusable drink composition
+
+- Replace the Add a recipe Form with source-first capture, compact media choices,
+  an editable recipe preview and a Brew / Component / Drink choice.
+- Add Build a drink to the recipe book and Use in a drink to saved components
+  and brews, including older generic preparations.
+- Compose a base, milk and saved additions without mandatory amounts, inventory,
+  AI or visible version-selection chores. Inspect a linked recipe without losing
+  the parent mix. Usage amounts never change the component batch.
+- Open a saved recipe directly after capture, keep explicit recipe Save, and
+  reuse existing optional guidance and shared rating/review.
+- Preserve drink target overrides on unchanged-base selection, keep explicit
+  coffee/matcha/tea guidance and avoid duplicated assembly. Keep numeric input
+  stable during draft updates, make saved-part rows fully tappable, and flush
+  gear identity editing before Save. Stack the builder at accessibility sizes.
+- [Interview-grounded design and verification](design/home-recipe-composer-2026-11-04/README.md).
+
+## 2026-11-04 — Social recipe capture and full Home-flow QA candidate
+
+- Open saved recipes for inspection before making/logging a sip.
+- Read available public Instagram/TikTok captions, screenshots and bounded video
+  sources into editable recipe drafts; keep clear fallbacks for blocked sources.
+- Retain native OCR/labelled-section capture without Luna and optional on-device
+  spoken instructions without uploading audio. Preserve source credit and edits.
+- Keep combined source evidence within the existing server limit, including credit.
+- Hide the empty target card when a guided recipe has no planned measurements;
+  preserve measured targets and exercise selecting a rating before review.
+- Correct the physical Debug unit-test host for the diagnostics app name.
+- [ECC evidence and exact physical acceptance](audits/HOME_SOURCE_CAPTURE_2026-11-04.md).
+
+## 2026-11-04 — Home library and simpler Home logging candidate
+
+- Add a standalone Home library in Saved and Journal for recipes, bags, gear and
+  device-local account defaults; managing the library never starts a sip draft.
+- Show all Home starter families and separate Log this sip from optional Make
+  with guidance. Keep shared sip reflection/review, recipe attribution, explicit
+  actual measurements and private-first review.
+- Read bag photos into editable fields with Luna after one-time account enablement;
+  preserve typing during reads and retain on-device/manual fallback. Other
+  contextual helpers reuse permission and request their result directly.
+- Keep a concise explicit OpenAI enable control and revocable Home preference.
+  Source-copy permission, owner fences, bounded data and explicit Save remain.
+- Serialize shelf sync, retry offline edits and invalidate pending work on erasure.
+- After owner unlock, verify physical launch, Journal, Saved/Home library's four
+  sections and standalone manual-bag open/cancel. Real scan/save and full making
+  acceptance remain pending; no content or Luna permission was changed.
+- [Current audit, ECC evidence and delivery state](audits/HOME_LIBRARY_EXPERIENCE_2026-11-04.md).
 
 ## 2026-11-04 — Journal crash and current Home bean controls
 

@@ -228,6 +228,13 @@ struct LogASipV3DomainTests {
         #expect(JournalEntryContext(backendValue: "  elsewhere  ") == .elsewhere)
     }
 
+    @Test func enteredElsewhereSettingIsDraftWorthyWithoutOtherInputs() {
+        #expect(SipDraft(context: .elsewhere, locationName: "Sunday market").hasDraftWorthyUserContent)
+        #expect(!SipDraft(context: .elsewhere, locationName: "  ").hasDraftWorthyUserContent)
+        #expect(!SipDraft(context: .home, locationName: "Home").hasDraftWorthyUserContent)
+        #expect(!SipDraft(context: .home, locationName: "Kitchen").hasDraftWorthyUserContent)
+    }
+
     @Test func changingV3ContextClearsPlaceSpecificEvidence() {
         var draft = SipDraft(
             context: .cafe,

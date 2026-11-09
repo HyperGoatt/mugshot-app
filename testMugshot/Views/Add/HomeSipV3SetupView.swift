@@ -1,4 +1,6 @@
+import CoreFoundation
 import SwiftUI
+import PhotosUI
 import UIKit
 
 struct HomeMethodDefinition: Identifiable, Hashable {
@@ -183,20 +185,12 @@ private struct HomeMethodGlyph: View {
     private enum Glyph { case espresso, pourOver, press, moka, batch, siphon, ibrik, pod, coldBrew, matcha, shaker, tea, gongfu, milk, tonic, custom }
 }
 
-private enum HomeSipSetupSheet: Identifiable {
-    case recipes
+private enum HomeSipSetupSheet: String, Identifiable {
+    case starters
     case methods
-    case quickRecipe
     case adjustSetup
 
-    var id: String {
-        switch self {
-        case .recipes: "recipes"
-        case .methods: "methods"
-        case .quickRecipe: "quick-recipe"
-        case .adjustSetup: "adjust-setup"
-        }
-    }
+    var id: String { rawValue }
 }
 
 struct HomeSipV3SetupView: View {
@@ -207,173 +201,85 @@ struct HomeSipV3SetupView: View {
     let onSkipGuidance: () -> Void
     let onQuickLog: () -> Void
     let onResumeSession: (UUID) -> Void
+    var onResumeSip: ((SipDraft) -> Void)? = nil
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @EnvironmentObject private var authModel: AppAuthModel
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
+    @State private var libraryPresentation: HomeLibraryPresentation?
     @State private var sheet: HomeSipSetupSheet?
-    @State private var linkedRecipeDetail: HomeLinkedRecipeSheet?
     @State private var didTrackOpen = false
+    @State private var showsDrafts = false
+    @State private var shelf = HomeLibrarySnapshot.empty
+    @State private var sipDrafts: [SipDraft] = []
+
+    private var scope: LocalAccountScope { .forUserID(draft.ownerUserID) }
+    private var isCurrentOwner: Bool { authModel.authenticatedUser?.id == draft.ownerUserID }
+    private var canEdit: Bool { isCurrentOwner && !isRecoveryLocked }
+    private var hasActiveScope: Bool { isCurrentOwner && store.scope == scope }
 
     private var selectedMethod: HomeBrewMethod? {
         guard draft.brewMethod.remoteTrimmedNonEmpty != nil else { return nil }
         return HomeBrewMethod(storedValue: draft.brewMethod)
     }
 
-    private var selectedRecipe: HomeRecipeRecord? {
-        guard let id = draft.launchContext.sourceRecipeIdentityID else { return nil }
-        return store.workspace.recipes.first { $0.id == id }
-    }
-
     private var selectedContent: HomeRecipeContent? {
         if let today = draft.homeSetupContent { return today }
-        if let versionID = draft.launchContext.homeRecipeVersionID {
-            return selectedRecipe?.versions.first(where: { $0.id == versionID })?.content
-        }
-        return nil
+        guard hasActiveScope, let recipeID = draft.launchContext.sourceRecipeIdentityID,
+              let versionID = draft.launchContext.homeRecipeVersionID else { return nil }
+        return store.workspace.version(HomeRecipeReference(recipeID: recipeID, versionID: versionID))?.content
+    }
+
+    private var selectedRecipeIsSourceOnly: Bool {
+        guard draft.launchContext.sourceRecipeIdentityID != nil, let selectedContent else { return false }
+        if selectedContent.isReadyToMake { return false }
+        let steps = HomeDrinkComposition.guidance(for: selectedContent) { reference in
+            guard hasActiveScope else { return nil }
+            return store.workspace.version(reference)?.content
+        }.steps
+        return !steps.contains { $0.instruction.remoteTrimmedNonEmpty != nil }
     }
 
     private var recentDrinks: [HomeRecipeRecord] {
-        Array(store.workspace.recipes.filter {
+        guard hasActiveScope else { return [] }
+        return Array(store.workspace.recipes.filter {
             !$0.isArchived && $0.current?.content.template == .drink
         }.sorted { ($0.lastUsedAt ?? .distantPast) > ($1.lastUsedAt ?? .distantPast) }.prefix(5))
     }
 
-    private var selectedRecipeIsSourceOnly: Bool {
-        selectedRecipe != nil && selectedContent?.isActionable == false
-    }
-
-    private var inProgress: [HomePreparationSession] {
-        store.workspace.sessions.filter { $0.currentPhase == .preparing }
+    private var draftCount: Int {
+        guard hasActiveScope else { return 0 }
+        return HomeDraftCatalogue(sipDrafts: onResumeSip == nil ? [] : sipDrafts, workspace: store.workspace, excludingSipID: draft.id).count
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if !inProgress.isEmpty {
-                    sectionHeader("Continue", detail: "\(inProgress.count) active")
-                    VStack(spacing: 0) {
-                        ForEach(inProgress) { session in
-                            setupRow(
-                                method: session.attempt.preparation?.method ?? .other,
-                                title: session.attempt.name.isEmpty ? "In-progress Home sip" : session.attempt.name,
-                                detail: sessionProgress(session),
-                                badge: "Resume"
-                            ) { onResumeSession(session.id) }
-                            if session.id != inProgress.last?.id { Divider().padding(.leading, 64) }
-                        }
+            if isCurrentOwner {
+                VStack(alignment: .leading, spacing: 18) {
+                    if draftCount > 0 {
+                        HomeDraftSummaryButton(count: draftCount) { showsDrafts = true }
                     }
-                    .homeSetupCard()
+                    if let selectedMethod {
+                        selectedSetup(method: selectedMethod)
+                    } else {
+                        freshChoices
+                    }
                 }
-
-                if let selectedMethod {
-                    selectedSetup(method: selectedMethod)
-                } else {
-                    Text(usesV4 ? "What are you making?" : "Start your Home sip")
-                        .font(.system(size: 26, weight: .semibold, design: .serif))
-                    Text(usesV4 ? "Pick a drink or a method. You can change anything later."
-                         : "Use a favorite setup, choose a recipe, or make it your way.")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.secondaryText)
-
-                    if usesV4 { ScrollView(.horizontal) {
-                        HStack(spacing: 10) {
-                            starter("Latte", method: .completeDrink, action: selectLatte)
-                            starter("Espresso", method: .espresso) { select(method: .espresso) }
-                            starter("Pour-over", method: .pourOver) { select(method: .pourOver) }
-                            starter("Matcha", method: .traditionalMatcha) { select(method: .traditionalMatcha) }
-                            starter("Tea", method: .westernTea) { select(method: .westernTea) }
-                        }
-                    }
-                    .scrollIndicators(.hidden) }
-
-                    if let usual = store.workspace.usuals.first,
-                       let version = usual.current {
-                        Button { select(usual, version: version) } label: {
-                            HStack(spacing: 14) {
-                                iconWell(version.content.method, size: 50)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("YOUR USUAL")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(Color.mugshotSage)
-                                    Text(version.content.name)
-                                        .font(.system(size: 18, weight: .semibold, design: .serif))
-                                    Text(version.content.summary)
-                                        .font(.caption)
-                                        .foregroundStyle(Color.secondaryText)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(Color.mugshotSage)
-                            }
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.mugshotMint.opacity(0.13))
-                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotSage.opacity(0.5)))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    VStack(spacing: 0) {
-                        setupRow(systemImage: "magnifyingglass", title: "Choose a recipe",
-                                 detail: "Coffee, matcha, tea, components, and drinks",
-                                 accessibilityIdentifier: "logASipV3.home.chooseRecipe") { sheet = .recipes }
-                        Divider().padding(.leading, 64)
-                        setupRow(systemImage: "square.grid.2x2", title: "Choose a method",
-                                 detail: "Start with only the useful fields",
-                                 accessibilityIdentifier: "logASipV3.home.chooseMethod") { sheet = .methods }
-                        Divider().padding(.leading, 64)
-                        setupRow(systemImage: "plus", title: "Create a recipe",
-                                 detail: "A name and source link are enough") { sheet = .quickRecipe }
-                        Divider().padding(.leading, 64)
-                        setupRow(method: .other, title: "Brew freely",
-                                 detail: "Start blank and add only what matters") {
-                            MugshotAnalytics.shared.capture(.homeWorkbench(action: .freeSetupSelected))
-                            select(method: .other)
-                        }
-                    }
-                    .homeSetupCard()
-                }
+                .padding(.horizontal, DesignSystem.Space.md)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+                .disabled(!canEdit)
             }
-            .padding(.horizontal, DesignSystem.Space.md)
-            .padding(.top, 8)
-            .padding(.bottom, 126)
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 8) {
-                Button(action: selectedRecipeIsSourceOnly ? { sheet = .adjustSetup } : onStartMaking) {
-                    Label(selectedRecipeIsSourceOnly ? "Add preparation details" : "Start making", systemImage: selectedRecipeIsSourceOnly ? "slider.horizontal.3" : "arrow.right")
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(selectedMethod == nil || isRecoveryLocked)
-                .accessibilityIdentifier("logASipV3.primaryAction")
-
-                if selectedMethod != nil {
-                    Button("Skip guidance", action: onSkipGuidance)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.mugshotSage)
-                        .frame(minHeight: 44)
-                        .disabled(isRecoveryLocked)
-                }
-
-                Button("Already made it? Quick log instead", action: onQuickLog)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color.mugshotSage)
-                    .frame(minHeight: 44)
-                    .disabled(isRecoveryLocked)
-                    .accessibilityIdentifier("logASipV3.home.quickLog")
-            }
-            .padding(.horizontal, DesignSystem.Space.md)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
-            .background(.ultraThinMaterial)
+            if isCurrentOwner && selectedMethod != nil { selectedActions }
         }
         .sheet(item: $sheet) { destination in
             switch destination {
-            case .recipes:
-                HomeSipRecipePicker(store: store) { recipe, version in
-                    select(recipe, version: version)
+            case .starters:
+                HomeStarterPicker { content in
+                    selectStarter(content)
                     sheet = nil
                 }
             case .methods:
@@ -381,191 +287,215 @@ struct HomeSipV3SetupView: View {
                     select(method: method)
                     sheet = nil
                 }
-            case .quickRecipe:
-                HomeQuickRecipeSheet(store: store) { recipe, version in
-                    select(recipe, version: version)
-                    sheet = nil
-                }
             case .adjustSetup:
-                HomeTodaySetupSheet(draft: $draft)
+                HomeTodaySetupSheet(
+                    draft: $draft,
+                    onSelectRecipe: { recipe, version in
+                        select(recipe, version: version)
+                        sheet = nil
+                    },
+                    onSelectMethod: { method in
+                        select(method: method)
+                        sheet = nil
+                    },
+                    editsPlan: selectedMethod != nil,
+                    isRecoveryLocked: isRecoveryLocked
+                )
             }
         }
-        .sheet(item: $linkedRecipeDetail) { item in
-            HomeLinkedRecipeDetail(store: store, reference: item.reference)
+        .sheet(item: $libraryPresentation, onDismiss: { reloadHomeControls() }) { item in
+            HomeLibraryView(
+                ownerID: item.ownerID,
+                initialSection: item.section,
+                onComposeDraft: { selected in
+                    libraryPresentation = nil
+                    if isCurrentOwner { onResumeSip?(selected) }
+                },
+                includesSipDrafts: onResumeSip != nil,
+                onSelectRecipe: { recipe, version in
+                    reloadHomeControls()
+                    select(recipe, version: version)
+                    libraryPresentation = nil
+                },
+                onSelectStarter: { content in
+                    reloadHomeControls()
+                    selectStarter(content)
+                    libraryPresentation = nil
+                }
+            )
+            .environment(\.dynamicTypeSize, dynamicTypeSize)
+        }
+        .sheet(isPresented: $showsDrafts, onDismiss: { reloadHomeControls() }) {
+            HomeDraftManagementView(
+                ownerID: draft.ownerUserID,
+                includesSipDrafts: onResumeSip != nil,
+                excludingSipID: draft.id,
+                onResumeSip: { selected in
+                    showsDrafts = false
+                    if isCurrentOwner { onResumeSip?(selected) }
+                },
+                onResumeSession: { id in
+                    showsDrafts = false
+                    if isCurrentOwner { onResumeSession(id) }
+                }
+            )
+            .environment(\.dynamicTypeSize, dynamicTypeSize)
         }
         .onAppear {
+            reloadHomeControls(applyDefaultIfFresh: !didTrackOpen)
             guard !didTrackOpen else { return }
             didTrackOpen = true
             MugshotAnalytics.shared.capture(.homeWorkbench(action: .homeOpened))
         }
+        .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+            guard !isCurrentOwner else { return }
+            sheet = nil
+            libraryPresentation = nil
+            showsDrafts = false
+            shelf = .empty
+            sipDrafts = []
+        }
+        .onChange(of: isRecoveryLocked) { _, locked in
+            guard locked else { return }
+            sheet = nil
+            libraryPresentation = nil
+            showsDrafts = false
+        }
     }
 
-    private func selectedSetup(method: HomeBrewMethod) -> some View {
+    private var freshChoices: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if usesV4, method == .completeDrink, selectedRecipe == nil, !recentDrinks.isEmpty {
-                Text("FROM YOUR RECENT SIPS")
-                    .font(.caption.weight(.bold)).foregroundStyle(Color.mugshotSage)
-                ScrollView(.horizontal) {
-                    HStack(spacing: 10) {
-                        ForEach(recentDrinks, id: \.id) { recipe in
-                            if let version = recipe.current {
-                                Button { select(recipe, version: version) } label: {
-                                    VStack(alignment: .leading, spacing: 7) {
-                                        Group {
-                                            if let photo = recentPhoto(for: recipe.id) {
-                                                Image(uiImage: photo).resizable().scaledToFill()
-                                            } else {
-                                                HomeMethodIconView(method: version.content.method, size: 38)
-                                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                                    .background(Color.mugshotMint.opacity(0.26))
-                                            }
-                                        }
-                                        .frame(height: 92).frame(maxWidth: .infinity).clipped()
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        Text(version.content.name).font(.headline)
-                                        Text(version.content.summary).font(.caption)
-                                            .foregroundStyle(Color.secondaryText)
-                                    }
-                                    .frame(width: 220, alignment: .leading)
-                                    .frame(minHeight: 70)
-                                    .padding(12)
-                                    .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
-                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotLine))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-            }
-            HStack(spacing: 14) {
-                iconWell(method, size: 58)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedRecipe == nil ? method.family.title.uppercased() : "RECIPE SELECTED")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.mugshotSage)
-                    Text(draft.drinkName.remoteTrimmedNonEmpty ?? method.title)
-                        .font(.system(size: 22, weight: .semibold, design: .serif))
-                    Text((usesV4 ? selectedContent?.summary : nil)
-                         ?? draft.brewDetails.extractionSummary
-                         ?? method.title)
-                        .font(.caption)
-                        .foregroundStyle(Color.secondaryText)
-                }
-                Spacer()
-                Button("Change") { sheet = selectedRecipe == nil ? .methods : .recipes }
-                    .font(.caption.weight(.bold))
-            }
+            Text("Make or log a sip")
+                .font(.system(.title2, design: .serif).weight(.semibold))
+                .foregroundStyle(Color.espressoBrown)
 
-            Divider()
+            VStack(spacing: 0) {
+                setupRow(systemImage: "play.circle.fill", title: "Help me make it",
+                         detail: "Simple steps for coffee, tea and matcha",
+                         accessibilityIdentifier: "home.start.guidance") {
+                    sheet = .starters
+                }
+                if usesV4 {
+                    Divider().padding(.leading, 64)
+                    setupRow(systemImage: "checkmark.circle.fill", title: "I already made it",
+                             detail: "Go to the drink name and photos",
+                             accessibilityIdentifier: "logASipV3.primaryAction", action: onQuickLog)
+                }
+            }
+            .homeSetupCard()
 
-            if usesV4, let content = selectedContent, !content.ingredients.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("What makes this drink").font(.headline)
-                        Spacer()
-                        Button("Change anything") { sheet = .adjustSetup }
-                            .font(.caption.weight(.bold))
+            if usesV4 {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Go straight to a method").font(.subheadline.weight(.semibold))
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 150 : 96), spacing: 9)], spacing: 9) {
+                        methodShortcut("Latte", method: .completeDrink, action: selectLatte)
+                        methodShortcut("Espresso", method: .espresso) { select(method: .espresso) }
+                        methodShortcut("More methods", method: .other) { sheet = .methods }
                     }
-                    ForEach(content.ingredients) { ingredient in
-                        Button {
-                            if let reference = ingredient.recipe {
-                                linkedRecipeDetail = HomeLinkedRecipeSheet(reference: reference)
-                            } else { sheet = .adjustSetup }
-                        } label: {
-                            HStack(spacing: 10) {
-                                Text(String(ingredient.name.prefix(2)).uppercased())
-                                    .font(.caption.weight(.bold))
-                                    .frame(width: 40, height: 40)
-                                    .background(Color.mugshotMint.opacity(0.25), in: RoundedRectangle(cornerRadius: 12))
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(ingredient.name).font(.subheadline.weight(.semibold))
-                                    Text(ingredient.amount.map { "\(HomeRecipeContent.number($0)) \(ingredient.unit)" } ?? "Open details")
-                                        .font(.caption).foregroundStyle(Color.secondaryText)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .frame(minHeight: 52)
-                        }
-                        .buttonStyle(.plain)
+                    if let favorite = shelf.preferences?.preferredMethod {
+                        Button("Your favorite: \(favorite.title)") { select(method: favorite) }
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 44)
                     }
                 }
             } else {
-                HStack(spacing: 8) {
-                    metric("Dose", draft.brewDetails.doseGrams.map { "\(HomeRecipeContent.number($0)) g" })
-                    metric(method.outputLabel, outputText)
-                    metric(draft.brewDetails.homeMethodDetails?.steepSeconds == nil ? "Time" : "Steep",
-                           draft.brewDetails.homeMethodDetails?.steepSeconds.map {
-                               HomeRecipeContent.durationSummary(Double($0))
-                           } ?? draft.brewDetails.brewTimeSeconds.map { "\($0) s" })
-                }
+                setupRow(systemImage: "slider.horizontal.3", title: "Choose a method",
+                         detail: "Browse coffee, tea and more") { sheet = .methods }
+                    .homeSetupCard()
             }
 
-            Button("Adjust today’s setup") { sheet = .adjustSetup }
-                .buttonStyle(SecondaryButtonStyle())
+            if hasActiveScope, let usual = store.workspace.usuals.first, let version = usual.current {
+                setupRow(systemImage: "pin.fill", title: "Your usual · \(version.content.name)",
+                         detail: version.content.summary) { select(usual, version: version) }
+                    .homeSetupCard()
+            }
 
-            Label("Targets are a plan. Mugshot never records them as actual results.", systemImage: "leaf.fill")
-                .font(.caption.weight(.semibold))
+            VStack(spacing: 0) {
+                setupRow(systemImage: "book.pages", title: "Choose a recipe",
+                         detail: "Open your Home recipe shelf",
+                         accessibilityIdentifier: "logASipV3.home.chooseRecipe") {
+                    libraryPresentation = HomeLibraryPresentation(ownerID: draft.ownerUserID)
+                }
+                Divider().padding(.leading, 64)
+                setupRow(systemImage: "slider.horizontal.3", title: "Beans, gear & preferences",
+                         detail: "Manage your shelf and defaults for next time",
+                         accessibilityIdentifier: "home.setup.library") {
+                    libraryPresentation = HomeLibraryPresentation(ownerID: draft.ownerUserID, section: .beans)
+                }
+            }
+            .homeSetupCard()
+
+            Label("Made at \(draft.locationName.remoteTrimmedNonEmpty ?? "Home") · nickname and gear are optional", systemImage: "house")
+                .font(.caption)
                 .foregroundStyle(Color.secondaryText)
         }
-        .padding(16)
-        .background(Color.foamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotLine))
     }
 
-    private var outputText: String? {
-        let method = selectedMethod ?? .other
-        let value = method.usesYield ? draft.brewDetails.yieldGrams : draft.brewDetails.homeMethodDetails?.waterGrams ?? draft.brewDetails.yieldGrams
-        return value.map { "\(HomeRecipeContent.number($0)) \(method.outputUnit)" }
-    }
+    private func selectedSetup(method: HomeBrewMethod) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeAppliedSetupSummary(
+                draft: draft,
+                detail: selectedContent?.summary,
+                isRecoveryLocked: !canEdit
+            ) { sheet = .adjustSetup }
 
-    private func recentPhoto(for recipeID: UUID) -> UIImage? {
-        store.workspace.attempts
-            .filter { $0.recipe?.recipeID == recipeID }
-            .sorted { $0.createdAt > $1.createdAt }
-            .compactMap { $0.photoNames.first.flatMap(store.photo) }
-            .first
-    }
-
-    private func metric(_ label: String, _ value: String?) -> some View {
-        VStack(spacing: 3) {
-            Text(value ?? "—").font(.system(size: 15, weight: .bold, design: .serif))
-            Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.secondaryText)
+            if usesV4, method == .completeDrink, draft.launchContext.sourceRecipeIdentityID == nil, !recentDrinks.isEmpty {
+                DisclosureGroup("Recent drinks") {
+                    VStack(spacing: 0) {
+                        ForEach(recentDrinks) { recipe in
+                            if let version = recipe.current {
+                                setupRow(systemImage: version.content.method.systemImage, title: version.content.name,
+                                         detail: version.content.summary) { select(recipe, version: version) }
+                            }
+                        }
+                    }
+                }
+                .padding(14)
+                .homeSetupCard()
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 54)
-        .background(Color.creamWhite)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var selectedActions: some View {
+        let needsInstructions = selectedRecipeIsSourceOnly
+        return VStack(spacing: 6) {
+            Button(action: needsInstructions ? { sheet = .adjustSetup } : onStartMaking) {
+                Label(needsInstructions ? "Add preparation details" : "Start making", systemImage: "play.circle.fill")
+                    .frame(maxWidth: .infinity, minHeight: 52)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .accessibilityIdentifier(usesV4 ? "home.makeWithGuidance" : "logASipV3.primaryAction")
+
+            if usesV4 {
+                Button(action: onQuickLog) {
+                    Text("I already made it")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.mugshotSageText)
+                .accessibilityIdentifier("logASipV3.primaryAction")
+            }
+        }
+        .disabled(!canEdit)
+        .padding(.horizontal, DesignSystem.Space.md)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(.ultraThinMaterial)
     }
 
     private func select(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion) {
-        draft.homeSipPath = .guided
-        draft.launchContext.sourceRecipeIdentityID = recipe.id
-        draft.launchContext.sourceRecipeVersion = "v\(version.number)"
-        draft.launchContext.homeRecipeVersionID = version.id
-        draft.drinkName = version.content.name
-        draft.brewMethod = version.content.methodDisplayName
-        draft.drinkType = version.content.method.drinkType
-        draft.customDrinkType = version.content.method.drinkType == .other ? version.content.methodDisplayName : ""
-        draft.brewDetails = version.content.asBrewDetails(
-            recipeID: recipe.id, versionNumber: version.number,
-            resolveLinked: { store.workspace.version($0)?.content }
-        )
-        if version.content.template == .drink, version.content.targets.dose != nil {
-            draft.brewDetails.yieldGrams = version.content.targets.resolvedOutput
+        guard canEdit, hasActiveScope else { return }
+        HomeBrewSetup.applySavedRecipe(recipe, version: version, to: &draft, shelf: shelf, path: .guided) {
+            store.workspace.version($0)?.content
         }
-        draft.homeComparisonSource = draft.currentHomeBrewSnapshot
-        draft.homeAttemptActuals = HomeAttemptActuals()
-        draft.homeSetupContent = nil
-        draft.homeKeptIngredientIDs = []
         MugshotAnalytics.shared.capture(.homeWorkbench(action: .recipeSelected))
         MugshotHaptic.selection.play()
     }
 
     private func select(method: HomeBrewMethod) {
-        let content = HomeRecipeContent(
+        guard canEdit else { return }
+        var content = HomeRecipeContent(
             name: method == .other ? "" : method.title,
             template: .preparation,
             method: method,
@@ -573,27 +503,43 @@ struct HomeSipV3SetupView: View {
             ingredients: HomeRecipeContent.defaultIngredients(for: method),
             steps: HomeRecipeContent.defaultSteps(for: method)
         )
-        draft.homeSipPath = .guided
-        draft.launchContext.sourceRecipeIdentityID = nil
-        draft.launchContext.sourceRecipeVersion = nil
-        draft.launchContext.homeRecipeVersionID = nil
-        draft.brewMethod = method.title
-        draft.drinkType = method.drinkType
-        draft.customDrinkType = method.drinkType == .other ? method.title : ""
-        draft.drinkName = method == .other ? "" : method.title
-        draft.brewDetails = content.asBrewDetails()
-        draft.homeComparisonSource = draft.currentHomeBrewSnapshot
-        draft.homeAttemptActuals = HomeAttemptActuals()
-        draft.homeSetupContent = content
-        draft.homeKeptIngredientIDs = []
+        let bagID = applyLibraryDefaults(to: &content)
+        HomeBrewSetup.applyTodayPlan(content, to: &draft, bagID: bagID)
         MugshotAnalytics.shared.capture(.homeWorkbench(action: .methodSelected))
         MugshotHaptic.selection.play()
     }
 
+    private func selectStarter(_ content: HomeRecipeContent) {
+        guard canEdit else { return }
+        var plan = content
+        plan.equipment = HomeBrewSetup.equipment(in: shelf, ownerID: draft.ownerUserID, locationName: draft.locationName).map(\.snapshot)
+        HomeBrewSetup.applyTodayPlan(plan, to: &draft)
+        MugshotAnalytics.shared.capture(.homeWorkbench(action: .methodSelected))
+        MugshotHaptic.selection.play()
+    }
+
+    private func applyLibraryDefaults(to content: inout HomeRecipeContent) -> UUID? {
+        let bag = shelf.defaults(for: draft.ownerUserID, method: content.method).bag
+        content.coffee = bag?.safeSnapshot
+        content.equipment = HomeBrewSetup.equipment(in: shelf, ownerID: draft.ownerUserID, locationName: draft.locationName).map(\.snapshot)
+        return bag?.id
+    }
+
+    private func reloadHomeControls(applyDefaultIfFresh: Bool = false) {
+        guard isCurrentOwner else { return }
+        shelf = HomeLibraryStore.shared.load(in: scope)
+        sipDrafts = SipDraftStore.shared.allDrafts(in: scope)
+        if applyDefaultIfFresh, canEdit {
+            let isStoredDraft = sipDrafts.contains { $0.id == draft.id }
+            HomeBrewSetup.applyDefaultLocation(to: &draft, from: shelf, isStoredDraft: isStoredDraft)
+        }
+    }
+
     private func selectLatte() {
+        guard canEdit else { return }
         var content = HomeRecipeContent(name: "Latte", template: .drink, method: .completeDrink)
         content.targets = HomeRecipeContent.defaultTargets(for: .espresso)
-        if let preferred = store.workspace.recipes.first(where: {
+        if hasActiveScope, let preferred = store.workspace.recipes.first(where: {
             $0.isPinned && $0.current?.content.method == .espresso
         }), let version = preferred.current {
             content.ingredients.append(HomeRecipeIngredient(
@@ -603,56 +549,30 @@ struct HomeSipV3SetupView: View {
             content.targets = version.content.targets
         } else {
             content.ingredients.append(HomeRecipeIngredient(name: "Espresso", amount: 1, unit: "serving"))
+            content.steps.append(HomePreparationStep(instruction: "Pull a double shot of espresso."))
         }
         content.ingredients.append(HomeRecipeIngredient(name: "Milk", amount: 160, unit: "ml"))
-        draft.homeSetupContent = content
-        draft.launchContext.sourceRecipeIdentityID = nil
-        draft.launchContext.homeRecipeVersionID = nil
-        draft.launchContext.sourceRecipeVersion = nil
-        draft.drinkName = "Latte"
-        draft.brewMethod = HomeBrewMethod.completeDrink.title
-        draft.drinkType = .coffee
-        draft.brewDetails = content.asBrewDetails()
-        draft.brewDetails.yieldGrams = content.targets.resolvedOutput
-        draft.homeAttemptActuals = HomeAttemptActuals()
-        draft.homeKeptIngredientIDs = []
-        draft.homeSipPath = .guided
+        content.steps.append(HomePreparationStep(instruction: "Warm and froth the milk, then pour it over the espresso."))
+        let bagID = applyLibraryDefaults(to: &content)
+        HomeBrewSetup.applyTodayPlan(content, to: &draft, bagID: bagID) {
+            store.workspace.version($0)?.content
+        }
         MugshotHaptic.selection.play()
     }
 
-    private func starter(_ title: String, method: HomeBrewMethod, action: @escaping () -> Void) -> some View {
+    private func methodShortcut(_ title: String, method: HomeBrewMethod, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                HomeMethodIconView(method: method, size: 29)
+                HomeMethodIconView(method: method, size: 26)
                 Text(title).font(.caption.weight(.bold)).foregroundStyle(Color.espressoBrown)
             }
-            .frame(width: 94, alignment: .leading)
-            .frame(minHeight: 80)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
             .padding(10)
-            .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotLine))
+            .homeSetupCard()
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("logASipV4.home.starter.\(method.rawValue)")
-    }
-
-    private func sessionProgress(_ session: HomePreparationSession) -> String {
-        if session.attempt.preparation?.method == .coldBrew {
-            let hours = max(0, Date().timeIntervalSince(session.startedAt) / 3600)
-            return "\(HomeRecipeContent.number(hours)) hr steeping"
-        }
-        return "Step \(session.stepIndex + 1)"
-    }
-
-    private func sectionHeader(_ title: String, detail: String) -> some View {
-        HStack { Text(title).font(.headline); Spacer(); Text(detail).font(.caption).foregroundStyle(Color.secondaryText) }
-    }
-
-    private func iconWell(_ method: HomeBrewMethod, size: CGFloat) -> some View {
-        HomeMethodIconView(method: method, size: size * 0.5)
-            .frame(width: size, height: size)
-            .background(Color.mugshotMint.opacity(0.22), in: RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
-            .accessibilityLabel(method.title)
     }
 
     private func setupRow(
@@ -663,27 +583,108 @@ struct HomeSipV3SetupView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: systemImage).font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.mugshotSage)
-                    .frame(width: 46, height: 46).background(Color.mugshotMint.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
-                VStack(alignment: .leading, spacing: 3) { Text(title).font(.headline); Text(detail).font(.caption).foregroundStyle(Color.secondaryText) }
-                Spacer(); Image(systemName: "chevron.right").foregroundStyle(Color.mugshotSage)
-            }.padding(12).contentShape(Rectangle())
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                    .frame(width: 44, height: 44)
+                    .background(Color.mugshotMint.opacity(0.22), in: RoundedRectangle(cornerRadius: 14))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.headline).foregroundStyle(Color.espressoBrown)
+                    if !detail.isEmpty {
+                        Text(detail).font(.subheadline).foregroundStyle(Color.secondaryText)
+                    }
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                    .accessibilityHidden(true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier ?? "")
     }
+}
 
-    private func setupRow(method: HomeBrewMethod, title: String, detail: String, badge: String? = nil, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                iconWell(method, size: 46)
-                VStack(alignment: .leading, spacing: 3) { Text(title).font(.headline); Text(detail).font(.caption).foregroundStyle(Color.secondaryText) }
-                Spacer()
-                if let badge { Text(badge).font(.caption2.weight(.bold)).foregroundStyle(Color.mugshotSage).padding(.horizontal, 8).padding(.vertical, 5).background(Color.mugshotMint.opacity(0.2), in: Capsule()) }
-                else { Image(systemName: "chevron.right").foregroundStyle(Color.mugshotSage) }
-            }.padding(12).contentShape(Rectangle())
-        }.buttonStyle(.plain)
+struct HomeAppliedSetupSummary: View {
+    let draft: SipDraft
+    var detail: String? = nil
+    var isRecoveryLocked = false
+    let onChange: () -> Void
+
+    private var appliedInputs: String {
+        let gear = draft.brewDetails.equipmentSnapshots?.map(\.displayName) ?? []
+        let names = Array(gear.prefix(2))
+        let remainder = gear.count > names.count ? "+\(gear.count - names.count) more" : nil
+        let location = draft.locationName.remoteTrimmedNonEmpty ?? "Home"
+        let coffee = draft.brewDetails.coffeeBag?.displayName
+        return ([location] + [coffee].compactMap { $0 } + names + [remainder].compactMap { $0 })
+            .joined(separator: " · ")
+    }
+
+    private var sourceLabel: String? {
+        if let version = draft.launchContext.sourceRecipeVersion ?? draft.homeSourceRecipeVersion {
+            return "Saved recipe \(version)"
+        }
+        if draft.homeSetupContent?.creatorCredit == "Mugshot starter" { return "Mugshot starter" }
+        return nil
+    }
+
+    private var ingredientPreview: String? {
+        guard let plan = draft.homeSetupContent, HomeRecipeUse.suggested(for: plan) == .drink else { return nil }
+        let names = plan.ingredients.compactMap { $0.name.remoteTrimmedNonEmpty }
+        guard !names.isEmpty else { return nil }
+        var preview = Array(names.prefix(3))
+        if names.count > preview.count { preview.append("+\(names.count - preview.count) more") }
+        return preview.joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("FOR THIS BREW")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(Color.mugshotSageText)
+            if let title = draft.brewDetails.recipeName?.remoteTrimmedNonEmpty ?? draft.brewMethod.remoteTrimmedNonEmpty {
+                Text(title)
+                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .foregroundStyle(Color.espressoBrown)
+            }
+            Label(appliedInputs, systemImage: "house.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.espressoBrown)
+                .accessibilityIdentifier("home.setup.appliedInputs")
+            if let detail = detail?.remoteTrimmedNonEmpty {
+                Text(detail).font(.caption).foregroundStyle(Color.secondaryText)
+            }
+            if let ingredientPreview {
+                Label(ingredientPreview, systemImage: "list.bullet")
+                    .font(.caption)
+                    .foregroundStyle(Color.secondaryText)
+                    .accessibilityLabel("Ingredients")
+                    .accessibilityValue(ingredientPreview)
+                    .accessibilityIdentifier("home.setup.ingredientsPreview")
+            }
+            if let sourceLabel {
+                Text(sourceLabel).font(.caption).foregroundStyle(Color.secondaryText)
+            } else if draft.brewMethod.remoteTrimmedNonEmpty == nil {
+                Text("Nickname and gear are optional.").font(.caption).foregroundStyle(Color.secondaryText)
+            }
+            Button("Change for this brew", systemImage: "slider.horizontal.3", action: onChange)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.mugshotSageText)
+                .frame(minHeight: 44)
+                .buttonStyle(.plain)
+                .disabled(isRecoveryLocked)
+                .accessibilityIdentifier("home.setup.changeForThisBrew")
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .homeSetupCard()
     }
 }
 
@@ -817,256 +818,389 @@ private struct HomeMethodPicker: View {
     }
 }
 
-struct HomeQuickRecipeSheet: View {
-    @ObservedObject var store: HomeRecipeWorkspaceStore
-    let onSaved: (HomeRecipeRecord, HomeRecipeVersion) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var source = ""
-    @State private var sourceText = ""
-    @State private var creatorCredit = ""
-    @State private var error: String?
-    @State private var showsFullEditor = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Save a recipe idea") {
-                    TextField("Recipe name", text: $name)
-                    TextField("Paste the caption or instructions", text: $sourceText, axis: .vertical)
-                        .lineLimit(4...10)
-                    TextField("Instagram, TikTok, or website", text: $source)
-                        .textInputAutocapitalization(.never).keyboardType(.URL)
-                    TextField("Creator credit", text: $creatorCredit)
-                }
-                Section {
-                    Text("Keep the idea as you found it. Add ingredients, amounts, and steps only when you want to. Saving never starts making.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Button("Build a full recipe instead", systemImage: "slider.horizontal.3") {
-                        showsFullEditor = true
-                    }
-                }
-                if let error { Text(error).foregroundStyle(.red) }
-            }
-            .scrollContentBackground(.hidden).background(Color.creamWhite)
-            .navigationTitle("Save a simple recipe")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        do {
-                            var content = HomeRecipeContent()
-                            content.template = .preparation
-                            content.method = .other
-                            content.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                            content.sourceURL = source.trimmingCharacters(in: .whitespacesAndNewlines)
-                            content.sourceText = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            content.creatorCredit = creatorCredit.trimmingCharacters(in: .whitespacesAndNewlines)
-                            let id = try store.saveRecipe(HomeRecipeEditorDraft(content: content))
-                            guard let recipe = store.workspace.recipes.first(where: { $0.id == id }), let version = recipe.current else { return }
-                            onSaved(recipe, version)
-                        } catch { self.error = error.localizedDescription }
-                    }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-        .fullScreenCover(isPresented: $showsFullEditor) {
-            HomeRecipeCreationFlow(store: store) { id in
-                guard let recipe = store.workspace.recipes.first(where: { $0.id == id }),
-                      let version = recipe.current else { return }
-                showsFullEditor = false
-                onSaved(recipe, version)
-            }
-        }
-    }
-}
-
-private struct HomeTodaySetupSheet: View {
+struct HomeTodaySetupSheet: View {
     @Binding var draft: SipDraft
+    let onSelectRecipe: ((HomeRecipeRecord, HomeRecipeVersion) -> Void)?
+    let onSelectMethod: ((HomeBrewMethod) -> Void)?
+    let editsPlan: Bool
+    let isRecoveryLocked: Bool
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authModel: AppAuthModel
     @ObservedObject private var store = HomeRecipeWorkspaceStore.shared
     @State private var calculation: HomeRecipeCalculation = .ratio
+    @State private var plannedRatio: Double?
+    @State private var shelf = HomeLibrarySnapshot.empty
     @State private var showsComponentPicker = false
+    @State private var showsGearLibrary = false
+    @State private var showsRecipePicker = false
+    @State private var showsMethodPicker = false
+    @State private var showsTodayInstruction = false
+    @State private var linkedRecipe: HomeLinkedRecipeSheet?
+    @State private var scope: LocalAccountScope
+    @State private var draftID: UUID
+
+    init(
+        draft: Binding<SipDraft>,
+        onSelectRecipe: ((HomeRecipeRecord, HomeRecipeVersion) -> Void)? = nil,
+        onSelectMethod: ((HomeBrewMethod) -> Void)? = nil,
+        editsPlan: Bool = true,
+        isRecoveryLocked: Bool = false
+    ) {
+        _draft = draft
+        self.onSelectRecipe = onSelectRecipe
+        self.onSelectMethod = onSelectMethod
+        self.editsPlan = editsPlan
+        self.isRecoveryLocked = isRecoveryLocked
+        _scope = State(initialValue: .forUserID(draft.wrappedValue.ownerUserID))
+        _draftID = State(initialValue: draft.wrappedValue.id)
+    }
+
+    private var canEdit: Bool {
+        !isRecoveryLocked && authModel.authenticatedUser?.id == scope.userID && draft.ownerUserID == scope.userID
+            && draft.id == draftID && (draft.context == .home || draft.context == .recipe)
+    }
 
     private var method: HomeBrewMethod { HomeBrewMethod(storedValue: draft.brewMethod) }
+
     private var content: HomeRecipeContent? {
+        guard canEdit else { return nil }
         if let today = draft.homeSetupContent { return today }
-        guard let recipeID = draft.launchContext.sourceRecipeIdentityID,
+        guard store.scope == scope, let recipeID = draft.launchContext.sourceRecipeIdentityID,
               let versionID = draft.launchContext.homeRecipeVersionID else { return nil }
-        return store.workspace.recipes.first(where: { $0.id == recipeID })?
-            .versions.first(where: { $0.id == versionID })?.content
+        return store.workspace.version(HomeRecipeReference(recipeID: recipeID, versionID: versionID))?.content
     }
-    private var isEspresso: Bool {
-        method == .espresso || content?.template == .drink && content?.targets.dose != nil
+
+    private var effectivePlan: HomeRecipeContent? {
+        guard let content else { return nil }
+        return HomeDrinkComposition.guidance(for: content) { reference in
+            guard store.scope == scope else { return nil }
+            return store.workspace.version(reference)?.content
+        }.base
     }
-    private var currentRatio: Double? {
+
+    private var planMethod: HomeBrewMethod { effectivePlan?.method ?? method }
+
+    private var projectedRatio: Double? {
         guard let dose = draft.brewDetails.doseGrams, dose > 0,
               let output = draft.brewDetails.yieldGrams else { return nil }
-        return output / dose
+        let ratio = output / dose
+        return HomeSetupNumbers.amountRange.contains(ratio) ? ratio : nil
+    }
+
+    private var profiles: [HomePlaceProfile] {
+        (shelf.preferences?.homeProfiles ?? []).filter { $0.ownerUserID == scope.userID }
+    }
+
+    private var equipment: [EquipmentSnapshot] {
+        content?.equipment ?? draft.brewDetails.equipmentSnapshots ?? []
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("Change anything")
-                        .font(.system(size: 30, weight: .semibold, design: .serif))
-                    Text("Only for today. Your saved recipe stays the same unless you choose what to keep after tasting.")
-                        .font(.subheadline).foregroundStyle(Color.secondaryText)
-
-                    if isEspresso {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Espresso base").font(.headline)
-                            Picker("Calculate by", selection: $calculation) {
-                                Text("Ratio").tag(HomeRecipeCalculation.ratio)
-                                Text("Yield").tag(HomeRecipeCalculation.output)
-                            }
-                            .pickerStyle(.segmented)
-                            HomeV4SetupDecimalRow("Coffee in", unit: "g", value: doseBinding)
-                            if calculation == .ratio {
-                                HomeV4SetupDecimalRow("Brew ratio · 1 to", unit: "", value: ratioBinding)
-                            } else {
-                                HomeV4SetupDecimalRow("Target yield", unit: "g", value: yieldBinding)
-                            }
-                            HStack {
-                                Text(calculation == .ratio ? "Target yield" : "Brew ratio")
-                                Spacer()
-                                Text(calculation == .ratio
-                                     ? draft.brewDetails.yieldGrams.map { "\(HomeRecipeContent.number($0)) g" } ?? "—"
-                                     : currentRatio.map { "1:\(HomeRecipeContent.number($0))" } ?? "—")
-                                    .fontWeight(.semibold)
-                            }
-                            .font(.subheadline)
-                            .foregroundStyle(Color.mugshotSageText)
-                            HomeV4SetupDecimalRow("Target time", unit: "sec", value: timeBinding)
-                        }
-                        .padding(16)
-                        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
-                        if let ratio = currentRatio,
-                           let yield = draft.brewDetails.yieldGrams {
-                            HStack(spacing: 12) {
-                                MugsyModelView(configuration: .init(prop: .journalNotebook))
-                                    .frame(width: 42, height: 42)
-                                    .accessibilityHidden(true)
-                                Text("That’s a 1:\(HomeRecipeContent.number(ratio)) ratio — aiming for \(HomeRecipeContent.number(yield)) g out. You can change either number.")
-                                    .font(.subheadline)
+                if canEdit {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Change for this brew")
+                                .font(.system(.title, design: .serif).weight(.semibold))
+                                .foregroundStyle(Color.espressoBrown)
+                            Text("These choices apply to this sip. Home library is where you manage defaults and save recipe versions.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.secondaryText)
+                            if let version = draft.launchContext.sourceRecipeVersion {
+                                Text("Starting from saved recipe \(version)")
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.mugshotSageText)
                             }
-                            .padding(14)
-                            .background(Color.mugshotMint.opacity(0.2), in: RoundedRectangle(cornerRadius: 16))
                         }
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(method.title).font(.headline)
-                            HomeV4SetupDecimalRow(method.inputLabel, unit: "g", value: doseBinding)
-                            HomeV4SetupDecimalRow(method.outputLabel, unit: method.outputUnit, value: method.usesYield ? yieldBinding : waterBinding)
-                            if method == .coldBrew || method == .coldBrewTea {
-                                HomeV4SetupDecimalRow("Steep duration", unit: "hr", value: steepHoursBinding)
-                            } else if content?.targets.steepSeconds != nil {
-                                HomeV4SetupDecimalRow("Steep duration", unit: "min", value: steepMinutesBinding)
-                            } else {
-                                HomeV4SetupDecimalRow("Target time", unit: "sec", value: timeBinding)
-                            }
-                        }
-                        .padding(16)
-                        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
-                    }
 
-                    if let content, !content.ingredients.isEmpty || content.template == .drink {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("In this drink").font(.headline)
-                            ForEach(content.ingredients) { ingredient in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        TextField("Ingredient name", text: ingredientNameBinding(ingredient.id))
-                                            .font(.subheadline.weight(.semibold))
-                                            .textInputAutocapitalization(.words)
-                                        Spacer(minLength: 8)
-                                        Button {
-                                            updateContent { $0.ingredients.removeAll { $0.id == ingredient.id } }
-                                        } label: { Image(systemName: "minus.circle") }
-                                            .frame(width: 44, height: 44)
-                                            .accessibilityLabel("Remove \(ingredient.name)")
-                                    }
-                                    HomeV4SetupDecimalRow("Amount", unit: ingredient.unit,
-                                        value: ingredientBinding(ingredient.id))
-                                }
-                                if ingredient.id != content.ingredients.last?.id { Divider() }
-                            }
-                            Button("Add a saved recipe", systemImage: "books.vertical") {
-                                showsComponentPicker = true
-                            }
-                            Button("Add a simple ingredient", systemImage: "plus") {
-                                updateContent { $0.ingredients.append(HomeRecipeIngredient(name: "")) }
-                            }
+                        locationCard
+                        if onSelectRecipe != nil || onSelectMethod != nil { planChoices }
+                        if editsPlan {
+                            if showsTodayInstruction { instructionCard }
+                            planTargets
+                            ingredientEditor
                         }
-                        .padding(16)
-                        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
+                        inventoryCard
+                        if editsPlan { advancedDetails }
                     }
-
-                    DisclosureGroup("Beans, gear, and more") {
-                        let library = HomeLibraryStore.shared.load(in: .forUserID(draft.ownerUserID))
-                        VStack(alignment: .leading, spacing: 12) {
-                            HomeCoffeeBagPicker(
-                                scope: .forUserID(draft.ownerUserID),
-                                selection: draft.brewDetails.coffeeBag
-                            ) { bag in
-                                draft.homeCoffeeBagID = bag?.id
-                                draft.brewDetails.coffeeBag = bag?.safeSnapshot
-                                updateContent { $0.coffee = bag?.safeSnapshot }
-                            }
-                            ForEach(library.equipment.filter { $0.archivedAt == nil }) { gear in
-                                Toggle(gear.displayName, isOn: Binding(
-                                    get: { content?.equipment.contains(gear.snapshot) == true },
-                                    set: { chosen in
-                                        updateContent {
-                                            $0.equipment.removeAll { $0 == gear.snapshot }
-                                            if chosen { $0.equipment.append(gear.snapshot) }
-                                            draft.brewDetails.equipmentSnapshots = $0.equipment
-                                        }
-                                    }
-                                ))
-                            }
-                            HomeV4SetupDecimalRow("Temperature", unit: "°C", value: temperatureBinding)
-                            TextField("Grind or texture", text: optionalText(\.grindSetting))
-                                .textFieldStyle(.roundedBorder)
-                            TextField("Notes for today", text: methodNotes, axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                        }
-                        .padding(.top, 12)
-                    }
-                    .tint(Color.mugshotSage)
-                    .padding(16)
-                    .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 18))
+                    .padding(DesignSystem.Space.md)
                 }
-                .padding(DesignSystem.Space.md)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Color.creamWhite)
-            .navigationTitle("Today's setup")
+            .navigationTitle("This brew")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         discardUnnamedIngredients()
                         dismiss()
-                    }.fontWeight(.bold)
+                    }
+                    .fontWeight(.semibold)
                 }
             }
-            .onAppear { calculation = content?.targets.calculation ?? .ratio }
+            .onAppear {
+                reloadShelf()
+                let targets = effectivePlan?.targets
+                calculation = targets?.calculation ?? .ratio
+                plannedRatio = targets?.resolvedRatio ?? projectedRatio
+                if editsPlan, content?.isReadyToMake == false { showsTodayInstruction = true }
+            }
             .onDisappear { discardUnnamedIngredients() }
+            .onChange(of: authModel.authenticatedUser?.id) { _, _ in
+                if !canEdit { dismiss() }
+            }
+            .onChange(of: draft.ownerUserID) { _, _ in
+                if !canEdit { dismiss() }
+            }
+            .onChange(of: draft.id) { _, _ in if !canEdit { dismiss() } }
+            .onChange(of: draft.context) { _, _ in if !canEdit { dismiss() } }
+            .onChange(of: isRecoveryLocked) { _, _ in if !canEdit { dismiss() } }
+            .sheet(isPresented: $showsGearLibrary, onDismiss: reloadShelf) {
+                HomeLibraryView(ownerID: scope.userID, initialSection: .gear)
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
+            .sheet(isPresented: $showsRecipePicker) {
+                if canEdit && store.scope == scope {
+                    HomeSipRecipePicker(store: store) { recipe, version in
+                        if canEdit { onSelectRecipe?(recipe, version) }
+                        showsRecipePicker = false
+                    }
+                }
+            }
+            .sheet(isPresented: $showsMethodPicker) {
+                HomeMethodPicker { method in
+                    if canEdit { onSelectMethod?(method) }
+                    showsMethodPicker = false
+                }
+            }
             .sheet(isPresented: $showsComponentPicker) {
-                HomeSipRecipePicker(store: store) { recipe, version in
-                    updateContent { $0.ingredients.append(HomeRecipeIngredient(
-                        name: version.content.name,
-                        amount: 1,
-                        unit: "serving",
-                        recipe: HomeRecipeReference(recipeID: recipe.id, versionID: version.id)
-                    )) }
-                    showsComponentPicker = false
+                if canEdit && store.scope == scope {
+                    HomeSipRecipePicker(store: store) { recipe, version in
+                        updateContent {
+                            $0.ingredients.append(HomeRecipeIngredient(
+                                name: version.content.name,
+                                amount: 1,
+                                unit: "serving",
+                                recipe: HomeRecipeReference(recipeID: recipe.id, versionID: version.id)
+                            ))
+                        }
+                        showsComponentPicker = false
+                    }
+                }
+            }
+            .sheet(item: $linkedRecipe) { item in
+                if canEdit && store.scope == scope {
+                    HomeLinkedRecipeDetail(store: store, reference: item.reference)
                 }
             }
         }
+    }
+
+    private var locationCard: some View {
+        HomeEditorSection("Made at Home", symbol: "house.fill",
+                          detail: "A nickname like Brew bench is optional. Pick a saved setup to use its tools for this sip.") {
+            if !profiles.isEmpty {
+                Menu {
+                    Button("Home") { selectProfile(nil) }
+                    ForEach(profiles) { profile in
+                        Button(profile.name) { selectProfile(profile) }
+                    }
+                } label: {
+                    Label("Choose a saved Home setup", systemImage: "chevron.down")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 44, alignment: .leading)
+                }
+                .accessibilityIdentifier("home.profile.choose")
+            }
+            HomeEditorField("Nickname for this sip", text: nickname, placeholder: "Home", identifier: "home.setup.nickname")
+        }
+    }
+
+    private var planChoices: some View {
+        HomeEditorSection("Recipe", symbol: "book.pages",
+                          detail: editsPlan ? "Start from a saved recipe or choose a method." : "Attach a saved recipe to the sip you already made.") {
+            if onSelectRecipe != nil && store.scope == scope {
+                Button(editsPlan ? "Choose a recipe" : "Attach a recipe", systemImage: "book.pages") {
+                    showsRecipePicker = true
+                }
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("home.setup.chooseRecipe")
+            }
+            if onSelectMethod != nil {
+                Button("Choose a method", systemImage: "slider.horizontal.3") { showsMethodPicker = true }
+                    .frame(minHeight: 44)
+            }
+        }
+    }
+
+    private var instructionCard: some View {
+        HomeEditorSection("One step for this brew", symbol: "list.number",
+                          detail: "Write a short step to follow as you make this idea.") {
+            HomeEditorField("Preparation step", text: Binding(
+                get: { content?.visibleSteps.first?.instruction ?? "" },
+                set: { instruction in
+                    guard canEdit, let plan = content else { return }
+                    HomeBrewSetup.updateFirstInstruction(instruction, in: &draft, plan: plan)
+                }
+            ), placeholder: "Stir the syrup into the latte.", axis: .vertical, identifier: "home.setup.todayInstruction")
+        }
+    }
+
+    @ViewBuilder private var planTargets: some View {
+        if planMethod.usesYield {
+            HomeEditorSection("Espresso base", symbol: "cup.and.saucer") {
+                Picker("Calculate by", selection: $calculation) {
+                    Text("Ratio").tag(HomeRecipeCalculation.ratio)
+                    Text("Yield").tag(HomeRecipeCalculation.output)
+                }
+                .pickerStyle(.segmented)
+                HomeV4SetupDecimalRow("Coffee in", unit: "g", value: doseBinding)
+                if calculation == .ratio {
+                    HomeV4SetupDecimalRow("Brew ratio · 1 to", unit: "", value: ratioBinding)
+                    if let yield = draft.brewDetails.yieldGrams {
+                        Text("Target yield \(HomeRecipeContent.number(yield)) g")
+                            .font(.subheadline).foregroundStyle(Color.mugshotSageText)
+                    }
+                } else {
+                    HomeV4SetupDecimalRow("Target yield", unit: "g", value: yieldBinding)
+                    if let ratio = projectedRatio {
+                        Text("Brew ratio 1:\(HomeRecipeContent.number(ratio))")
+                            .font(.subheadline).foregroundStyle(Color.mugshotSageText)
+                    }
+                }
+                HomeV4SetupDecimalRow("Target time", unit: "sec", value: timeBinding,
+                                      allowed: HomeSetupNumbers.durationInputRange())
+            }
+        } else {
+            let brewingMethod = planMethod
+            HomeEditorSection(brewingMethod.title, symbol: brewingMethod.systemImage) {
+                HomeV4SetupDecimalRow(brewingMethod.inputLabel, unit: "g", value: doseBinding)
+                HomeV4SetupDecimalRow(brewingMethod.outputLabel, unit: brewingMethod.outputUnit, value: waterBinding)
+                if brewingMethod == .coldBrew || brewingMethod == .coldBrewTea {
+                    HomeV4SetupDecimalRow("Steep duration", unit: "hr", value: steepHoursBinding,
+                                          allowed: HomeSetupNumbers.durationInputRange(secondsPerUnit: 3_600))
+                } else if content?.targets.steepSeconds != nil {
+                    HomeV4SetupDecimalRow("Steep duration", unit: "min", value: steepMinutesBinding,
+                                          allowed: HomeSetupNumbers.durationInputRange(secondsPerUnit: 60))
+                } else {
+                    HomeV4SetupDecimalRow("Target time", unit: "sec", value: timeBinding,
+                                          allowed: HomeSetupNumbers.durationInputRange())
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var ingredientEditor: some View {
+        if let content, !content.ingredients.isEmpty || content.template == .drink {
+            HomeEditorSection("In this drink", symbol: "cup.and.saucer",
+                              detail: "Adjust the amounts for the sip you’re making.") {
+                ForEach(content.ingredients) { ingredient in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            TextField("Ingredient name", text: ingredientNameBinding(ingredient.id))
+                                .font(.subheadline.weight(.semibold))
+                                .textInputAutocapitalization(.words)
+                            Button {
+                                updateContent { $0.ingredients.removeAll { $0.id == ingredient.id } }
+                            } label: { Image(systemName: "minus.circle") }
+                                .frame(width: 44, height: 44)
+                                .accessibilityLabel("Remove \(ingredient.name)")
+                        }
+                        HomeV4SetupDecimalRow("Amount", unit: ingredient.unit, value: ingredientBinding(ingredient.id))
+                        if let reference = ingredient.recipe, store.scope == scope {
+                            Button("Open linked recipe", systemImage: "book.pages") {
+                                linkedRecipe = HomeLinkedRecipeSheet(reference: reference)
+                            }
+                            .font(.subheadline)
+                            .frame(minHeight: 44)
+                        }
+                    }
+                    if ingredient.id != content.ingredients.last?.id { Divider() }
+                }
+                if store.scope == scope {
+                    Button("Add a saved recipe", systemImage: "books.vertical") { showsComponentPicker = true }
+                        .frame(minHeight: 44)
+                }
+                Button("Add a simple ingredient", systemImage: "plus") {
+                    updateContent { $0.ingredients.append(HomeRecipeIngredient(name: "")) }
+                }
+                .frame(minHeight: 44)
+            }
+        }
+    }
+
+    private var inventoryCard: some View {
+        HomeEditorSection("Beans and gear", symbol: "kettle", detail: "Choose the bag or tools you used, if you want to remember them.") {
+            if planMethod.family == .coffee || planMethod == .completeDrink || planMethod == .other || draft.brewDetails.coffeeBag != nil {
+                HomeCoffeeBagPicker(scope: scope, selection: draft.brewDetails.coffeeBag) { bag in
+                    guard canEdit, bag == nil || bag?.ownerUserID == scope.userID else { return }
+                    draft.homeCoffeeBagID = bag?.id
+                    draft.brewDetails.coffeeBag = bag?.safeSnapshot
+                    updateContent { $0.coffee = bag?.safeSnapshot }
+                }
+            }
+            ForEach(shelf.activeEquipment.filter { $0.ownerUserID == scope.userID }) { gear in
+                Toggle(gear.displayName, isOn: Binding(
+                    get: { equipment.contains(gear.snapshot) },
+                    set: { selected in
+                        var updated = equipment.filter { $0 != gear.snapshot }
+                        if selected { updated.append(gear.snapshot) }
+                        setEquipment(updated)
+                    }
+                ))
+                .frame(minHeight: 44)
+            }
+            Button("Open Home gear library", systemImage: "slider.horizontal.3") { showsGearLibrary = true }
+                .frame(minHeight: 44)
+        }
+    }
+
+    private var advancedDetails: some View {
+        DisclosureGroup("More brewing details") {
+            VStack(alignment: .leading, spacing: 10) {
+                HomeV4SetupDecimalRow("Temperature", unit: "°C", value: temperatureBinding,
+                                      allowed: HomeSetupNumbers.temperatureRange)
+                TextField("Grind or texture", text: optionalText(\.grindSetting))
+                    .textFieldStyle(.roundedBorder)
+                TextField("Notes for today", text: methodNotes, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+            }
+            .padding(.top, 10)
+        }
+        .tint(Color.mugshotSageText)
+        .padding(14)
+        .homeSetupCard()
+    }
+
+    private var nickname: Binding<String> {
+        Binding(get: { draft.locationName }, set: { value in
+            guard canEdit else { return }
+            let oneLine = value.components(separatedBy: .controlCharacters).joined()
+            draft.locationName = String(oneLine.prefix(60))
+        })
+    }
+
+    private func selectProfile(_ profile: HomePlaceProfile?) {
+        guard canEdit else { return }
+        draft.locationName = profile?.name ?? "Home"
+        let gear = HomeBrewSetup.equipment(in: shelf, ownerID: scope.userID, locationName: draft.locationName)
+        setEquipment(gear.map(\.snapshot))
+    }
+
+    private func setEquipment(_ value: [EquipmentSnapshot]) {
+        guard canEdit else { return }
+        draft.brewDetails.equipmentSnapshots = value
+        draft.equipment = value.map(\.displayName).joined(separator: ", ")
+        updateContent { $0.equipment = value }
+    }
+
+    private func reloadShelf() {
+        guard canEdit else { return }
+        shelf = HomeLibraryStore.shared.load(in: scope)
     }
 
     private func updateContent(_ update: (inout HomeRecipeContent) -> Void) {
@@ -1076,38 +1210,64 @@ private struct HomeTodaySetupSheet: View {
     }
 
     private func discardUnnamedIngredients() {
+        guard editsPlan else { return }
         updateContent {
-            $0.ingredients.removeAll { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            $0.ingredients.removeAll { $0.recipe == nil && $0.name.remoteTrimmedNonEmpty == nil }
         }
     }
 
     private var doseBinding: Binding<Double?> {
         Binding(get: { draft.brewDetails.doseGrams }, set: { newValue in
-            let ratio = currentRatio
+            guard canEdit else { return }
+            let usesYield = planMethod.usesYield
+            if usesYield && calculation == .ratio {
+                applyRatio(dose: newValue, ratio: plannedRatio)
+                return
+            }
             draft.brewDetails.doseGrams = newValue
-            if calculation == .ratio, let newValue, let ratio { draft.brewDetails.yieldGrams = newValue * ratio }
             updateContent {
                 $0.targets.dose = newValue
-                $0.targets.output = draft.brewDetails.yieldGrams
-                $0.targets.ratio = calculation == .ratio ? ratio : nil
-                $0.targets.calculation = calculation
+                if usesYield {
+                    $0.targets.output = draft.brewDetails.yieldGrams
+                    $0.targets.ratio = nil
+                    $0.targets.calculation = .output
+                }
             }
+            if usesYield { plannedRatio = projectedRatio }
         })
     }
 
     private var ratioBinding: Binding<Double?> {
-        Binding(get: { currentRatio }, set: { ratio in
-            if let dose = draft.brewDetails.doseGrams, let ratio, ratio > 0 {
-                draft.brewDetails.yieldGrams = dose * ratio
-            } else { draft.brewDetails.yieldGrams = nil }
-            updateContent { $0.targets.ratio = ratio; $0.targets.output = draft.brewDetails.yieldGrams; $0.targets.calculation = .ratio }
+        Binding(get: { plannedRatio }, set: { ratio in
+            applyRatio(dose: draft.brewDetails.doseGrams, ratio: ratio)
         })
+    }
+
+    private func applyRatio(dose: Double?, ratio: Double?) {
+        guard canEdit, planMethod.usesYield else { return }
+        var plan = content
+        guard let targets = HomeSetupNumbers.ratioTargets(plan?.targets ?? HomeRecipeTargets(), dose: dose, ratio: ratio)
+        else { return }
+        plan?.targets = targets
+        var updated = draft
+        updated.brewDetails.doseGrams = targets.dose
+        updated.brewDetails.yieldGrams = targets.output
+        updated.brewDetails.homeMethodDetails?.waterGrams = nil
+        if let plan { updated.homeSetupContent = plan }
+        draft = updated
+        plannedRatio = ratio
     }
 
     private var yieldBinding: Binding<Double?> {
         Binding(get: { draft.brewDetails.yieldGrams }, set: { newValue in
+            guard canEdit else { return }
             draft.brewDetails.yieldGrams = newValue
-            updateContent { $0.targets.output = newValue; $0.targets.calculation = .output }
+            plannedRatio = projectedRatio
+            updateContent {
+                $0.targets.output = newValue
+                $0.targets.ratio = nil
+                $0.targets.calculation = .output
+            }
         })
     }
 
@@ -1131,6 +1291,7 @@ private struct HomeTodaySetupSheet: View {
 
     private var temperatureBinding: Binding<Double?> {
         Binding(get: { draft.brewDetails.waterTemperatureCelsius }, set: { value in
+            guard canEdit else { return }
             draft.brewDetails.waterTemperatureCelsius = value
             updateContent { $0.targets.temperature = value }
         })
@@ -1140,6 +1301,7 @@ private struct HomeTodaySetupSheet: View {
         Binding(
             get: { draft.brewDetails.homeMethodDetails?.waterGrams },
             set: { value in
+                guard canEdit else { return }
                 var details = draft.brewDetails.homeMethodDetails ?? .empty
                 details.waterGrams = value
                 draft.brewDetails.homeMethodDetails = details
@@ -1152,33 +1314,33 @@ private struct HomeTodaySetupSheet: View {
         Binding(
             get: { content?.targets.seconds ?? draft.brewDetails.brewTimeSeconds.map(Double.init) },
             set: { value in
-                draft.brewDetails.brewTimeSeconds = value.map { Int($0.rounded()) }
+                guard canEdit else { return }
+                draft.brewDetails.brewTimeSeconds = HomeSetupNumbers.wholeSeconds(value)
                 updateContent { $0.targets.seconds = value }
             }
         )
     }
 
     private var steepHoursBinding: Binding<Double?> {
-        Binding(
-            get: { content?.targets.steepSeconds.map { $0 / 3_600 } },
-            set: { hours in
-                let seconds = hours.map { $0 * 3_600 }
-                var details = draft.brewDetails.homeMethodDetails ?? .empty
-                details.steepSeconds = seconds.map { Int($0.rounded()) }
-                details.coldBrewSteepHours = method == .coldBrew ? hours : nil
-                draft.brewDetails.homeMethodDetails = details
-                updateContent { $0.targets.steepSeconds = seconds }
-            }
-        )
+        steepBinding(secondsPerUnit: 3_600)
     }
 
     private var steepMinutesBinding: Binding<Double?> {
+        steepBinding(secondsPerUnit: 60)
+    }
+
+    private func steepBinding(secondsPerUnit: Double) -> Binding<Double?> {
         Binding(
-            get: { content?.targets.steepSeconds.map { $0 / 60 } },
-            set: { minutes in
-                let seconds = minutes.map { $0 * 60 }
+            get: {
+                (content?.targets.steepSeconds ?? draft.brewDetails.homeMethodDetails?.steepSeconds.map(Double.init))
+                    .map { $0 / secondsPerUnit }
+            },
+            set: { value in
+                guard canEdit else { return }
+                let seconds = value.map { $0 * secondsPerUnit }
                 var details = draft.brewDetails.homeMethodDetails ?? .empty
-                details.steepSeconds = seconds.map { Int($0.rounded()) }
+                details.steepSeconds = HomeSetupNumbers.wholeSeconds(seconds)
+                details.coldBrewSteepHours = planMethod == .coldBrew ? seconds.map { $0 / 3_600 } : nil
                 draft.brewDetails.homeMethodDetails = details
                 updateContent { $0.targets.steepSeconds = seconds }
             }
@@ -1189,6 +1351,7 @@ private struct HomeTodaySetupSheet: View {
         Binding(
             get: { draft.brewDetails[keyPath: keyPath] ?? "" },
             set: { value in
+                guard canEdit else { return }
                 draft.brewDetails[keyPath: keyPath] = value.remoteTrimmedNonEmpty
                 if keyPath == \.grindSetting { updateContent { $0.targets.grind = value } }
             }
@@ -1199,6 +1362,7 @@ private struct HomeTodaySetupSheet: View {
         Binding(
             get: { draft.brewDetails.homeMethodDetails?.customNotes ?? "" },
             set: { value in
+                guard canEdit else { return }
                 var details = draft.brewDetails.homeMethodDetails ?? .empty
                 details.customNotes = value.remoteTrimmedNonEmpty
                 draft.brewDetails.homeMethodDetails = details
@@ -1211,21 +1375,37 @@ private struct HomeTodaySetupSheet: View {
 private struct HomeV4SetupDecimalRow: View {
     let title: String
     let unit: String
+    let allowed: ClosedRange<Double>
     @Binding var value: Double?
+    @Environment(\.locale) private var locale
     @State private var text = ""
     @FocusState private var isFocused: Bool
 
-    init(_ title: String, unit: String, value: Binding<Double?>) {
+    init(_ title: String, unit: String, value: Binding<Double?>,
+         allowed: ClosedRange<Double> = HomeSetupNumbers.amountRange) {
         self.title = title
         self.unit = unit
+        self.allowed = allowed
         _value = value
+    }
+
+    private var editableText: Binding<String> {
+        Binding(get: { text }, set: { newText in
+            let edit = HomeSetupNumbers.edit(newText, replacing: text, locale: locale, allowed: allowed)
+            text = newText
+            switch edit {
+            case .unchanged: break
+            case .clear: if value != nil { value = nil }
+            case .set(let newValue): if value != newValue { value = newValue }
+            }
+        })
     }
 
     var body: some View {
         HStack(spacing: 8) {
             Text(title).font(.subheadline)
             Spacer(minLength: 4)
-            TextField("—", text: $text)
+            TextField("—", text: editableText)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 58, height: 44)
@@ -1233,20 +1413,66 @@ private struct HomeV4SetupDecimalRow: View {
                 .accessibilityLabel(title)
             if !unit.isEmpty { Text(unit).font(.caption).foregroundStyle(Color.secondaryText) }
         }
-        .onAppear { text = value.map { HomeRecipeContent.number($0) } ?? "" }
+        .onAppear { text = HomeSetupNumbers.display(value, locale: locale) }
         .onChange(of: value) { _, newValue in
             guard !isFocused else { return }
-            let updated = newValue.map { HomeRecipeContent.number($0) } ?? ""
-            if Double(text) != newValue { text = updated }
+            text = HomeSetupNumbers.display(newValue, locale: locale)
         }
         .onChange(of: isFocused) { _, focused in
-            if !focused { text = value.map { HomeRecipeContent.number($0) } ?? "" }
+            if !focused { text = HomeSetupNumbers.display(value, locale: locale) }
         }
-        .onChange(of: text) { _, newText in
-            let normalized = newText.replacingOccurrences(of: Locale.current.decimalSeparator ?? ".", with: ".")
-            let parsed = Double(normalized)
-            if parsed != value { value = parsed }
-        }
+    }
+}
+
+enum HomeSetupNumbers {
+    enum Edit: Equatable {
+        case unchanged, clear, set(Double)
+    }
+
+    static let amountRange = Double.leastNonzeroMagnitude...1_000_000
+    static let temperatureRange = (-273.15).nextUp...1_000
+    private static let maximumDuration: Double = 30 * 24 * 60 * 60
+
+    static func durationInputRange(secondsPerUnit: Double = 1) -> ClosedRange<Double> {
+        Double.leastNonzeroMagnitude...(maximumDuration / secondsPerUnit)
+    }
+
+    static func display(_ value: Double?, locale: Locale) -> String {
+        guard let value, value.isFinite else { return "" }
+        return value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+    }
+
+    static func edit(_ text: String, replacing previousText: String, locale: Locale,
+                     allowed: ClosedRange<Double> = amountRange) -> Edit {
+        guard text != previousText else { return .unchanged }
+        let input = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else { return .clear }
+        guard let formatter = CFNumberFormatterCreate(nil, locale as CFLocale, .decimalStyle) else { return .unchanged }
+        var parsedRange = CFRange(location: 0, length: input.utf16.count)
+        guard let parsed = CFNumberFormatterCreateNumberFromString(nil, formatter, input as CFString, &parsedRange, 0),
+              parsedRange.location == 0, parsedRange.length == input.utf16.count else { return .unchanged }
+        var value = Double.zero
+        guard CFNumberGetValue(parsed, .doubleType, &value), value.isFinite, allowed.contains(value) else { return .unchanged }
+        return .set(value)
+    }
+
+    static func boundedSeconds(_ value: Double?) -> Double? {
+        guard let value, value.isFinite, (0...maximumDuration).contains(value) else { return nil }
+        return value
+    }
+
+    static func wholeSeconds(_ value: Double?) -> Int? {
+        boundedSeconds(value).flatMap { Int(exactly: $0.rounded()) }
+    }
+
+    static func ratioTargets(_ targets: HomeRecipeTargets, dose: Double?, ratio: Double?) -> HomeRecipeTargets? {
+        var result = targets
+        result.calculation = .ratio
+        result.dose = dose
+        result.ratio = ratio
+        result.output = result.resolvedOutput
+        if let output = result.output, !amountRange.contains(output) { return nil }
+        return result
     }
 }
 
@@ -1256,31 +1482,31 @@ extension HomeRecipeContent {
         versionNumber: Int? = nil,
         resolveLinked: (HomeRecipeReference) -> HomeRecipeContent? = { _ in nil }
     ) -> BrewDetails {
-        let linkedBase = template == .drink
-            ? ingredients.compactMap(\.recipe).compactMap(resolveLinked)
-                .first(where: { [.coffee, .matcha, .hojicha, .tea].contains($0.method.family) })
-            : nil
-        let baseMethod = linkedBase?.method ?? method
-        let baseTargets = linkedBase?.targets.applying(targets) ?? targets
+        let base = HomeDrinkComposition.guidance(for: self, resolve: resolveLinked).base
+        let baseMethod = base.method
+        let baseTargets = base.targets
         var methodDetails = HomeMethodDetails.empty
         if baseMethod.usesYield { methodDetails.waterGrams = nil }
         else { methodDetails.waterGrams = baseTargets.resolvedOutput }
-        methodDetails.preinfusionSeconds = baseTargets.preinfusion.map(Int.init)
+        methodDetails.preinfusionSeconds = HomeSetupNumbers.wholeSeconds(baseTargets.preinfusion)
         methodDetails.pressureBars = baseTargets.pressure
-        methodDetails.steepSeconds = baseTargets.steepSeconds.map(Int.init)
-        methodDetails.coldBrewSteepHours = baseMethod == .coldBrew ? baseTargets.steepSeconds.map { $0 / 3600 } : nil
+        let steep = HomeSetupNumbers.boundedSeconds(baseTargets.steepSeconds)
+        methodDetails.steepSeconds = HomeSetupNumbers.wholeSeconds(steep)
+        methodDetails.coldBrewSteepHours = baseMethod == .coldBrew ? steep.map { $0 / 3_600 } : nil
         methodDetails.customNotes = notes.remoteTrimmedNonEmpty
         var details = BrewDetails.empty
         details.doseGrams = baseTargets.dose
         details.yieldGrams = baseMethod.usesYield ? baseTargets.resolvedOutput : nil
-        details.brewTimeSeconds = baseTargets.seconds.map(Int.init)
+        details.brewTimeSeconds = HomeSetupNumbers.wholeSeconds(baseTargets.seconds)
         details.grindSetting = baseTargets.grind.remoteTrimmedNonEmpty
         details.waterTemperatureCelsius = baseTargets.temperature
         details.recipeName = name.remoteTrimmedNonEmpty
         details.recipeVersion = versionNumber.map { "v\($0)" }
         details.sourceRecipeIdentityID = recipeID
         details.sourceRecipeVersion = versionNumber.map { "v\($0)" }
-        details.steps = visibleSteps.map { BrewRecipeStep(instruction: $0.instruction, durationSeconds: $0.waitSeconds.map(Int.init)) }
+        details.steps = visibleSteps.map {
+            BrewRecipeStep(instruction: $0.instruction, durationSeconds: HomeSetupNumbers.wholeSeconds($0.waitSeconds))
+        }
         details.tags = tags
         details.coffeeBag = coffee
         details.equipmentSnapshots = equipment

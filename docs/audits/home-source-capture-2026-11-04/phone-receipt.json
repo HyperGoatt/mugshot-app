@@ -1,0 +1,32 @@
+{
+  "bundleID": "co.mugshot.app.dev",
+  "displayName": "Mugshot Luna QA",
+  "version": "0.5.3",
+  "build": "8",
+  "signature": "deep-strict-pass",
+  "entitlements": "unchanged",
+  "analytics": "disabled",
+  "credentialExclusion": "pass",
+  "debugDylibSHA256": "20bde1c8a81ad32f345e445c4157c0cfe6902c5b7a7e421dccfd08de369baabc",
+  "installation": "success",
+  "prelaunchFiles": 40,
+  "prelaunchAllFilesByteIdentical": true,
+  "productionApp": "untouched",
+  "ownerAcceptance": "1/1 existing-recipe read-only UI test passed on final installed package",
+  "ownerPreservation": {
+    "comparison": "Original pre-task baseline versus final owner read-only run",
+    "recordsUnchanged": {
+      "recipes": 7,
+      "attempts": 6,
+      "sessions": 13,
+      "recipeDrafts": 1,
+      "attemptDrafts": 11
+    },
+    "originalSipDraftFilesByteIdentical": 3,
+    "syntheticOwnerRecordsCreated": 0,
+    "allApplicationSupportFilesUnchangedAfterRuntime": false,
+    "runtimeChangeExplanation": "One JSON updatedAt timestamp changed during ordinary runtime; all saved recipe/attempt/session/draft contents remain equal.",
+    "finalApplicationSupportFiles": 40,
+    "runtimeTimestampChanges": 1
+  }
+}
