@@ -11,6 +11,8 @@ reads use existing canonical/equivalent cafe resolution, the owner-only brew
 details RPC, and the RLS-protected per-sip reorder row. A local order is eligible
 only for its own account and cafe. The new draft stores the source visit ID and
 reusable order fields. Its media, reflection and audience start fresh and private.
+Edits to the repeated order use the same account-scoped draft store during the
+input event. The field keeps the typed wording without keyboard autocorrection.
 
 Pocket Sip copies selected image pixels into oriented, bounded JPEGs. The Add
 picker commits straight into the scoped local draft store. The Photos extension

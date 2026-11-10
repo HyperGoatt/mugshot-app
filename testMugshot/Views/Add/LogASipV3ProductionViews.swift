@@ -31,6 +31,7 @@ struct LogASipV3ProductionView: View {
     let onResumeDraft: () -> Void
     let onPocketSip: (() -> Void)?
     let onResumeStoredDraft: ((SipDraft) -> Void)?
+    let onEditRepeatOrderNotes: (String) -> Void
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
@@ -87,6 +88,7 @@ struct LogASipV3ProductionView: View {
         onResumeDraft: @escaping () -> Void = {},
         onPocketSip: (() -> Void)? = nil,
         onResumeStoredDraft: ((SipDraft) -> Void)? = nil,
+        onEditRepeatOrderNotes: @escaping (String) -> Void,
         onAddPhoto: @escaping () -> Void,
         onRemovePhoto: @escaping (Int) -> Void,
         onOrganizePhotos: @escaping () -> Void,
@@ -127,6 +129,7 @@ struct LogASipV3ProductionView: View {
         self.onResumeDraft = onResumeDraft
         self.onPocketSip = onPocketSip
         self.onResumeStoredDraft = onResumeStoredDraft
+        self.onEditRepeatOrderNotes = onEditRepeatOrderNotes
         self.onAddPhoto = onAddPhoto
         self.onRemovePhoto = onRemovePhoto
         self.onOrganizePhotos = onOrganizePhotos
@@ -416,6 +419,7 @@ struct LogASipV3ProductionView: View {
                 resumeDraftCount: resumeDraftCount,
                 isRecoveryLocked: isRecoveryLocked,
                 onResumeDraft: onResumeDraft,
+                onEditRepeatOrderNotes: onEditRepeatOrderNotes,
                 onAddPhoto: onAddPhoto,
                 onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
@@ -1298,6 +1302,7 @@ private struct LogASipV3SetupSurface: View {
     let resumeDraftCount: Int
     let isRecoveryLocked: Bool
     let onResumeDraft: () -> Void
+    let onEditRepeatOrderNotes: (String) -> Void
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
@@ -1408,10 +1413,11 @@ private struct LogASipV3SetupSurface: View {
                     LogASipV3LabeledField(
                         title: "Order details",
                         placeholder: "Milk, size, or other tweaks",
-                        text: $draft.orderNotes,
+                        text: Binding(get: { draft.orderNotes }, set: onEditRepeatOrderNotes),
                         systemImage: "list.bullet",
                         accessibilityIdentifier: "logASipV3.orderNotes"
                     )
+                    .autocorrectionDisabled()
                     .padding(.horizontal, DesignSystem.Space.md)
                 }
 

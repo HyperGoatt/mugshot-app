@@ -782,17 +782,7 @@ struct CafeDetailView: View {
     
     var body: some View {
         NavigationStack {
-            Group {
-                if let entry {
-                    redesignedDetail(entry)
-                } else if selectedDetent == .height(258) {
-                    compactDetail
-                } else if selectedDetent == .medium {
-                    mediumDetail
-                } else {
-                    expandedDetail
-                }
-            }
+            layoutContent
             .background(Color.creamWhite)
             .navigationTitle("Cafe details")
             .navigationBarTitleDisplayMode(.inline)
@@ -926,6 +916,27 @@ struct CafeDetailView: View {
         .presentationDragIndicator(entry == nil ? .visible : .hidden)
         .presentationBackground(Color.creamWhite)
         .accessibilityIdentifier("cafe.detail.sheet")
+    }
+
+    @ViewBuilder
+    private var layoutContent: some View {
+        if let entry {
+            CafeDetailLayout { redesignedDetail(entry) }
+        } else if selectedDetent == .height(258) {
+            CafeDetailLayout { compactDetail }
+        } else if selectedDetent == .medium {
+            CafeDetailLayout { mediumDetail }
+        } else {
+            CafeDetailLayout { expandedDetail }
+        }
+    }
+
+    // Store a closure so the navigation root carries only a small view value. Building
+    // the full layout inside that root exceeded the main-thread stack on iPhone.
+    private struct CafeDetailLayout<Content: View>: View {
+        let content: () -> Content
+
+        var body: some View { content() }
     }
 
     private var compactDetail: some View {

@@ -6,10 +6,10 @@ last_verified: 2026-11-09
 
 ## Cafe detail and Pocket Sip iPhone QA — November 9
 
-Mugshot Luna QA 0.5.3 (10) is installed and launch-verified on the owner’s
-iPhone. The [QA handoff](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#signed-iphone-install) records the
-in-place update and paths for the redesigned cafe page, The Next Sip, and both
-Pocket Sip photo routes.
+Build 11 is installed and the Map pin and Saved cafe open and Back passed on
+the owner’s iPhone after the build 10 crash. Follow the
+[crash repair and QA handoff](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up)
+for device evidence and the separate repeat and photo draft routes.
 
 ## Home novice and expert recommendations — November 9
 

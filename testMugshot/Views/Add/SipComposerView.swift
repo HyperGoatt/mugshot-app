@@ -632,6 +632,14 @@ struct LogVisitView: View {
                 ? { pocketSipPresentation = PocketSipPresentation(scope: localAccountScope) }
                 : nil,
             onResumeStoredDraft: resumeDraft,
+            onEditRepeatOrderNotes: { [draftID = draft.id] notes in
+                guard draft.id == draftID, draft.launchContext.source == .nextSip,
+                      draft.context == .cafe, draft.orderNotes != notes else { return }
+                // Save the edit in the input event. Waiting for onChange to render
+                // can miss the last character when the app terminates immediately.
+                draft.orderNotes = notes
+                persistDraft()
+            },
             onAddPhoto: { showPhotoSourceDialog = true },
             onRemovePhoto: removePhoto,
             onOrganizePhotos: beginOrganizingPhotos,

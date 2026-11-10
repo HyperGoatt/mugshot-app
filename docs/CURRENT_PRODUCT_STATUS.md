@@ -13,8 +13,11 @@ notes are available on the same page. The Next Sip opens a new private draft wit
 the cafe, drink and editable order details. Today's photos, rating, and reflection start
 empty. In Add, Pocket Sip saves selected Photos as a private draft. The system
 share extension accepts the same photo-only capture directly from Photos.
-**Mugshot Luna QA 0.5.3 (10)** is installed and launch-verified on the owner’s
-iPhone. [Implementation, Simulator checks and iPhone receipt](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md).
+Build 10 crashed when opening a Map pin on the owner’s iPhone. Build 11 is
+installed, and the Map pin and Saved cafe opens and Back passed on that iPhone.
+The repair isolates the cafe layout. See the
+[crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up)
+for the current candidate and separate Simulator and phone evidence.
 
 ## Home library and repeat brewing — November 9 candidate
 

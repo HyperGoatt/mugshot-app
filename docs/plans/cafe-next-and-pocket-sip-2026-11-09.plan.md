@@ -22,7 +22,48 @@ This changes product behavior, local data ownership, privacy, and the existing s
 - A separate iPhone 17 Pro Simulator on iOS 26.3.1 used local fixtures to open the cafe from Map and Saved, add one photo to the repeat draft, save a two-photo Pocket Sip through the native Add picker, and share three distinct images from Photos while Mugshot was terminated. Relaunch preserved all three drafts. The imported photos matched the three staged JPEGs in order, and Mugshot acknowledged the handoff after committing the private draft. A Safari URL share opened the existing Save cafe search flow.
 - Storage coverage includes owner switches, stale extension sessions, account deletion, cancellation, invalid photos, ordered bytes, retry after a failed commit, and replay after draft edits or cleanup.
 
+## Cafe detail crash follow-up
+
+**ECC RED:** Two build 10 crash reports from the iPhone 16 Pro on iOS 27.0.1
+matched the installed binary. Opening a cafe pin exhausted the main-thread
+stack inside the shared SwiftUI detail layout builder. The original Simulator
+journey passed, and the physical check stopped at launch, so neither caught it.
+
+The patch builds only the selected layout behind its own SwiftUI view. Map and
+Saved retain the redesigned layout, and older entry points keep their existing
+sheet sizes. Layout selection, navigation, account checks, and draft storage
+keep the same contracts. The opt-in owner-device test taps a real pin, goes
+back, opens it again, and checks the Saved route. It uses the installed app
+without fixture launch flags or edits to owner content.
+
+**ECC GREEN for cafe navigation:** Mugshot Luna QA **0.5.3 (11)** replaced
+build 10 in place on iPhone 16 Pro / iOS 27.0.1. The device reported build 11,
+and the app, share extension, and widget passed signing and provisioning checks.
+All 40 Application Support files and both preferences files matched their
+backups, and the app-group inventory was unchanged. The hardware test opened
+the same native Map pin twice, opened a Saved cafe, checked the page and Back
+each time, and confirmed the app remained active. No new Mugshot crash report
+appeared in the device inventory after the test. The signed app's debug
+library SHA-256 is `fde52debb8c320fdfe3f2104c67e53addc5cdf8fd491abdade61238cf27ce755`.
+
+**ECC RED for repeat edits:** On the iOS 27 Simulator, the field showed the
+completed edit before termination, but the draft reopened without the final
+character. Saving from the input binding alone passed on iOS 26.3.1 but still
+missed the last character on iOS 27.0.
+
+**ECC GREEN for repeat edits:** The field now keeps the typed wording without
+keyboard autocorrection and saves through the existing owner-scoped store
+during the input event. On a clean iPhone 17 Pro / iOS 27.0 Simulator the
+regression test passed twice: it edited the order, terminated immediately,
+reopened the one existing draft, and checked the entire value. The local draft
+file contained the final edit before termination on both runs. The Map recents
+test now uses the redesigned **Back to Map** control and still checks that the
+search UI leaves the background and returns after Back.
+
 ## Signed iPhone install
+
+Historical build 10 receipt. Use the [crash follow-up](#cafe-detail-crash-follow-up)
+for the current cafe QA candidate.
 
 On November 9, Mugshot Luna QA **0.5.3 (10)** replaced build 9 in place on the
 owner’s iPhone 16 Pro running iOS 27.0.1. The iPhone restart restored the existing
@@ -45,6 +86,7 @@ then reopen each private draft under **Add → Your drafts** or **Journal → Dr
 
 ## Release boundary
 
-The candidate is stacked on the Home library branch. Simulator tests and the
-signed iPhone installation and launch are verified. Owner device journeys,
-authenticated production behavior, and TestFlight acceptance are separate gates.
+The candidate is stacked on the Home library branch. Signed installation and
+launch are separate from opening the cafe detail on the device. The repeat and
+photo draft journeys on hardware, authenticated production behavior outside the
+observed checks, and TestFlight acceptance are separate gates.
