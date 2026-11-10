@@ -32,15 +32,17 @@ final class CafeNextSipUITests: XCTestCase {
         let resume = app.buttons["logASipV3.resumeDraft"]
         XCTAssertTrue(resume.waitForExistence(timeout: 5))
         resume.tap()
-        let draft = app.buttons.matching(NSPredicate(
+        let drafts = app.buttons.matching(NSPredicate(
             format: "identifier BEGINSWITH %@", "home.drafts.resume."
-        )).firstMatch
+        ))
+        let draft = drafts.firstMatch
         XCTAssertTrue(draft.waitForExistence(timeout: 4))
+        XCTAssertEqual(drafts.count, 1, "Editing the repeat should update its existing draft.")
         XCTAssertTrue(draft.label.contains("Honey oat cortado"))
         draft.tap()
         XCTAssertTrue(drink.waitForExistence(timeout: 5))
         XCTAssertEqual(drink.value as? String, "Honey oat cortado")
-        XCTAssertEqual(orderDetails.value as? String, "Oat milk, half sweet, warm")
+        XCTAssertEqual(orderDetails.value as? String, "Oat milk, half sweet, warm", "The final edit must survive an immediate quit.")
     }
 
     @MainActor
