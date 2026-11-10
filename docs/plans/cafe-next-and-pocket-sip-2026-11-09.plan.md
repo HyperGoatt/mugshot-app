@@ -22,6 +22,29 @@ This changes product behavior, local data ownership, privacy, and the existing s
 - A separate iPhone 17 Pro Simulator on iOS 26.3.1 used local fixtures to open the cafe from Map and Saved, add one photo to the repeat draft, save a two-photo Pocket Sip through the native Add picker, and share three distinct images from Photos while Mugshot was terminated. Relaunch preserved all three drafts. The imported photos matched the three staged JPEGs in order, and Mugshot acknowledged the handoff after committing the private draft. A Safari URL share opened the existing Save cafe search flow.
 - Storage coverage includes owner switches, stale extension sessions, account deletion, cancellation, invalid photos, ordered bytes, retry after a failed commit, and replay after draft edits or cleanup.
 
+## Signed iPhone install
+
+On November 9, Mugshot Luna QA **0.5.3 (10)** replaced build 9 in place on the
+owner’s iPhone 16 Pro running iOS 27.0.1. The iPhone restart restored the existing
+pairing over Wi-Fi. The signed build uses source
+`9d5f1d7adfab9c163991c414edf730bad8eb26c2` and development bundle
+`co.mugshot.app.dev`. Its debug library SHA-256 is
+`41faff9deba6f04faafaf98191a725485e195eeb9c6e01a08a8105727f2c961d`.
+Signature, provisioning, version, and entitlement checks passed for the app,
+share extension, and widget. Analytics is disabled in this development build.
+
+All 40 Application Support files, the app preferences file, and the app-group
+preferences file matched their private preinstall backups byte for byte. The
+app-group inventory matched and the Documents directory was empty. The device
+reported build 10. CoreDevice launched the app and confirmed the process was
+running.
+
+For owner QA, open a cafe from Map and Saved and tap **Log this again** on a
+repeatable order. Try **Add → Pocket Sip** and **Photos → Share → Mugshot**,
+then reopen each private draft under **Add → Your drafts** or **Journal → Drafts**.
+
 ## Release boundary
 
-This is a Simulator-verified candidate stacked on the Home library branch. Authenticated production reads, signed-device acceptance, and TestFlight are separate release gates.
+The candidate is stacked on the Home library branch. Simulator tests and the
+signed iPhone installation and launch are verified. Owner device journeys,
+authenticated production behavior, and TestFlight acceptance are separate gates.

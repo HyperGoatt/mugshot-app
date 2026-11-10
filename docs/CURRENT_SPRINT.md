@@ -4,13 +4,21 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Cafe detail and Pocket Sip iPhone QA — November 9
+
+Mugshot Luna QA 0.5.3 (10) is installed and launch-verified on the owner’s
+iPhone. The [QA handoff](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#signed-iphone-install) records the
+in-place update and paths for the redesigned cafe page, The Next Sip, and both
+Pocket Sip photo routes.
+
 ## Home novice and expert recommendations — November 9
 
 The [accepted Home plan](plans/home-library-and-brewing-2026-11-09.plan.md)
 covers the library, capture and builder, quick and guided making, and private
 brew comparison. The [ECC verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md)
-passes the native and Simulator gates. [Build 9 is installed and launch checked](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
-on the owner's iPhone. Preserve the Home draft stack and release holds.
+passes the native and Simulator gates. [Build 9 passed install and launch](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+on the owner’s iPhone before the build 10 handoff. Preserve the Home draft stack
+and release holds.
 
 ## Home novice and expert walkthrough — November 9
 

@@ -13,7 +13,8 @@ notes are available on the same page. The Next Sip opens a new private draft wit
 the cafe, drink and editable order details. Today's photos, rating, and reflection start
 empty. In Add, Pocket Sip saves selected Photos as a private draft. The system
 share extension accepts the same photo-only capture directly from Photos.
-[Implementation and verification](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md).
+**Mugshot Luna QA 0.5.3 (10)** is installed and launch-verified on the owner’s
+iPhone. [Implementation, Simulator checks and iPhone receipt](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md).
 
 ## Home library and repeat brewing — November 9 candidate
 
@@ -21,9 +22,9 @@ Source includes the approved [Home walkthrough improvements](HOME_RECIPES_IMPLEM
 clear entry and recipe capture, shelf controls, quick and guided making,
 private review, and a saved-sip brew comparison. The
 [verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md) records 185 native
-cases and 16 focused Simulator journeys. Mugshot Luna QA **0.5.3 (9)** is
-installed and launched on the owner's iPhone with existing local files preserved.
-See the [development iPhone receipt](audits/HOME_LIBRARY_PHONE_2026-11-09.md).
+cases and 16 focused Simulator journeys. Mugshot Luna QA **0.5.3 (9)**
+passed its [development install and launch](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+before the build 10 handoff above.
 
 ## Home walkthrough and Log a Sip setup — November 9 candidate
 

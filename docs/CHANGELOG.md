@@ -4,6 +4,12 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## 2026-11-09 — Cafe detail and Pocket Sip iPhone development install
+
+- Mugshot Luna QA 0.5.3 (10) replaced build 9 and launched on the owner’s iPhone 16 Pro.
+- The 40 app data files, app preferences file, and app-group preferences file matched their private backups after installation.
+- [Development install and owner QA routes](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#signed-iphone-install).
+
 ## 2026-11-09 — Cafe detail, The Next Sip and Pocket Sip candidate
 
 - Map and Saved open the redesigned full-height cafe page with a Back action for the originating tab.
