@@ -1,8 +1,21 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-10
 ---
+
+## Home from recipe to sip — November 10 candidate
+
+| Surface | Implemented behavior |
+| --- | --- |
+| Add → Home | One search/name field, up to two recently made whole drinks, source capture, selected drink parts, and optional guided making |
+| Rating and Journal | One private save with optional stars, photos, notes and measurements. The Journal receipt opens optional audience and recipe attachment review |
+| Recipe intake | Link, caption, screenshot, video, and manual review. Save for later, Save recipe, and Save & make |
+| iOS Share | Recipe or cafe for web/text input. Recipe screenshot or Pocket Sip for images |
+| Home library and edit scope | Whole drinks, Add-ins, and Brew recipes. One-brew changes, immutable versions, copies, archive recovery, and exact Used in links |
+| Accessibility | The capture footer reserves layout space while the form and recipe kinds scroll |
+
+[Current plan and verification](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
 

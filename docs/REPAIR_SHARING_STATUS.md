@@ -1,10 +1,25 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-10
 ---
 
+## iOS Share destinations and Home sip sharing — November 10 candidate
+
+Web links and text offer **Save a recipe** and **Save a cafe**. Photos offer
+**Recipe screenshot** for a single image and **Pocket Sip** for one to ten.
+Recipe capture shows a private-source receipt and Home offers **Continue
+recipe**. Opening or cancelling review keeps the source available. Saving
+the recipe or explicitly discarding its source acknowledges the handoff.
+The cafe route uses its existing Apple Maps lookup and Pocket Sip continues
+to open a private sip draft.
+
+**Save privately** in Home makes a Journal entry. **Share sip** opens audience
+and recipe attachment review after that save. [Current plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
+
 ## Pocket Sip photo sharing — November 9 candidate
+
+> The November 10 section above supersedes the share extension's initial destination choice.
 
 Photos → Share → Mugshot accepts up to ten selected images and shows a
 Pocket Sip preview before saving. A saved receipt means the device has the

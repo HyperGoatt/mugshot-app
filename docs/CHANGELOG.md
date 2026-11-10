@@ -1,8 +1,17 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-10
 ---
+
+## 2026-11-10 — Home from recipe to sip
+
+- Start Home with a recipe search or sip name, recent whole drinks, and Save a recipe. Show base, milk, and add-in amounts for the chosen drink.
+- Open saved recipes at the first making step or directly at rating. Save a private Home sip from rating, then open the separate sharing review from the Journal receipt.
+- Review captured ingredients and instructions before saving an idea, a recipe, or a recipe that opens guided making. Keep the capture footer in the layout at large text sizes.
+- Add explicit recipe, cafe, screenshot, and Pocket Sip destinations in iOS Share. Continue recipe opens the account's pending source in Home.
+- Group the Home library by use. Keep one-brew adjustments separate from saving a new version, making a copy, removing a part, and archiving an add-in.
+- [Implementation and verification plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## 2026-11-09 — Cafe page crash and repeat draft repair
 

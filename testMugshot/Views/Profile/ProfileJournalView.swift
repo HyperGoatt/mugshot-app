@@ -820,7 +820,7 @@ struct JournalTabView: View {
             draft.homeCoffeeBagID = attempt.homeCoffeeBagID
             draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
             draft.launchContext.homeRecipeVersionID = attempt.recipe?.versionID
-            draft.launchContext.homeRecipeAttachmentMode = .nameOnly
+            draft.launchContext.homeRecipeAttachmentMode = .doNotAttach
             try homeStore.setPublicationDraft(publicationID, for: attempt.id)
             let saved = try SipDraftStore.shared.save(draft, images: images, in: homeStore.scope)
             onComposeDraft(saved)

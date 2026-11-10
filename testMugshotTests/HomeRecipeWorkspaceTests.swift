@@ -5,6 +5,77 @@ import UIKit
 
 @MainActor
 struct HomeRecipeWorkspaceTests {
+    @Test func recipeEditCopyAndArchivedAddInPreserveOlderDrinkVersionsAndPrivateSips() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        let syrupID = try store.saveRecipe(HomeRecipeEditorDraft(content: HomeRecipeContent(
+            name: "Vanilla syrup", template: .component, method: .syrupSauce)))
+        let syrup = try #require(store.workspace.recipes.first { $0.id == syrupID })
+        let syrupVersion = try #require(syrup.current)
+        var drink = HomeDrinkComposition.starting(with: syrup)
+        drink.name = "Vanilla latte"
+        let drinkID = try store.saveRecipe(HomeRecipeEditorDraft(content: drink))
+        let recipe = try #require(store.workspace.recipes.first { $0.id == drinkID })
+        let version = try #require(recipe.current)
+        let reference = HomeRecipeReference(recipeID: drinkID, versionID: version.id)
+        var draft = HomeBrewSetup.draft(for: recipe, version: version, ownerID: nil, shelf: .empty, guided: false)
+        var oneBrew = drink
+        HomeDrinkComposition.usePreset(.traditionalMatcha, in: &oneBrew)
+        HomeBrewSetup.replaceTodayBase(in: &draft, with: oneBrew, bagID: nil) { store.workspace.version($0)?.content }
+        #expect(draft.homeWorkbenchPhase == .sip)
+        #expect(draft.launchContext.homeRecipeVersionID == version.id)
+        #expect(draft.homeSetupContent?.ingredients.last?.recipe?.versionID == syrupVersion.id)
+        #expect(store.workspace.version(reference)?.content == drink)
+
+        let attempt = HomeAttemptRecord(name: drink.name, recipe: reference, targets: drink, preparation: oneBrew)
+        try store.saveAttempt(attempt)
+        try store.saveAttempt(attempt)
+        var edit = HomeRecipeEditorDraft(recipeID: drinkID, baseVersionID: version.id, content: drink)
+        edit.content.ingredients.removeAll { $0.recipe?.recipeID == syrupID }
+        try store.saveDraft(edit)
+        let copy = try store.saveRecipe(edit, asCopy: true)
+        #expect(try store.saveRecipe(edit, asCopy: true) == copy)
+        #expect(copy != drinkID)
+        #expect(store.workspace.recipes.first { $0.id == copy }?.current?.content.name == "Vanilla latte copy")
+        #expect(try store.saveRecipe(edit) == drinkID)
+        #expect(store.workspace.recipes.first { $0.id == drinkID }?.versions.map(\.number) == [1, 2])
+        try store.mutate { workspace in
+            if let index = workspace.recipes.firstIndex(where: { $0.id == syrupID }) { workspace.recipes[index].isArchived = true }
+        }
+
+        let reopened = HomeRecipeWorkspaceStore(root: root)
+        reopened.activate(.guest)
+        let usedIn = try #require(reopened.workspace.drinksUsingAddIn(syrupID).first)
+        #expect(reopened.workspace.drinksUsingAddIn(syrupID).count == 1)
+        #expect(usedIn.drink == reference && usedIn.versionNumber == 1 && usedIn.addInVersions == [1])
+        #expect(reopened.workspace.attempts.count == 1)
+        #expect(reopened.workspace.attempts.first?.recipe == reference)
+        #expect(reopened.workspace.attempts.first?.rating == nil)
+        #expect(reopened.workspace.attempts.first?.publicationDraftID == nil)
+        #expect(reopened.workspace.version(reference)?.content == drink)
+    }
+
+    @Test func guidedStartWritesDraftAndSessionTogetherAndReusesTheCurrentPlan() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HomeRecipeWorkspaceStore(root: root)
+        store.activate(.guest)
+        let coldBrew = HomeRecipeContent(name: "Cold brew", template: .preparation, method: .coldBrew)
+        var attempt = HomeAttemptRecord(name: coldBrew.name, preparation: coldBrew)
+        let started = try store.beginPreparation(attempt)
+        #expect(started.timerStartedAt == started.startedAt)
+        #expect(try store.beginPreparation(attempt, replacing: started.id).id == started.id)
+        attempt.preparation?.notes = "Change for this brew"
+        let changed = try store.beginPreparation(attempt, replacing: started.id)
+        #expect(changed.id != started.id)
+        let reopened = HomeRecipeWorkspaceStore(root: root)
+        reopened.activate(.guest)
+        #expect(reopened.workspace.sessions.map(\.id) == [changed.id])
+        #expect(reopened.workspace.attemptDrafts.first?.preparation?.notes == "Change for this brew")
+    }
+
     @Test func v4MethodStartersRetainPourGuidanceAndLatteComponents() {
         var preparation = HomeRecipeContent.starting(.preparation)
         preparation.changeMethod(from: .espresso, to: .pourOver)

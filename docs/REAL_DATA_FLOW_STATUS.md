@@ -1,8 +1,28 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-10
 ---
+
+## Home private save and shared recipe sources — November 10 candidate
+
+The Home rating screen commits to the account-scoped workspace using the
+composer draft ID. Guidance stores the attempt and preparation session
+together. The sip records the exact saved recipe version, today's preparation,
+and only the actuals explicitly recorded. The Journal receipt follows a local
+commit. Share sip creates a separate publication draft and uses the existing
+audience and attachment boundaries.
+
+The iOS extension writes a bounded link/text or metadata-stripped screenshot
+into a separate recipe queue in the existing app group. The extension checks
+the active owner generation at write time. Home reads the same owner's packet
+on demand. The capture ID becomes the recipe ID on save, and the packet is
+atomically replaced with a receipt after the commit. A retry or interrupted
+acknowledgement can reconcile the existing recipe. Account purge removes the
+owner's packets and receipts. The extension makes no recipe network request.
+A shared web link is read after the user requests it in Home. Screenshot text
+can be read on-device, and Luna uses the existing account permission.
+[Implementation plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## Cafe orders and Pocket Sip — November 9 candidate
 

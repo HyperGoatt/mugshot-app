@@ -45,19 +45,19 @@ repeat brew.
 
 ## Implementation order
 
-- [ ] Trace existing Home navigation, exact recipe snapshots, private saving,
+- [x] Trace existing Home navigation, exact recipe snapshots, private saving,
       library editing, and the shared app container. Capture the RED evidence
       and pin the regression checks.
-- [ ] Build the Home entry, recipe parts preview, direct make/rating routes,
+- [x] Build the Home entry, recipe parts preview, direct make/rating routes,
       and the private save action with the existing theme and controls.
-- [ ] Wire source review and Save & make. Put the footer in the scroll layout.
-- [ ] Add the scoped recipe share handoff and recovery. Verify place sharing
+- [x] Wire source review and Save & make. Put the footer in the scroll layout.
+- [x] Add the scoped recipe share handoff and recovery. Verify place sharing
       and Pocket Sip through their normal routes.
-- [ ] Add library use filters, one-brew changes, explicit version and duplicate
+- [x] Add library use filters, one-brew changes, explicit version and duplicate
       actions, and Used in.
-- [ ] Run focused Swift tests and native journeys on disposable Simulators.
+- [x] Run focused Swift tests and native journeys on disposable Simulators.
       Inspect and retain screenshots at normal and largest text sizes.
-- [ ] Update living documents with actual evidence. Check the full diff and
+- [x] Update living documents with actual evidence. Check the full diff and
       publish the branch for review against the cafe candidate.
 
 ## Verification and evidence
@@ -87,3 +87,19 @@ Home implementation, product status, feature status, sprint, data flow, and
 sharing guidance. Review the submission data inventory against the final
 behavior. The candidate uses the existing release version and backend
 contracts.
+
+## Verified candidate
+
+- The old Home entry failed the new name-to-private-save regression. The
+  revised candidate passed that journey and reopened an unrated private sip
+  from Journal after a cold launch with an offline signed-in fixture.
+- 89 focused Swift tests and 35 native journeys passed across the broad run
+  and targeted reruns on iPhone 17 Pro Simulator with iOS 27.0. The journeys
+  include Save & make, component and version scope, archived links, Map and
+  Saved cafe regression checks, and accessibility XXXL with the keyboard open.
+- Native Photos sharing saved and reopened a recipe screenshot and a Pocket
+  Sip draft. Add saved and reopened two Pocket Sip photos. Safari opened the
+  cafe lookup and preserved the exact shared website URL in Home.
+- The generic Simulator build, documentation validation, and static checks
+  passed. This source candidate is stacked on the cafe branch for review.
+  Physical-device acceptance and TestFlight are separate release gates.

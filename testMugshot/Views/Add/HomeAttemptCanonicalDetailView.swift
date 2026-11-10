@@ -5,6 +5,7 @@ import SwiftUI
 struct HomeAttemptCanonicalDetailView: View {
     let attemptID: UUID
     var receipt: MugshotSaveReceipt? = nil
+    let saveError: String?
     let onShare: () -> Void
     let onMakeAgain: () -> Void
     let onDone: () -> Void
@@ -28,11 +29,11 @@ struct HomeAttemptCanonicalDetailView: View {
     @State private var showsRepeatPlan = false
     @FocusState private var commentFocused: Bool
 
-    init(attemptID: UUID, receipt: MugshotSaveReceipt? = nil,
+    init(attemptID: UUID, receipt: MugshotSaveReceipt? = nil, saveError: String? = nil,
          onShare: @escaping () -> Void, onMakeAgain: @escaping () -> Void, onDone: @escaping () -> Void,
          onHistory: (() -> Void)? = nil, onLogServing: (() -> Void)? = nil,
          onChangeNextBrew: ((HomeBrewPlanChange) -> Void)? = nil) {
-        self.attemptID = attemptID; self.receipt = receipt
+        self.attemptID = attemptID; self.receipt = receipt; self.saveError = saveError
         self.onShare = onShare; self.onMakeAgain = onMakeAgain; self.onDone = onDone
         self.onHistory = onHistory; self.onLogServing = onLogServing
         self.onChangeNextBrew = onChangeNextBrew
@@ -75,7 +76,7 @@ struct HomeAttemptCanonicalDetailView: View {
                     toolbarProgress: $toolbarProgress,
                     commentFocus: $commentFocused,
                     isWorking: isDeleting,
-                    statusMessage: store.errorMessage
+                    statusMessage: saveError ?? store.errorMessage
                         ?? (!attempt.pendingKeptIngredientIDs.isEmpty
                             ? "Sip saved · Recipe change pending"
                             : store.workspace.pendingOperationID == nil ? nil : "Saved here · Sync pending"),
@@ -115,14 +116,20 @@ struct HomeAttemptCanonicalDetailView: View {
                 )
                 .safeAreaInset(edge: .top, spacing: 0) {
                     if let receipt {
-                        MugshotSaveReceiptView(
-                            receipt: receipt,
-                            detail: !attempt.pendingKeptIngredientIDs.isEmpty
-                                ? "Sip saved · Recipe change needs attention"
-                                : store.workspace.pendingOperationID != nil
-                                    ? "Saved on this device · Sync pending"
-                                    : "Kept in your private journal"
-                        )
+                        VStack(spacing: 6) {
+                            MugshotSaveReceiptView(
+                                receipt: receipt,
+                                detail: !attempt.pendingKeptIngredientIDs.isEmpty
+                                    ? "Saved to Journal · Recipe change needs attention"
+                                    : "Saved to Journal"
+                            )
+                            Button("Share sip", systemImage: "square.and.arrow.up", action: onShare)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.mugshotSageText)
+                                .frame(minHeight: 44)
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("home.sip.share")
+                        }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
                     }
@@ -157,7 +164,7 @@ struct HomeAttemptCanonicalDetailView: View {
                        let onLogServing {
                         Button("Log a serving from this batch", action: onLogServing)
                     }
-                    Button("Share", action: onShare)
+                    Button("Share sip", action: onShare)
                     if let onHistory { Button("History", action: onHistory) }
                     if isCurrentOwner {
                         Button("Delete sip", role: .destructive) { deletionError = nil; confirmsDelete = true }

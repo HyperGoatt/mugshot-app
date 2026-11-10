@@ -1,8 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-10
 ---
+
+## Home from recipe to sip — November 10 candidate
+
+Add → Home asks **What are you making?** Search saved recipes, name a sip,
+or save a recipe from a link, caption, video, screenshot, or manual entry.
+A chosen drink shows its parts and quantities. **Follow steps** and
+**Make this** start guidance. **Rate this sip** and **Log a make** open
+rating. **Save privately** adds the sip to the Journal. Sharing opens
+separately from the saved sip.
+
+The iOS share extension offers a recipe or cafe for web links and text,
+and recipe screenshot or Pocket Sip for photos. Home reopens shared
+recipe sources in the originating account. Saved → Home library offers
+Whole drinks, Add-ins, and Brew recipes, with explicit version and copy
+actions and historical add-in usage. [Current plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
 

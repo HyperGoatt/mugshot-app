@@ -197,26 +197,40 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         if FileManager.default.fileExists(atPath: location.path) { try FileManager.default.removeItem(at: location) }
     }
 
-    func saveRecipe(_ draft: HomeRecipeEditorDraft) throws -> UUID {
-        if let message = draft.content.validationMessage { throw HomeRecipeWorkspaceError.invalid(message) }
-        let id = draft.recipeID ?? draft.id
+    func saveRecipe(_ draft: HomeRecipeEditorDraft, asCopy: Bool = false) throws -> UUID {
+        var content = draft.content
+        if asCopy {
+            guard let originalID = draft.recipeID, originalID != draft.id,
+                  let original = workspace.recipes.first(where: { $0.id == originalID }),
+                  let source = original.versions.first(where: { $0.id == draft.baseVersionID }) else {
+                throw HomeRecipeWorkspaceError.unavailableReference
+            }
+            try Self.validateAttribution(content, previous: source.content)
+            if content.name.remoteTrimmedNonEmpty == source.content.name.remoteTrimmedNonEmpty,
+               let name = content.name.remoteTrimmedNonEmpty {
+                content.name = String(name.prefix(115)) + " copy"
+            }
+        }
+        if let message = content.validationMessage { throw HomeRecipeWorkspaceError.invalid(message) }
+        let id = asCopy ? draft.id : (draft.recipeID ?? draft.id)
         try mutate { state in
-            guard !state.wouldCreateCycle(recipeID: id, content: draft.content) else {
+            guard !state.wouldCreateCycle(recipeID: id, content: content) else {
                 throw HomeRecipeWorkspaceError.invalid("A recipe cannot link back to itself.")
             }
-            for reference in draft.content.ingredients.compactMap(\.recipe) {
+            for reference in content.ingredients.compactMap(\.recipe) {
                 guard state.recipes.contains(where: { $0.id == reference.recipeID && $0.versions.contains { $0.id == reference.versionID } }) else {
                     throw HomeRecipeWorkspaceError.unavailableReference
                 }
             }
             if let index = state.recipes.firstIndex(where: { $0.id == id }) {
+                if asCopy, state.recipes[index].versions.first?.content == content { return }
                 guard state.recipes[index].current?.id == draft.baseVersionID else { throw HomeRecipeWorkspaceError.conflict }
-                try Self.validateAttribution(draft.content, previous: state.recipes[index].current?.content)
-                if state.recipes[index].current?.content != draft.content {
-                    state.recipes[index].versions.append(HomeRecipeVersion(number: (state.recipes[index].current?.number ?? 0) + 1, content: draft.content))
+                try Self.validateAttribution(content, previous: state.recipes[index].current?.content)
+                if state.recipes[index].current?.content != content {
+                    state.recipes[index].versions.append(HomeRecipeVersion(number: (state.recipes[index].current?.number ?? 0) + 1, content: content))
                 }
             } else {
-                state.recipes.append(HomeRecipeRecord(id: id, versions: [HomeRecipeVersion(content: draft.content)]))
+                state.recipes.append(HomeRecipeRecord(id: id, versions: [HomeRecipeVersion(content: content)]))
             }
             state.recipeDrafts.removeAll { $0.id == draft.id }
         }
@@ -413,6 +427,33 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             resultingVersionID = version.id
         }
         return resultingVersionID
+    }
+
+    func beginPreparation(_ attempt: HomeAttemptRecord, replacing sessionID: UUID? = nil) throws -> HomePreparationSession {
+        try requireLiveMake(attempt.id)
+        if let originalID = attempt.editingAttemptID { try requireLiveMake(originalID) }
+        let previous = workspace.sessions.first { $0.id == sessionID && $0.attempt.id == attempt.id }
+        if let previous,
+           previous.phase == .preparing, previous.attempt.preparation == attempt.preparation,
+           previous.attempt.recipe == attempt.recipe, previous.attempt.locationName == attempt.locationName {
+            return previous
+        }
+        var session = HomePreparationSession(attempt: attempt, phase: .preparing)
+        if [.coldBrew, .coldBrewTea].contains(attempt.preparation?.method ?? .other) {
+            session.timerStartedAt = session.startedAt
+        }
+        try mutate { state in
+            state.attemptDrafts.removeAll { $0.id == attempt.id }
+            state.attemptDrafts.append(attempt)
+            state.sessions.removeAll { $0.id == sessionID && $0.attempt.id == attempt.id }
+            state.sessions.append(session)
+        }
+        if let previous {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [
+                "home-preparation-\(scope.storageComponent)-\(previous.id)"
+            ])
+        }
+        return session
     }
 
     func saveSession(_ session: HomePreparationSession) throws {

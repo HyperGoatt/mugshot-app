@@ -10,12 +10,14 @@ struct HomeRecipeDetailScreen: View {
     var onCreatedDrink: (UUID) -> Void = { _ in }
     @State private var linked: HomeLinkedRecipeSheet?
     @State private var drinkDraft: HomeRecipeEditorDraft?
+    @State private var confirmsArchiveAddIn = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var recipe: HomeRecipeRecord? { store.workspace.recipes.first { $0.id == recipeID } }
 
     var body: some View {
         List {
             if let recipe, let version = recipe.current {
+                let isAddIn = HomeRecipeUse.suggested(for: version.content) == .component
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Label(HomeRecipeUse.suggested(for: version.content).title, systemImage: HomeRecipeUse.suggested(for: version.content).symbol)
@@ -23,7 +25,7 @@ struct HomeRecipeDetailScreen: View {
                         Text(version.content.name).mugshotDisplay(size: 32)
                         Text(version.content.recipeContentsSummary)
                             .font(.subheadline).foregroundStyle(Color.secondaryText)
-                        if HomeRecipeUse.suggested(for: version.content) == .component {
+                        if isAddIn {
                             useInDrink(recipe).buttonStyle(PrimaryButtonStyle())
                             if version.content.isReadyToMake {
                                 Button("Make this add-in", systemImage: "play.fill") { onMake(recipe) }
@@ -54,8 +56,14 @@ struct HomeRecipeDetailScreen: View {
                 Section("Your recipe") {
                     Button("Edit recipe") { edit(recipe, version: version) }
                     Button(recipe.isPinned ? "Remove from usuals" : "Pin to usuals", systemImage: "pin") { change { $0.isPinned.toggle() } }
-                    Button(recipe.isArchived ? "Restore recipe" : "Archive recipe") { change { $0.isArchived.toggle() } }
+                    if isAddIn && !recipe.isArchived {
+                        Button("Archive add-in", systemImage: "archivebox") { confirmsArchiveAddIn = true }
+                            .accessibilityIdentifier("home.recipe.archiveAddIn")
+                    } else {
+                        Button(recipe.isArchived ? "Restore recipe" : "Archive recipe") { change { $0.isArchived.toggle() } }
+                    }
                 }
+                if isAddIn { usedIn }
                 Section("Attempts") {
                     let attempts = store.workspace.attempts.filter { $0.recipe?.recipeID == recipeID }.sorted { $0.createdAt > $1.createdAt }
                     if attempts.isEmpty { Text("Your first make starts here.").foregroundStyle(.secondary) }
@@ -93,6 +101,36 @@ struct HomeRecipeDetailScreen: View {
                 drinkDraft = nil
                 if id != recipeID { onCreatedDrink(id) }
             }.environment(\.dynamicTypeSize, dynamicTypeSize)
+        }
+        .confirmationDialog("Archive this add-in?", isPresented: $confirmsArchiveAddIn, titleVisibility: .visible) {
+            Button("Archive add-in", role: .destructive) { change { $0.isArchived = true } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Drinks and past sips keep their links. You can restore this add-in from Archived recipes.")
+        }
+    }
+
+    private var usedIn: some View {
+        let uses = store.workspace.drinksUsingAddIn(recipeID)
+        return Section("Used in") {
+            if uses.isEmpty {
+                Text("This add-in has no linked drink recipes yet.").foregroundStyle(Color.secondaryText)
+            }
+            ForEach(uses, id: \.drink) { usage in
+                Button {
+                    linked = HomeLinkedRecipeSheet(reference: usage.drink)
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(usage.name) · v\(usage.versionNumber)").font(.subheadline.weight(.semibold))
+                        let versions = usage.addInVersions.map { "v\($0)" }.joined(separator: ", ")
+                        Text([versions.isEmpty ? "Linked add-in" : "Add-in \(versions)", usage.isArchived ? "Archived drink" : nil]
+                            .compactMap { $0 }.joined(separator: " · "))
+                            .font(.caption).foregroundStyle(Color.secondaryText)
+                    }
+                    .frame(minHeight: 44, alignment: .leading)
+                }
+                .accessibilityIdentifier("home.recipe.usedIn.\(usage.drink.versionID)")
+            }
         }
     }
     private func useInDrink(_ recipe: HomeRecipeRecord) -> some View {

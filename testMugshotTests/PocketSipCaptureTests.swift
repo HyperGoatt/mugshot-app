@@ -116,6 +116,91 @@ struct PocketSipCaptureTests {
         #expect(store.allDrafts(in: .guest).isEmpty)
     }
 
+    @Test func recipeLinkAndScreenshotReopenByOwnerAndAcknowledgementPreventsReplay() throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let inbox = PocketSipInbox(directory: root)
+        let owner = PocketSipOwner(userID: UUID())
+        let other = PocketSipOwner(userID: UUID())
+        try inbox.activate(owner)
+        let session = try #require(inbox.activeSession())
+        let link = HomeRecipeShareCapture(id: UUID(), owner: owner, url: "https://example.invalid/tea", text: "2 g tea")
+        let image = HomeRecipeShareCapture(id: UUID(), owner: owner, screenshot: try photo(.green))
+        try inbox.enqueueRecipe(link, for: session)
+        try inbox.enqueueRecipe(image, for: session)
+        try inbox.enqueueRecipe(link, for: session)
+        let reopened = PocketSipInbox(directory: root)
+        #expect(try Set(reopened.pendingRecipeIDs(for: owner)) == Set([link.id, image.id]))
+        #expect(try reopened.pendingIDs(for: owner).isEmpty)
+        #expect(try reopened.recipeCapture(image.id, for: owner) == image)
+        #expect(try reopened.recipeCapture(link.id, for: owner) == link)
+
+        try reopened.activate(other)
+        #expect(try reopened.pendingRecipeIDs(for: other).isEmpty)
+        #expect(throws: PocketSipCaptureError.accountChanged) { try reopened.recipeCapture(link.id, for: owner) }
+        #expect(throws: PocketSipCaptureError.accountChanged) { try reopened.acknowledgeRecipe(image.id, for: owner) }
+        try reopened.activate(owner)
+        #expect(throws: PocketSipCaptureError.accountChanged) { try reopened.enqueueRecipe(link, for: session) }
+        let refreshed = try #require(reopened.activeSession())
+        #expect(try reopened.recipeCapture(link.id, for: owner) == link)
+        try reopened.acknowledgeRecipe(link.id, for: owner)
+        try reopened.enqueueRecipe(link, for: refreshed)
+        #expect(try reopened.pendingRecipeIDs(for: owner) == [image.id])
+        #expect(try reopened.recipeCapture(link.id, for: owner) == nil)
+        try reopened.purge(owner)
+        try reopened.activate(owner)
+        #expect(try reopened.pendingRecipeIDs(for: owner).isEmpty)
+    }
+
+    @Test func invalidRecipeHandoffsLeaveNoPacketAndCanRetryWithSameID() throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let inbox = PocketSipInbox(directory: root)
+        let owner = PocketSipOwner(userID: nil)
+        try inbox.activate(owner)
+        let session = try #require(inbox.activeSession())
+        let id = UUID()
+        let bad = [
+            HomeRecipeShareCapture(id: id, owner: owner, url: "file:///private/notes"),
+            HomeRecipeShareCapture(id: id, owner: owner, url: "https://user:password@example.invalid"),
+            HomeRecipeShareCapture(id: id, owner: owner, text: String(repeating: "x", count: 48_001)),
+            HomeRecipeShareCapture(id: id, owner: owner, screenshot: Data("broken".utf8)),
+            HomeRecipeShareCapture(id: id, owner: owner, text: "mixed", screenshot: try photo(.red))
+        ]
+        for input in bad {
+            #expect(throws: (any Error).self) { try inbox.enqueueRecipe(input, for: session) }
+        }
+        #expect(try inbox.pendingRecipeIDs(for: owner).isEmpty)
+        let corrected = HomeRecipeShareCapture(id: id, owner: owner, text: "Tea\n1 bag\nSteep three minutes.")
+        try inbox.enqueueRecipe(corrected, for: session)
+        #expect(try inbox.recipeCapture(id, for: owner) == corrected)
+    }
+
+    @Test func recipeQueueWriteFailureKeepsRetryAndCompletedSourcesReleaseCapacity() throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let inbox = PocketSipInbox(directory: root)
+        let owner = PocketSipOwner(userID: nil)
+        try inbox.activate(owner)
+        let session = try #require(inbox.activeSession())
+        let source = HomeRecipeShareCapture(id: UUID(), owner: owner, text: "Tea recipe")
+        let folder = root.appendingPathComponent("guest/recipes")
+        try FileManager.default.createDirectory(at: folder.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("write obstruction".utf8).write(to: folder)
+        #expect(throws: (any Error).self) { try inbox.enqueueRecipe(source, for: session) }
+        try FileManager.default.removeItem(at: folder)
+        try inbox.enqueueRecipe(source, for: session)
+        for _ in 1..<20 {
+            try inbox.enqueueRecipe(HomeRecipeShareCapture(id: UUID(), owner: owner, text: "Tea recipe"), for: session)
+        }
+        let next = HomeRecipeShareCapture(id: UUID(), owner: owner, text: "Next recipe")
+        #expect(throws: HomeRecipeShareError.inboxFull) { try inbox.enqueueRecipe(next, for: session) }
+        try inbox.acknowledgeRecipe(source.id, for: owner)
+        try inbox.enqueueRecipe(next, for: session)
+        #expect(try inbox.pendingRecipeIDs(for: owner).count == 20)
+        #expect(try inbox.recipeCapture(next.id, for: owner) == next)
+    }
+
     @Test func downsamplePreservesOrientationAndRemovesLocationMetadata() throws {
         let source = temporaryRoot().appendingPathExtension("jpg")
         defer { try? FileManager.default.removeItem(at: source) }

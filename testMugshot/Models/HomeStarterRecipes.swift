@@ -69,6 +69,17 @@ enum HomeStarterRecipes {
 }
 
 enum HomeBrewSetup {
+    static func draft(for recipe: HomeRecipeRecord, version: HomeRecipeVersion, ownerID: UUID?,
+                      shelf: HomeLibrarySnapshot, guided: Bool,
+                      resolveLinked: (HomeRecipeReference) -> HomeRecipeContent? = { _ in nil }) -> SipDraft {
+        var draft = SipDraft(ownerUserID: ownerID, context: .home, locationName: "Home")
+        applyDefaultLocation(to: &draft, from: shelf, isStoredDraft: false)
+        applySavedRecipe(recipe, version: version, to: &draft, shelf: shelf, path: guided ? .guided : .quick,
+                         resolveLinked: resolveLinked)
+        draft.homeWorkbenchPhase = guided ? .brew : .sip
+        return draft
+    }
+
     static func applyDefaultLocation(to draft: inout SipDraft, from shelf: HomeLibrarySnapshot, isStoredDraft: Bool) {
         guard !isStoredDraft, !draft.hasDraftWorthyUserContent,
               draft.context == .home || draft.context == .recipe,
@@ -141,5 +152,20 @@ enum HomeBrewSetup {
         draft.homeComparisonSource = draft.currentHomeBrewSnapshot
         draft.homeKeptIngredientIDs = []
         if path == .guided { draft.homeAttemptActuals = HomeAttemptActuals() }
+    }
+
+    static func replaceTodayBase(in draft: inout SipDraft, with content: HomeRecipeContent, bagID: UUID?,
+                                 resolveLinked: (HomeRecipeReference) -> HomeRecipeContent?) {
+        let launch = draft.launchContext
+        draft.homeCoffeeBagID = bagID
+        draft.brewMethod = content.methodDisplayName
+        draft.drinkType = content.method.drinkType
+        draft.customDrinkType = content.method.drinkType == .other ? content.methodDisplayName : ""
+        draft.brewDetails = content.asBrewDetails(resolveLinked: resolveLinked)
+        draft.brewDetails.recipeVersion = launch.sourceRecipeVersion
+        draft.brewDetails.sourceRecipeIdentityID = launch.sourceRecipeIdentityID
+        draft.brewDetails.sourceRecipeVersion = launch.sourceRecipeVersion
+        draft.equipment = content.equipment.map(\.displayName).joined(separator: ", ")
+        draft.homeSetupContent = content
     }
 }

@@ -5,6 +5,8 @@ import UIKit
 struct PocketSipShareView: View {
     let providers: [NSItemProvider]
     let onClose: () -> Void
+    var onBack: (() -> Void)? = nil
+    var expectedSession: PocketSipShareSession? = nil
 
     @State private var captureID = UUID()
     @State private var session: PocketSipShareSession?
@@ -36,7 +38,7 @@ struct PocketSipShareView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(sage)
                     Spacer()
-                    Button(saved ? "Done" : "Cancel", action: onClose)
+                    Button(saved ? "Done" : onBack == nil ? "Cancel" : "Back", action: saved ? onClose : (onBack ?? onClose))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(sage)
                         .frame(minHeight: 44)
@@ -127,6 +129,7 @@ struct PocketSipShareView: View {
             guard let current = PocketSipInbox.shared?.activeSession() else {
                 throw PocketSipCaptureError.inboxUnavailable
             }
+            if let expectedSession, expectedSession != current { throw PocketSipCaptureError.accountChanged }
             if let session, session != current { throw PocketSipCaptureError.accountChanged }
             session = current
             guard (1...PocketSipPhoto.maximumCount).contains(providers.count) else {
@@ -135,7 +138,7 @@ struct PocketSipShareView: View {
             var selected: [Data] = []
             for provider in providers {
                 try Task.checkCancellation()
-                selected.append(try await loadPhoto(provider))
+                selected.append(try await Self.loadPhoto(provider))
             }
             try Task.checkCancellation()
             images = selected
@@ -147,7 +150,7 @@ struct PocketSipShareView: View {
         }
     }
 
-    private func loadPhoto(_ provider: NSItemProvider) async throws -> Data {
+    static func loadPhoto(_ provider: NSItemProvider) async throws -> Data {
         guard let type = provider.registeredTypeIdentifiers.first(where: {
             UTType($0)?.conforms(to: .image) == true
         }) else { throw PocketSipCaptureError.unreadablePhoto }

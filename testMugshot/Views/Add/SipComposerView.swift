@@ -627,7 +627,7 @@ struct LogVisitView: View {
                 .names(scope: pinnedContextScope).isEmpty,
             onCancel: cancelComposer,
             onResumeDraft: requestDraftResume,
-            onPocketSip: draft.launchContext.source == .centralAdd && draft.context == .cafe
+            onPocketSip: draft.launchContext.source == .centralAdd
                 && !draft.hasDraftWorthyUserContent && photoImages.isEmpty
                 ? { pocketSipPresentation = PocketSipPresentation(scope: localAccountScope) }
                 : nil,

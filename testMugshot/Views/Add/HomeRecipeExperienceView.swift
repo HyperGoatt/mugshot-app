@@ -160,7 +160,10 @@ struct HomeRecipeExperienceView: View {
                 })
             }
             .sheet(isPresented: $showsRecipeIdea) {
-                HomeQuickRecipeSheet(store: store) { recipe, _ in
+                HomeQuickRecipeSheet(store: store, onMake: { recipe, _ in
+                    showsRecipeIdea = false
+                    startMaking(recipe)
+                }) { recipe, _ in
                     showsRecipeIdea = false
                     showRecipe(recipe.id)
                 }
@@ -538,6 +541,13 @@ struct HomeRecipeExperienceView: View {
     }
     private func launchHomeComposer(recipe: HomeRecipeRecord?, setup: HomeRecipeContent?, guided: Bool) {
         let version = recipe?.current
+        if setup == nil, let recipe, let version {
+            let shelf = HomeLibraryStore.shared.load(in: .forUserID(ownerID))
+            onShare(HomeBrewSetup.draft(for: recipe, version: version, ownerID: ownerID, shelf: shelf, guided: guided) {
+                store.workspace.version($0)?.content
+            })
+            return
+        }
         let content = setup ?? version?.content
         var draft = SipDraft(
             ownerUserID: ownerID,
@@ -551,7 +561,7 @@ struct HomeRecipeExperienceView: View {
                 recipeID: recipe?.id, versionNumber: version?.number,
                 resolveLinked: { store.workspace.version($0)?.content }
             ) ?? .empty,
-            homeWorkbenchPhase: guided ? .workbench : .quickCapture
+            homeWorkbenchPhase: guided ? .brew : (content == nil ? .workbench : .sip)
         )
         draft.homeSipPath = guided ? .guided : .quick
         draft.launchContext.sourceRecipeIdentityID = recipe?.id
@@ -633,7 +643,7 @@ struct HomeRecipeExperienceView: View {
             draft.launchContext.homeAttemptID = attempt.id
             draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
             draft.launchContext.homeRecipeVersionID = attempt.recipe?.versionID
-            draft.launchContext.homeRecipeAttachmentMode = attempt.recipe == nil ? .doNotAttach : .nameOnly
+            draft.launchContext.homeRecipeAttachmentMode = .doNotAttach
             let images = attempt.photoNames.compactMap { store.photo($0) }
             guard images.count == attempt.photoNames.count else {
                 throw HomeRecipeWorkspaceError.invalid("One of this make’s photos is unavailable. Your journal entry is safe; restore or remove the photo before sharing.")

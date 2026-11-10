@@ -280,7 +280,7 @@ class DataManager: ObservableObject {
             )
         ]
         appData = AppData(
-            currentUser: User(
+            currentUser: MugshotLaunchEnvironment.isUITestingSignedOut ? nil : User(
                 id: userID,
                 username: "mugshot_ui_test",
                 displayName: "Mugshot Test",
@@ -417,9 +417,10 @@ class DataManager: ObservableObject {
             )
         ]
 
+        let ownerID = MugshotLaunchEnvironment.isUITestingSignedOut ? nil : userID
         let draft = SipDraft(
             id: UUID(uuidString: "00000000-0000-4000-8000-000000000100")!,
-            ownerUserID: userID,
+            ownerUserID: ownerID,
             context: .cafe,
             cafe: cafe,
             locationName: cafe.consumerDisplayName,
@@ -443,7 +444,7 @@ class DataManager: ObservableObject {
         CriterionImportanceStore.shared.synchronize(cafeCriteria, scope: "\(ownerScope).context.cafe")
         RecentCriterionSetupStore.shared.remember(sipCriteria, scope: "\(ownerScope).sip")
         RecentCriterionSetupStore.shared.remember(cafeCriteria, scope: "\(ownerScope).context.cafe")
-        _ = try? SipDraftStore.shared.save(draft, images: [], in: .user(userID))
+        _ = try? SipDraftStore.shared.save(draft, images: [], in: .forUserID(ownerID))
     }
 #endif
     
