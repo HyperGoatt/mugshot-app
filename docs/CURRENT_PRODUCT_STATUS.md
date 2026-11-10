@@ -4,15 +4,30 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
+
+Map and Saved open the same full-height cafe page. Your latest recorded order
+leads with an entry back to that sip, a repeat action when appropriate, and a
+fresh sip action. Favorite, Want to Try, lists, directions, history, and private
+notes are available on the same page. The Next Sip opens a new private draft with
+the cafe, drink and editable order details. Today's photos, rating, and reflection start
+empty. In Add, Pocket Sip saves selected Photos as a private draft. The system
+share extension accepts the same photo-only capture directly from Photos.
+Build 10 crashed when opening a Map pin on the owner’s iPhone. Build 12 is
+installed with the cafe layout and repeat order repairs. Opening a Map pin
+twice and a Saved cafe, and using Back from each, passed on that iPhone. See the
+[crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up)
+for the current candidate and separate Simulator and phone evidence.
+
 ## Home library and repeat brewing — November 9 candidate
 
 Source includes the approved [Home walkthrough improvements](HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate):
 clear entry and recipe capture, shelf controls, quick and guided making,
 private review, and a saved-sip brew comparison. The
 [verification](audits/HOME_LIBRARY_AND_BREWING_2026-11-09.md) records 185 native
-cases and 16 focused Simulator journeys. Mugshot Luna QA **0.5.3 (9)** is
-installed and launched on the owner's iPhone with existing local files preserved.
-See the [development iPhone receipt](audits/HOME_LIBRARY_PHONE_2026-11-09.md).
+cases and 16 focused Simulator journeys. Mugshot Luna QA **0.5.3 (9)**
+passed its [development install and launch](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
+before the build 10 handoff above.
 
 ## Home walkthrough and Log a Sip setup — November 9 candidate
 

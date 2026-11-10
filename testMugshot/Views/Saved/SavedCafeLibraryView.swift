@@ -131,8 +131,10 @@ struct SavedTabView: View {
                 CafeDetailView(
                     cafe: cafe,
                     dataManager: dataManager,
-                    initialDetent: .medium,
+                    entry: .saved,
+                    onClose: { activeSheet = nil },
                     onLogVisitRequested: onLogVisitRequested,
+                    onComposeDraft: onComposeDraft,
                     onAuthenticationRequired: onAuthenticationRequired
                 )
                 .environment(\.dynamicTypeSize, dynamicTypeSize)

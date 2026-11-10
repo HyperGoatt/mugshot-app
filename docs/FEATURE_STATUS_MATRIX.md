@@ -4,6 +4,19 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
+
+Build 12 is installed with the cafe crash and repeat order edit repairs. The
+Map pin and Saved cafe routes passed on the owner’s iPhone 16 Pro. See the
+[crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up).
+The repeat and Pocket Sip checks below are from Simulator.
+
+| Surface | Candidate behavior | Evidence |
+| --- | --- | --- |
+| Map and Saved cafe detail | Full-height page with source-aware Back and last-order, fresh-order and first-visit states | [Integration plan and checks](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md) |
+| The Next Sip | Account-scoped private draft from the latest owned cafe order | Same candidate |
+| Pocket Sip | Native Add picker and Photos share extension feeding the scoped draft library | Same candidate |
+
 ## Home library and repeat brewing — November 9 candidate
 
 Source implements offline starters, manual recipe capture, shelf sorting and
@@ -11,8 +24,8 @@ restore, independent inventory controls, distinct quick and guided paths,
 audience preview and an owner-only comparison and repeat flow. See
 [Home implementation](HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate)
 for the scope. [Mugshot Luna QA 0.5.3 (9)](audits/HOME_LIBRARY_PHONE_2026-11-09.md)
-is installed and launched on the owner iPhone. Full hardware journey acceptance
-and TestFlight remain separate from this install.
+passed its iPhone install and launch before the build 10 handoff above. Full
+hardware journey acceptance and TestFlight are separate gates.
 
 ## Log a Sip setup — November 9 candidate
 

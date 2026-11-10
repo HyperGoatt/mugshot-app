@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## 2026-11-09 — Cafe page crash and repeat draft repair
+
+- Isolate each cafe layout so opening a Map pin or Saved cafe does not construct the full layout inside the navigation container.
+- Keep repeat order text as typed and save it during the edit so the full wording survives an immediate quit.
+- Build 12 is installed with backed-up app and shared data preserved. The read-only hardware check reopened a Map pin and opened a Saved cafe. See the [ECC crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up).
+
+## 2026-11-09 — Cafe detail and Pocket Sip iPhone development install
+
+- Mugshot Luna QA 0.5.3 (10) replaced build 9 and launched on the owner’s iPhone 16 Pro.
+- The 40 app data files, app preferences file, and app-group preferences file matched their private backups after installation.
+- [Development install and owner QA routes](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#signed-iphone-install).
+
+## 2026-11-09 — Cafe detail, The Next Sip and Pocket Sip candidate
+
+- Map and Saved open the redesigned full-height cafe page with a Back action for the originating tab.
+- The Next Sip copies the latest personal order into a private draft. A first visit or a last order marked Wouldn't reorder offers a fresh sip.
+- Pocket Sip accepts selected photos in Add or through Photos → Share → Mugshot. Both paths produce resumable private drafts. Link and text shares keep their place-saving flow.
+- Follow the [integration plan](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md) for verification and release status.
+
 ## 2026-11-09 — Home library iPhone development install
 
 - Install and launch Mugshot Luna QA 0.5.3 (9) in place. Verify all 40 app data

@@ -8,6 +8,7 @@ import SwiftUI
 
 struct MugshotRootView: View {
     @ObservedObject var dataManager: DataManager
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var authModel = AppAuthModel()
     @StateObject private var friendInviteRouter = FriendInviteRouter.shared
     @State private var authCallbackQueue = MugshotAuthCallbackQueue()
@@ -16,6 +17,7 @@ struct MugshotRootView: View {
     @State private var firstLaunchLandingTab: MugshotTab?
     @State private var startsCreatingAccount = true
     @State private var profileSetupGate: ProfileSetupGate = .checking
+    @State private var showsPocketSipRecovery = false
     
     var body: some View {
         Group {
@@ -95,6 +97,18 @@ struct MugshotRootView: View {
             startAnalyticsAfterRecovery()
             await processPendingAuthCallbacks()
         }
+        .onChange(of: pocketSipOwner, initial: true) { _, _ in
+            synchronizePocketSipInbox()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { synchronizePocketSipInbox() }
+        }
+        .alert("A Pocket Sip is waiting", isPresented: $showsPocketSipRecovery) {
+            Button("Retry") { synchronizePocketSipInbox() }
+            Button("Later", role: .cancel) {}
+        } message: {
+            Text("Mugshot couldn’t finish opening a shared draft. Your photos are still in the handoff on this device.")
+        }
         .onOpenURL { url in
             _ = friendInviteRouter.enqueue(url: url)
             guard authCallbackQueue.enqueue(url) else { return }
@@ -139,6 +153,54 @@ struct MugshotRootView: View {
         if let userID = authModel.authenticatedUser?.id {
             MugshotAnalytics.shared.identify(userID: userID)
         }
+    }
+
+    private var pocketSipOwner: PocketSipOwner? {
+#if DEBUG
+        if MugshotLaunchEnvironment.isUITesting {
+            return PocketSipOwner(userID: MugshotLaunchEnvironment.isUITestingSignedOut
+                ? nil : dataManager.appData.currentUser?.id)
+        }
+#endif
+        if authModel.status == .signedIn, let owner = authModel.authenticatedUser?.id {
+            return PocketSipOwner(userID: owner)
+        }
+        if case .signedOut = authModel.status, hasChosenGuestMode {
+            return PocketSipOwner(userID: nil)
+        }
+        return nil
+    }
+
+    @MainActor
+    private func synchronizePocketSipInbox() {
+        guard let inbox = PocketSipInbox.shared else { return }
+        let owner = pocketSipOwner
+        do {
+            try inbox.activate(owner)
+        } catch {
+            return
+        }
+        guard let owner, scenePhase == .active else { return }
+        let scope = LocalAccountScope.forUserID(owner.userID)
+        var committed = false
+        var needsRetry = false
+        do {
+            for id in try inbox.pendingIDs(for: owner) {
+                do {
+                    try inbox.consume(id: id, for: owner) { capture in
+                        if try SipDraftStore.shared.importPocketSip(capture, in: scope) != nil {
+                            committed = true
+                        }
+                    }
+                } catch {
+                    needsRetry = true
+                }
+            }
+        } catch {
+            needsRetry = true
+        }
+        if committed { dataManager.noteJournalMutation() }
+        showsPocketSipRecovery = needsRetry
     }
 
     @ViewBuilder

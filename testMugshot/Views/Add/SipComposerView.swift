@@ -72,6 +72,12 @@ struct LogVisitView: View {
     @State private var photoOrganizerOriginalImages: [UIImage]?
     @State private var photoOrganizerOriginalPosterIndex: Int?
     @State private var resumableDrafts: [SipDraft] = []
+    @State private var pocketSipPresentation: PocketSipPresentation?
+
+    private struct PocketSipPresentation: Identifiable {
+        let id = UUID()
+        let scope: LocalAccountScope
+    }
     @State private var presentedDraftResumePicker: SipDraftResumePickerPresentation?
     @State private var remoteCafeSessionsAvailable = false
     @State private var cafeLearningSignals: [CafePreferenceSignal] = []
@@ -294,8 +300,20 @@ struct LogVisitView: View {
                     }
                 )
             }
+            .sheet(item: $pocketSipPresentation, onDismiss: refreshResumableDrafts) { presentation in
+                let scope = presentation.scope
+                PocketSipSheet(
+                    scope: scope,
+                    canSave: { localAccountScope == scope },
+                    onSaved: { dataManager.noteJournalMutation() },
+                    onOpen: { draft in
+                        guard localAccountScope == scope else { return }
+                        resumeDraft(draft)
+                    }
+                )
+            }
             .sheet(item: $presentedDraftResumePicker, onDismiss: refreshResumableDrafts) { _ in
-                HomeDraftManagementView(ownerID: authModel.authenticatedUser?.id, excludingSipID: draft.id,
+                HomeDraftManagementView(ownerID: localAccountScope.userID, excludingSipID: draft.id,
                     onResumeSip: resumeDraft)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -535,6 +553,12 @@ struct LogVisitView: View {
             .onChange(of: locationManager.location) { _, location in
                 if let location { updateSearchRegion(for: location) }
             }
+            .onChange(of: localAccountScope) { _, _ in
+                pocketSipPresentation = nil
+            }
+            .onChange(of: dataManager.journalRevision) { _, _ in
+                refreshResumableDrafts()
+            }
             .onChange(of: authModel.authenticatedUser?.id) { _, userID in
                 publicationTask?.cancel()
                 publicationTask = nil
@@ -603,7 +627,19 @@ struct LogVisitView: View {
                 .names(scope: pinnedContextScope).isEmpty,
             onCancel: cancelComposer,
             onResumeDraft: requestDraftResume,
+            onPocketSip: draft.launchContext.source == .centralAdd && draft.context == .cafe
+                && !draft.hasDraftWorthyUserContent && photoImages.isEmpty
+                ? { pocketSipPresentation = PocketSipPresentation(scope: localAccountScope) }
+                : nil,
             onResumeStoredDraft: resumeDraft,
+            onEditRepeatOrderNotes: { [draftID = draft.id] notes in
+                guard draft.id == draftID, draft.launchContext.source == .nextSip,
+                      draft.context == .cafe, draft.orderNotes != notes else { return }
+                // Save the edit in the input event. Waiting for onChange to render
+                // can miss the last character when the app terminates immediately.
+                draft.orderNotes = notes
+                persistDraft()
+            },
             onAddPhoto: { showPhotoSourceDialog = true },
             onRemovePhoto: removePhoto,
             onOrganizePhotos: beginOrganizingPhotos,

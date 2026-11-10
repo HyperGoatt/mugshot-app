@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		86BC00012F00000000000001 /* PocketSipCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86BC00032F00000000000003 /* Shared/PocketSipCapture.swift */; };
+		86BC00022F00000000000002 /* PocketSipCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86BC00032F00000000000003 /* Shared/PocketSipCapture.swift */; };
 		70A000032F00000000000003 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 70A000022F00000000000002 /* Supabase */; };
 		71B600012F00000000000001 /* MugshotWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 71B600032F00000000000003 /* MugshotWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		72C000032F00000000000003 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 72C000022F00000000000002 /* PostHog */; };
@@ -60,6 +62,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		86BC00032F00000000000003 /* Shared/PocketSipCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/PocketSipCapture.swift; sourceTree = "<group>"; };
 		40E276812EC7997A005528D1 /* testMugshot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = testMugshot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		40E2768E2EC7997C005528D1 /* testMugshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = testMugshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		40E276982EC7997C005528D1 /* testMugshotUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = testMugshotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -166,6 +169,7 @@
 			children = (
 				70A000012F00000000000001 /* Config/SupabaseConfig.xcconfig */,
 				70A000062F00000000000006 /* Config/Info.plist */,
+				86BC00032F00000000000003 /* Shared/PocketSipCapture.swift */,
 				40E276832EC7997A005528D1 /* testMugshot */,
 				40E276912EC7997C005528D1 /* testMugshotTests */,
 				40E2769B2EC7997C005528D1 /* testMugshotUITests */,
@@ -406,6 +410,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				86BC00012F00000000000001 /* PocketSipCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,6 +439,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				86BC00022F00000000000002 /* PocketSipCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

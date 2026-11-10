@@ -222,7 +222,11 @@ struct MainTabView: View {
             captureSelectedScreen()
             synchronizeMapLocationUpdates()
         }
-        .onChange(of: authModel.authenticatedUser?.id) { _, userId in
+        .onChange(of: authModel.authenticatedUser?.id) { previousID, userId in
+            if previousID != nil, previousID != userId {
+                composerDraft = nil
+                composerSessionID = UUID()
+            }
             placeImportCoordinator.activate(accountID: userId)
             AccountBoundActivityUpdateSignal.shared.activate(
                 accountID: nil,
@@ -652,6 +656,7 @@ struct MainTabView: View {
                 locationManager: mapLocationManager,
                 hidesUserLocation: productTourStep == .map,
                 onLogVisitRequested: beginCafeSip,
+                onComposeDraft: openComposerDraft,
                 onAuthenticationRequired: requestAuthentication
             )
         case .feed:
@@ -688,9 +693,9 @@ struct MainTabView: View {
             )
                 .id(composerSessionID)
                 .onAppear {
-                    if composerDraft != nil {
+                    if let presentedID = composerDraft?.id {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            composerDraft = nil
+                            if composerDraft?.id == presentedID { composerDraft = nil }
                         }
                     }
                 }
@@ -699,20 +704,10 @@ struct MainTabView: View {
                 dataManager: dataManager,
                 onLogVisitRequested: beginCafeSip,
                 onAuthenticationRequired: requestAuthentication,
-                onComposeDraft: { draft in
-                    composerDraft = draft
-                    composerSessionID = UUID()
-                    withAnimation(DesignSystem.Motion.base) { tabCoordinator.selectedTab = .add }
-                }
+                onComposeDraft: openComposerDraft
             )
         case .journal:
-            JournalTabView(dataManager: dataManager) { draft in
-                composerDraft = draft
-                composerSessionID = UUID()
-                withAnimation(DesignSystem.Motion.base) {
-                    tabCoordinator.selectedTab = .add
-                }
-            }
+            JournalTabView(dataManager: dataManager, onComposeDraft: openComposerDraft)
         }
     }
 
@@ -745,6 +740,17 @@ struct MainTabView: View {
         // manager at the tab shell gives Map an immediate known location and
         // requests one fresh update whenever the tab becomes active.
         mapLocationManager.startUpdatingLocation()
+    }
+
+    private func openComposerDraft(_ draft: SipDraft) {
+        if draft.launchContext.source == .nextSip || draft.launchContext.source == .pocketSip {
+            guard draft.ownerUserID == localAccountScope.userID else { return }
+        }
+        composerDraft = draft
+        composerSessionID = UUID()
+        withAnimation(DesignSystem.Motion.base) {
+            tabCoordinator.selectedTab = .add
+        }
     }
 
     private func beginCafeSip(_ cafe: Cafe) {

@@ -29,7 +29,9 @@ struct LogASipV3ProductionView: View {
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
     let onResumeDraft: () -> Void
+    let onPocketSip: (() -> Void)?
     let onResumeStoredDraft: ((SipDraft) -> Void)?
+    let onEditRepeatOrderNotes: (String) -> Void
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
@@ -84,7 +86,9 @@ struct LogASipV3ProductionView: View {
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
         onResumeDraft: @escaping () -> Void = {},
+        onPocketSip: (() -> Void)? = nil,
         onResumeStoredDraft: ((SipDraft) -> Void)? = nil,
+        onEditRepeatOrderNotes: @escaping (String) -> Void,
         onAddPhoto: @escaping () -> Void,
         onRemovePhoto: @escaping (Int) -> Void,
         onOrganizePhotos: @escaping () -> Void,
@@ -123,7 +127,9 @@ struct LogASipV3ProductionView: View {
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
         self.onResumeDraft = onResumeDraft
+        self.onPocketSip = onPocketSip
         self.onResumeStoredDraft = onResumeStoredDraft
+        self.onEditRepeatOrderNotes = onEditRepeatOrderNotes
         self.onAddPhoto = onAddPhoto
         self.onRemovePhoto = onRemovePhoto
         self.onOrganizePhotos = onOrganizePhotos
@@ -347,6 +353,27 @@ struct LogASipV3ProductionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            if let onPocketSip, !isRecoveryLocked, !isSaving {
+                Button(action: onPocketSip) {
+                    HStack(spacing: 10) {
+                        Label("Pocket Sip", systemImage: "photo.on.rectangle.angled")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(Color.mugshotSageText)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(Color.mugshotMint.opacity(0.27), in: .rect(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, DesignSystem.Space.md)
+                .accessibilityHint("Save photos in a private draft")
+                .accessibilityIdentifier("pocketSip.entry")
+            }
+
             MugshotSegmentedControl(
                 options: [JournalEntryContext.cafe, .home, .elsewhere],
                 selection: Binding(
@@ -392,6 +419,7 @@ struct LogASipV3ProductionView: View {
                 resumeDraftCount: resumeDraftCount,
                 isRecoveryLocked: isRecoveryLocked,
                 onResumeDraft: onResumeDraft,
+                onEditRepeatOrderNotes: onEditRepeatOrderNotes,
                 onAddPhoto: onAddPhoto,
                 onRemovePhoto: onRemovePhoto,
                 onOrganizePhotos: onOrganizePhotos,
@@ -1274,6 +1302,7 @@ private struct LogASipV3SetupSurface: View {
     let resumeDraftCount: Int
     let isRecoveryLocked: Bool
     let onResumeDraft: () -> Void
+    let onEditRepeatOrderNotes: (String) -> Void
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
     let onOrganizePhotos: () -> Void
@@ -1379,6 +1408,18 @@ private struct LogASipV3SetupSurface: View {
 
                 contextField
                     .padding(.horizontal, DesignSystem.Space.md)
+
+                if draft.launchContext.source == .nextSip, draft.context == .cafe {
+                    LogASipV3LabeledField(
+                        title: "Order details",
+                        placeholder: "Milk, size, or other tweaks",
+                        text: Binding(get: { draft.orderNotes }, set: onEditRepeatOrderNotes),
+                        systemImage: "list.bullet",
+                        accessibilityIdentifier: "logASipV3.orderNotes"
+                    )
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, DesignSystem.Space.md)
+                }
 
                 Text(contextHelper)
                     .font(.system(size: 12))

@@ -27,15 +27,12 @@ final class SavedCafeRedesignUITests: XCTestCase {
 
         let detail = element("cafe.detail.sheet", in: app)
         XCTAssertTrue(detail.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Log a Sip"].waitForExistence(timeout: 3))
-        attachScreenshot(named: "implementation-detail-medium")
+        XCTAssertTrue(app.buttons["cafe.nextSip.repeat"].waitForExistence(timeout: 3))
+        attachScreenshot(named: "implementation-saved-detail")
 
-        detail.swipeUp()
-        XCTAssertTrue(app.staticTexts["Your Mugshot"].waitForExistence(timeout: 3))
-        attachScreenshot(named: "implementation-detail-expanded")
-
-        let close = app.buttons["Close cafe card"]
+        let close = app.buttons["cafe.detail.back"]
         XCTAssertTrue(close.waitForExistence(timeout: 3))
+        XCTAssertTrue(close.label.contains("Saved"))
         close.tap()
 
         let moreActions = app.buttons["More actions for Harborlight Coffee Roasters"]
@@ -47,7 +44,10 @@ final class SavedCafeRedesignUITests: XCTestCase {
 
         XCTAssertTrue(element("map.surface", in: app).waitForExistence(timeout: 6))
         XCTAssertTrue(element("map.cafeDetail.sheet", in: app).waitForExistence(timeout: 5))
-        attachScreenshot(named: "implementation-map-compact-detail")
+        XCTAssertTrue(app.buttons["cafe.detail.back"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["cafe.detail.back"].label.contains("Map"))
+        XCTAssertTrue(app.buttons["cafe.nextSip.repeat"].waitForExistence(timeout: 3))
+        attachScreenshot(named: "implementation-map-detail")
     }
 
     @MainActor
@@ -117,7 +117,10 @@ final class SavedCafeRedesignUITests: XCTestCase {
         XCTAssertTrue(harborlightCard.waitForExistence(timeout: 3))
         harborlightCard.tap()
         XCTAssertTrue(element("cafe.detail.sheet", in: app).waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Favorite"].exists || app.buttons["Favorited"].exists)
+        let scroll = app.scrollViews["cafe.detail.scroll"]
+        let repeatAction = app.buttons["cafe.nextSip.repeat"]
+        for _ in 0..<4 where !repeatAction.isHittable { scroll.swipeUp() }
+        XCTAssertTrue(repeatAction.isHittable)
         attachScreenshot(named: "implementation-detail-accessibility-xxxl")
     }
 
@@ -139,12 +142,7 @@ final class SavedCafeRedesignUITests: XCTestCase {
 
         let cafeDetail = element("cafe.detail.sheet", in: app)
         XCTAssertTrue(cafeDetail.waitForExistence(timeout: 4))
-        cafeDetail.swipeUp()
-
-        let sip = app.staticTexts["Honey oat cortado"]
-        for _ in 0..<5 where !sip.isHittable {
-            cafeDetail.swipeUp()
-        }
+        let sip = app.buttons["cafe.nextSip.original"]
         XCTAssertTrue(sip.waitForExistence(timeout: 3) && sip.isHittable)
         sip.tap()
 

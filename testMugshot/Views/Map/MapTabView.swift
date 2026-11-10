@@ -109,6 +109,7 @@ struct MapTabView: View {
     @ObservedObject var locationManager: LocationManager
     var hidesUserLocation = false
     var onLogVisitRequested: ((Cafe) -> Void)? = nil
+    var onComposeDraft: ((SipDraft) -> Void)? = nil
     var onAuthenticationRequired: ((_ title: String, _ message: String) -> Void)? = nil
     @State private var lastMapLoad: Date?
     @State private var lastMapSignature = ""
@@ -478,13 +479,15 @@ struct MapTabView: View {
                 CafeDetailView(
                     cafe: cafe,
                     dataManager: dataManager,
-                    initialDetent: .large,
+                    entry: .map,
+                    onClose: { showCafeDetail = false },
                     discoveryReason: recommendation?.reason,
                     discoveryEvidence: recommendation?.evidence ?? [],
                     discoverySource: recommendation == nil ? .appleSearch : .forYou,
                     applePhoneNumber: recommendation?.candidate.phoneNumber,
                     mapPinScore: pinScoresByCafeID[cafe.id],
                     onLogVisitRequested: onLogVisitRequested,
+                    onComposeDraft: onComposeDraft,
                     onAuthenticationRequired: onAuthenticationRequired
                 )
                 .accessibilityIdentifier("map.cafeDetail.sheet")

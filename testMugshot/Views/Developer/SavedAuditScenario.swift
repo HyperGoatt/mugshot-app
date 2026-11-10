@@ -191,8 +191,10 @@ enum SavedAuditFixtures {
                 drinkType: .coffee,
                 customDrinkType: "Honey oat cortado",
                 caption: "Bright, balanced, and worth the walk.",
-                photos: [photoKey],
+                brewDetails: BrewDetails(orderNotes: "Oat milk, half sweet"),
+                photos: [photoKey, secondaryPhotoKey],
                 overallScore: 4.8,
+                sipReorderIntention: .yes,
                 visibility: .private
             ),
             Visit(
@@ -224,6 +226,7 @@ enum SavedAuditFixtures {
                 customDrinkType: "Flat white",
                 photos: [secondaryPhotoKey],
                 overallScore: 4.2,
+                sipReorderIntention: .no,
                 visibility: .friends
             ),
             Visit(

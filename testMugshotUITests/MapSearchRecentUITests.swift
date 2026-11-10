@@ -88,9 +88,10 @@ final class MapSearchRecentUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Recent"].exists)
         attachScreenshot(named: "09 After - One tap Map cafe selection")
 
-        let closeCafeCard = app.buttons["Close cafe card"]
-        XCTAssertTrue(closeCafeCard.waitForExistence(timeout: 3))
-        closeCafeCard.tap()
+        let backToMap = app.buttons["cafe.detail.back"]
+        XCTAssertTrue(backToMap.waitForExistence(timeout: 3))
+        XCTAssertEqual(backToMap.label, "Back to Map")
+        backToMap.tap()
         XCTAssertTrue(
             element(Identifier.mapSearchQuery, in: app).waitForExistence(timeout: 3),
             "Closing the cafe card should restore Map discovery controls."

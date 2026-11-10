@@ -36,14 +36,20 @@ final class AdaptiveMapClusteringUITests: XCTestCase {
         attachScreenshot(named: "06 After - Neighborhood rating pins")
 
         northBeachPin.tap()
+        let detail = element("map.cafeDetail.sheet", in: app)
         XCTAssertTrue(
-            element("map.cafeDetail.sheet", in: app).waitForExistence(timeout: 5),
+            detail.waitForExistence(timeout: 5),
             "An individual cafe pin should keep the existing cafe navigation."
         )
-        app.buttons["Close cafe card"].tap()
+        let back = app.buttons["cafe.detail.back"]
+        back.tap()
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5))
         XCTAssertTrue(map.waitForExistence(timeout: 3))
 
         gestureSurface.pinch(withScale: 0.18, velocity: -2)
+        if northBeachPin.value as? String == "Rating visible at this zoom" {
+            gestureSurface.pinch(withScale: 0.18, velocity: -2)
+        }
         let cityPin = element(
             "map.pin.00000000-0000-4000-8001-000000000001",
             in: app

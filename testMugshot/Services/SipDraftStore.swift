@@ -136,6 +136,64 @@ final class SipDraftStore {
         return storedDraft
     }
 
+    /// Commits the normalized photos and draft together. The receipt survives
+    /// publication cleanup so a share packet replay cannot recreate the draft.
+    @discardableResult
+    func importPocketSip(_ capture: PocketSipCapture, in scope: LocalAccountScope) throws -> SipDraft? {
+        lock.lock()
+        defer { lock.unlock() }
+        try migrateLegacyDataIfNeeded()
+        guard capture.owner.userID == scope.userID else { throw SipDraftStoreError.ownerMismatch }
+        guard try !discardedIDs(in: scope).contains(capture.id) else { return nil }
+
+        let scopeDirectory = directory(for: scope)
+        let receipt = pocketSipReceipt(capture.id, in: scope)
+        let destination = directory(for: capture.id, in: scope)
+        if let existing = loadDraft(id: capture.id, in: scope) {
+            guard existing.localPhotoNames.allSatisfy({
+                fileManager.fileExists(atPath: destination.appendingPathComponent($0).path)
+            }) else { throw CocoaError(.fileReadCorruptFile) }
+            if !fileManager.fileExists(atPath: receipt.path) {
+                try Data().write(to: receipt, options: .atomic)
+            }
+            return existing
+        }
+        guard !fileManager.fileExists(atPath: destination.path) else { throw CocoaError(.fileReadCorruptFile) }
+        guard !fileManager.fileExists(atPath: receipt.path) else { return nil }
+
+        try PocketSipPhoto.validate(capture.photos)
+        try fileManager.createDirectory(at: scopeDirectory, withIntermediateDirectories: true)
+        let stage = try fileManager.url(
+            for: .itemReplacementDirectory, in: .userDomainMask,
+            appropriateFor: scopeDirectory, create: true
+        )
+        defer { try? fileManager.removeItem(at: stage) }
+        let names = capture.photos.indices.map { "photo-\($0).jpg" }
+        for (photo, name) in zip(capture.photos, names) {
+            try photo.write(to: stage.appendingPathComponent(name))
+        }
+        let draft = SipDraft(
+            id: capture.id,
+            ownerUserID: scope.userID,
+            createdAt: capture.date,
+            updatedAt: capture.date,
+            launchContext: SipComposerLaunchContext(source: .pocketSip),
+            locationName: "",
+            visibility: .private,
+            localPhotoNames: names
+        )
+        let data = try JSONEncoder.mugshotDraftEncoder.encode(draft)
+        try data.write(to: stage.appendingPathComponent("draft.json"))
+        try fileManager.moveItem(at: stage, to: destination)
+        try Data().write(to: receipt, options: .atomic)
+        try? setActiveDraftID(draft.id, in: scope)
+        return draft
+    }
+
+    private func pocketSipReceipt(_ id: UUID, in scope: LocalAccountScope) -> URL {
+        directory(for: scope).appendingPathComponent(".pocket-sip-\(id.uuidString)")
+    }
+
     func activate(scope: LocalAccountScope) {
         lock.lock()
         activeScope = scope
@@ -196,6 +254,15 @@ final class SipDraftStore {
         try? migrateLegacyDataIfNeeded()
         guard draftBelongsToScope(draft, scope: scope) else { return }
 
+        if draft.launchContext.source == .pocketSip {
+            let receipt = pocketSipReceipt(draft.id, in: scope)
+            if !fileManager.fileExists(atPath: receipt.path) {
+                // A draft committed just before a receipt write failed can
+                // still be opened. Leave it in place until cleanup can fence
+                // off a possible handoff replay.
+                guard (try? Data().write(to: receipt, options: .atomic)) != nil else { return }
+            }
+        }
         try? fileManager.removeItem(at: directory(for: draft.id, in: scope))
         if activeDraftID(in: scope) == draft.id {
             try? fileManager.removeItem(at: activeDraftIDURL(in: scope))
