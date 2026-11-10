@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-09
 ---
+
+## Pocket Sip photo sharing — November 9 candidate
+
+Photos → Share → Mugshot accepts up to ten selected images and shows a
+Pocket Sip preview before saving. A saved receipt means the device has the
+complete private handoff. Open Mugshot → Add → Your drafts, or Journal → Drafts
+when signed in, to continue. Mugshot must have opened with an identified account
+or guest session before the extension can accept a capture. Link and text shares
+continue to open place lookup. Photo capture uses the existing app group and
+strips source image metadata. Normal publication is a separate action in the
+composer. See the [integration plan](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md).
 
 ## Full-screen post result and clean sharing — November 5
 

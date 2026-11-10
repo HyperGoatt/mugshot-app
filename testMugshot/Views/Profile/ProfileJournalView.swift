@@ -321,7 +321,7 @@ struct JournalTabView: View {
             .sheet(isPresented: $showsDraftManager, onDismiss: {
                 refreshJournalDrafts()
             }) {
-                HomeDraftManagementView(ownerID: authModel.authenticatedUser?.id, onResumeSip: { draft in
+                HomeDraftManagementView(ownerID: localAccountScope.userID, onResumeSip: { draft in
                     showsDraftManager = false
                     onComposeDraft(draft)
                 })

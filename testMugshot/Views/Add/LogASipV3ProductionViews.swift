@@ -29,6 +29,7 @@ struct LogASipV3ProductionView: View {
     let canUseLastContextSetup: Bool
     let onCancel: () -> Void
     let onResumeDraft: () -> Void
+    let onPocketSip: (() -> Void)?
     let onResumeStoredDraft: ((SipDraft) -> Void)?
     let onAddPhoto: () -> Void
     let onRemovePhoto: (Int) -> Void
@@ -84,6 +85,7 @@ struct LogASipV3ProductionView: View {
         canUseLastContextSetup: Bool = false,
         onCancel: @escaping () -> Void,
         onResumeDraft: @escaping () -> Void = {},
+        onPocketSip: (() -> Void)? = nil,
         onResumeStoredDraft: ((SipDraft) -> Void)? = nil,
         onAddPhoto: @escaping () -> Void,
         onRemovePhoto: @escaping (Int) -> Void,
@@ -123,6 +125,7 @@ struct LogASipV3ProductionView: View {
         self.canUseLastContextSetup = canUseLastContextSetup
         self.onCancel = onCancel
         self.onResumeDraft = onResumeDraft
+        self.onPocketSip = onPocketSip
         self.onResumeStoredDraft = onResumeStoredDraft
         self.onAddPhoto = onAddPhoto
         self.onRemovePhoto = onRemovePhoto
@@ -345,6 +348,27 @@ struct LogASipV3ProductionView: View {
                     .foregroundStyle(Color.tertiaryText)
                     .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let onPocketSip, !isRecoveryLocked, !isSaving {
+                Button(action: onPocketSip) {
+                    HStack(spacing: 10) {
+                        Label("Pocket Sip", systemImage: "photo.on.rectangle.angled")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer(minLength: 4)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(Color.mugshotSageText)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(Color.mugshotMint.opacity(0.27), in: .rect(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, DesignSystem.Space.md)
+                .accessibilityHint("Save photos in a private draft")
+                .accessibilityIdentifier("pocketSip.entry")
             }
 
             MugshotSegmentedControl(
@@ -1379,6 +1403,17 @@ private struct LogASipV3SetupSurface: View {
 
                 contextField
                     .padding(.horizontal, DesignSystem.Space.md)
+
+                if draft.launchContext.source == .nextSip, draft.context == .cafe {
+                    LogASipV3LabeledField(
+                        title: "Order details",
+                        placeholder: "Milk, size, or other tweaks",
+                        text: $draft.orderNotes,
+                        systemImage: "list.bullet",
+                        accessibilityIdentifier: "logASipV3.orderNotes"
+                    )
+                    .padding(.horizontal, DesignSystem.Space.md)
+                }
 
                 Text(contextHelper)
                     .font(.system(size: 12))

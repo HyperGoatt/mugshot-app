@@ -4,6 +4,17 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
+
+Map and Saved open the same full-height cafe page. Your latest recorded order
+leads with an entry back to that sip, a repeat action when appropriate, and a
+fresh sip action. Favorite, Want to Try, lists, directions, history, and private
+notes are available on the same page. The Next Sip opens a new private draft with
+the cafe, drink and editable order details. Today's photos, rating, and reflection start
+empty. In Add, Pocket Sip saves selected Photos as a private draft. The system
+share extension accepts the same photo-only capture directly from Photos.
+[Implementation and verification](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md).
+
 ## Home library and repeat brewing — November 9 candidate
 
 Source includes the approved [Home walkthrough improvements](HOME_RECIPES_IMPLEMENTATION.md#home-library-and-repeat-brewing--november-9-candidate):

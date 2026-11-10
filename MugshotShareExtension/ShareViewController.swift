@@ -9,12 +9,17 @@ final class ShareViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 250 / 255, green: 246 / 255, blue: 240 / 255, alpha: 1)
 
-        let model = ShareImportViewModel(extensionContext: extensionContext)
-        let host = UIHostingController(
-            rootView: ShareImportView(model: model) { [weak self] in
-                self?.extensionContext?.completeRequest(returningItems: nil)
-            }
-        )
+        let close: () -> Void = { [weak self] in
+            self?.extensionContext?.completeRequest(returningItems: nil)
+        }
+        let content: AnyView
+        if let providers = PocketSipShareView.photoProviders(in: extensionContext?.inputItems ?? []) {
+            content = AnyView(PocketSipShareView(providers: providers, onClose: close))
+        } else {
+            let model = ShareImportViewModel(extensionContext: extensionContext)
+            content = AnyView(ShareImportView(model: model, onFinished: close))
+        }
+        let host = UIHostingController(rootView: content)
         addChild(host)
         host.view.translatesAutoresizingMaskIntoConstraints = false
         host.view.backgroundColor = .clear

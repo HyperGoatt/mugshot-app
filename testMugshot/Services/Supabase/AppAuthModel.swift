@@ -1167,6 +1167,11 @@ final class AppAuthModel: ObservableObject {
     ) -> Bool {
         var completed = true
         do {
+            try PocketSipInbox.shared?.purge(PocketSipOwner(userID: userID))
+        } catch {
+            completed = false
+        }
+        do {
             try SipDraftStore.shared.purge(ownerUserID: userID)
         } catch {
             completed = false

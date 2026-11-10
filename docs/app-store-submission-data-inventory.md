@@ -8,6 +8,7 @@ Connect before uploading a release. It is a launch checklist, not legal advice.
 | Account email | Sign in, session recovery, account support | Supabase Auth | Sign out or delete account | Account-linked contact information |
 | User ID and session tokens | Authenticate and enforce ownership/access rules | Supabase Auth / Postgres RLS | Sign out or delete account | Identifiers; account-linked |
 | Profile fields: display name, username, bio, location, favorite drink, links, avatar | Show the user’s chosen identity and preferences | Supabase Postgres and `profile-media` | Edit profile or delete account | User content / identifiers as applicable |
+| Pocket Sip draft photos | Keep selected photos from Add or the Photos share sheet for later editing | Local draft files and the existing app-group handoff; source metadata is removed | Select specific photos, cancel capture, or delete a saved draft | Local-only during capture and drafting; later publication follows the visit-photo row |
 | Visit photos | Journal covers and user-selected sharing | Supabase Storage `visit-photos` | Per-visit audience, delete visit, or delete account | User content; account-linked |
 | Captions, private notes, ratings, drink details | Save the personal coffee journal and taste insights | Supabase Postgres | Edit/delete visit or delete account | User content; account-linked |
 | Likes, comments, saved cafes | Lightweight social feedback and personal cafe library | Supabase Postgres | Remove the action or delete account | User content; account-linked |

@@ -4,6 +4,22 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Cafe orders and Pocket Sip — November 9 candidate
+
+Cafe repeat uses the latest completed cafe visit for the current owner. Remote
+reads use existing canonical/equivalent cafe resolution, the owner-only brew
+details RPC, and the RLS-protected per-sip reorder row. A local order is eligible
+only for its own account and cafe. The new draft stores the source visit ID and
+reusable order fields. Its media, reflection and audience start fresh and private.
+
+Pocket Sip copies selected image pixels into oriented, bounded JPEGs. The Add
+picker commits straight into the scoped local draft store. The Photos extension
+commits an atomic packet in the existing app group for the known account or
+guest scope. Mugshot imports it on activation with the capture ID as the draft
+ID. The source packet stays until the draft commits. A retained local receipt
+prevents replay after publication cleanup. Account deletion purges that owner's
+pending packets. The draft routes have no network or upload dependency.
+
 ## Home library and repeat brew data boundaries — November 9 candidate
 
 Browse options are presentation state in the current owner scope. Starter

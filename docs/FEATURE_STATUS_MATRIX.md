@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
+
+| Surface | Candidate behavior | Evidence |
+| --- | --- | --- |
+| Map and Saved cafe detail | Full-height page with source-aware Back and last-order, fresh-order and first-visit states | [Integration plan and checks](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md) |
+| The Next Sip | Account-scoped private draft from the latest owned cafe order | Same candidate |
+| Pocket Sip | Native Add picker and Photos share extension feeding the scoped draft library | Same candidate |
+
 ## Home library and repeat brewing — November 9 candidate
 
 Source implements offline starters, manual recipe capture, shelf sorting and

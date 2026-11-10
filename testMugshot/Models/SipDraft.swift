@@ -11,6 +11,8 @@ enum SipComposerSource: String, Codable, CaseIterable {
     case saved
     case cafeDetail
     case repeatSip
+    case nextSip
+    case pocketSip
     case addAnotherSip
     case brewAgain
     case widget
@@ -844,7 +846,11 @@ struct SipDraft: Identifiable, Codable, Equatable {
     mutating func applyContextDefaults(using preferences: CafeVisibilityPreferenceStore) {
         switch context {
         case .cafe:
-            visibility = preferences.defaultCafeVisibility
+            if launchContext.source == .pocketSip || launchContext.source == .nextSip {
+                visibility = .private
+            } else {
+                visibility = preferences.defaultCafeVisibility
+            }
         case .home, .elsewhere, .recipe:
             visibility = .private
             clearCafeSession()

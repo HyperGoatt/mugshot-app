@@ -4,6 +4,13 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## 2026-11-09 — Cafe detail, The Next Sip and Pocket Sip candidate
+
+- Map and Saved open the redesigned full-height cafe page with a Back action for the originating tab.
+- The Next Sip copies the latest personal order into a private draft. A first visit or a last order marked Wouldn't reorder offers a fresh sip.
+- Pocket Sip accepts selected photos in Add or through Photos → Share → Mugshot. Both paths produce resumable private drafts. Link and text shares keep their place-saving flow.
+- Follow the [integration plan](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md) for verification and release status.
+
 ## 2026-11-09 — Home library iPhone development install
 
 - Install and launch Mugshot Luna QA 0.5.3 (9) in place. Verify all 40 app data

@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-11-09
 ---
 
+## Cafe detail and capture — November 9 candidate
+
+Map and Saved enter the redesigned layout through `CafeDetailView` with a
+`CafeDetailEntry`. `CafeNextSipOrder` defines the repeatable fields and feeds the
+existing composer and `SipDraftStore`. `PocketSipSheet` owns the in-app picker.
+`Shared/PocketSipCapture.swift` is compiled into the app and the share extension
+for bounded image copies, account binding and atomic handoff. `MugshotRootView`
+consumes that handoff through the same draft store.
+
 ## Home library and repeat brewing — November 9 candidate
 
 - `HomeLibraryBrowse.swift`, `HomeLibraryView.swift`: stable sort/filter,

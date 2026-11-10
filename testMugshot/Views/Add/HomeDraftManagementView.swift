@@ -78,7 +78,17 @@ struct HomeDraftManagementView: View {
     }
 
     private var scope: LocalAccountScope { .forUserID(ownerID) }
-    private var isCurrentOwner: Bool { authModel.authenticatedUser?.id == ownerID && workspace.scope == scope }
+    private var currentOwnerID: UUID? {
+#if DEBUG
+        if authModel.authenticatedUser == nil,
+           MugshotLaunchEnvironment.isUITesting, !MugshotLaunchEnvironment.isUITestingSignedOut,
+           MugshotLaunchEnvironment.savedAuditScenario != nil, ownerID == SavedAuditFixtures.userID {
+            return SavedAuditFixtures.userID
+        }
+#endif
+        return authModel.authenticatedUser?.id
+    }
+    private var isCurrentOwner: Bool { currentOwnerID == ownerID && workspace.scope == scope }
     private var catalogue: HomeDraftCatalogue {
         HomeDraftCatalogue(sipDrafts: includesSipDrafts ? sipDrafts : [], workspace: workspace.workspace, excludingSipID: excludingSipID)
     }
@@ -113,11 +123,11 @@ struct HomeDraftManagementView: View {
             .navigationTitle("Your drafts").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .task {
-                guard authModel.authenticatedUser?.id == ownerID else { return }
+                guard currentOwnerID == ownerID else { return }
                 workspace.activate(scope); reload()
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
-                if authModel.authenticatedUser?.id != ownerID { destination = nil; pendingDiscard = nil; dismiss() }
+                if currentOwnerID != ownerID { destination = nil; pendingDiscard = nil; dismiss() }
             }
             .sheet(isPresented: Binding(
                 get: { pendingDiscard != nil }, set: { if !$0 { pendingDiscard = nil } }
@@ -138,8 +148,13 @@ struct HomeDraftManagementView: View {
         let protected = !HomeJourneyControlPolicy.canDiscard(draft, in: scope,
             hasProtectedSubmission: protectedIDs.contains(draft.id))
         let setting = draft.context == .elsewhere ? draft.locationName.remoteTrimmedNonEmpty : nil
-        return draftRow(title: draft.drinkName.remoteTrimmedNonEmpty ?? setting ?? "Untitled sip",
-            detail: protected ? "Interrupted post · resume to recover" : "\(draft.context.rawValue) · saved \(draft.updatedAt.formatted(.relative(presentation: .named)))",
+        let isPocketSip = draft.launchContext.source == .pocketSip
+        let title = draft.drinkName.remoteTrimmedNonEmpty ?? setting ?? (isPocketSip ? "Pocket Sip" : "Untitled sip")
+        let photoCount = draft.localPhotoNames.count
+        let kind = isPocketSip ? (photoCount == 1 ? "1 photo" : "\(photoCount) photos") : draft.context.rawValue
+        let saved = draft.updatedAt.formatted(.relative(presentation: .named))
+        return draftRow(title: title,
+            detail: protected ? "Interrupted post · resume to recover" : "\(kind) · saved \(saved)",
             symbol: draft.context.systemImage, identifier: "sip-\(draft.id)", locked: !canVerifyDiscard || protected,
             onResume: {
                 guard isCurrentOwner, let fresh = SipDraftStore.shared.load(id: draft.id, in: scope)?.draft else {

@@ -370,6 +370,25 @@ final class CafeSessionService {
         .execute()
     }
 
+    func fetchOwnerReorderIntention(visitID: UUID, ownerID: UUID) async throws -> SipReorderIntention? {
+        struct Row: Decodable {
+            let reorderIntention: SipReorderIntention
+
+            enum CodingKeys: String, CodingKey {
+                case reorderIntention = "reorder_intention"
+            }
+        }
+        let rows: [Row] = try await client
+            .from("cafe_sip_intentions")
+            .select("reorder_intention")
+            .eq("visit_id", value: visitID.uuidString)
+            .eq("user_id", value: ownerID.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.reorderIntention
+    }
+
     func fetchSessionSummary(sessionID: UUID) async throws -> RemoteCafeSessionSummary {
         try await client.rpc(
             "get_cafe_session_summary_v1",
