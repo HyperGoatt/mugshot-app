@@ -13,6 +13,7 @@ final class OwnerCafePhoneUITests: XCTestCase {
 
         let map = app.buttons["mugshot.tab.map"]
         XCTAssertTrue(map.waitForExistence(timeout: 8))
+        XCTAssertTrue(map.isHittable, "Start at the main tabs with any detail sheets closed.")
         map.tap()
         let pins = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "map.pin.")

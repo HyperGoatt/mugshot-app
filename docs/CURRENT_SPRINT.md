@@ -6,8 +6,9 @@ last_verified: 2026-11-09
 
 ## Cafe detail and Pocket Sip iPhone QA — November 9
 
-Build 11 is installed and the Map pin and Saved cafe open and Back passed on
-the owner’s iPhone after the build 10 crash. Follow the
+Build 12 is installed after the build 10 crash. The Map pin and Saved cafe open
+and Back passed on the owner’s iPhone. Repeat edits passed through immediate
+termination and reopen on Simulator. Follow the
 [crash repair and QA handoff](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up)
 for device evidence and the separate repeat and photo draft routes.
 

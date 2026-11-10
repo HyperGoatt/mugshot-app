@@ -8,7 +8,7 @@ last_verified: 2026-11-09
 
 - Isolate each cafe layout so opening a Map pin or Saved cafe does not construct the full layout inside the navigation container.
 - Keep repeat order text as typed and save it during the edit so the full wording survives an immediate quit.
-- Add a read-only hardware regression for opening and reopening a Map pin and opening a Saved cafe. See the [ECC crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up).
+- Build 12 is installed with backed-up app and shared data preserved. The read-only hardware check reopened a Map pin and opened a Saved cafe. See the [ECC crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up).
 
 ## 2026-11-09 — Cafe detail and Pocket Sip iPhone development install
 

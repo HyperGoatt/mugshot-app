@@ -60,6 +60,24 @@ file contained the final edit before termination on both runs. The Map recents
 test now uses the redesigned **Back to Map** control and still checks that the
 search UI leaves the background and returns after Back.
 
+The final clean Simulator pass covered **44 focused unit tests and 10 UI
+cases**, with the repeat order case run twice. These checks covered Map pins,
+Map and Add recents, the Saved handoff, accessibility text size, first visits,
+declined orders, original sip navigation, Pocket Sip cancellation, private draft
+storage, ordered media, account boundaries, and recovery. The original native
+Photos picker and share extension journeys are recorded above; the crash
+repair did not change either capture route.
+
+Mugshot Luna QA **0.5.3 (12)** contains both fixes and replaced build 11 in
+place. Source: `d3dd140a0a671dc8c632d7725bc583aaaddd66da`. The debug library
+SHA-256 is `3cb7bc909d744d725f5b209b3a3df0b640034f915f0e09e86cdc79afeba80651`.
+The device reported build 12 and the app launched. All 41 Application Support
+files, both preferences files, and the shared container inventory matched the
+private preinstall backup. Signature, provisioning, and bundle checks passed
+for the app and both extensions. After a normal relaunch cleared an open
+recipe detail, the build 12 read-only test opened the same Map pin twice and
+a Saved cafe, used Back each time, and verified Mugshot remained active.
+
 ## Signed iPhone install
 
 Historical build 10 receipt. Use the [crash follow-up](#cafe-detail-crash-follow-up)

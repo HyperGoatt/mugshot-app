@@ -6,8 +6,8 @@ last_verified: 2026-11-09
 
 ## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
 
-The Map pin and Saved cafe routes passed on the owner’s iPhone 16 Pro with
-build 11 after the build 10 crash. See the
+Build 12 is installed with the cafe crash and repeat order edit repairs. The
+Map pin and Saved cafe routes passed on the owner’s iPhone 16 Pro. See the
 [crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up).
 The repeat and Pocket Sip checks below are from Simulator.
 
