@@ -11,16 +11,25 @@ final class HomeStartIntentUITests: XCTestCase {
         return app
     }
 
-    @MainActor func testAlreadyMadeOpensNameAndPhotosWithoutSelectingAPlan() {
+    @MainActor func testNamedHomeSipRatesAndSavesPrivatelyFromOneRatingScreen() {
         let app = launchHome()
-        XCTAssertTrue(app.buttons["home.start.guidance"].waitForExistence(timeout: 5))
-        let quick = app.buttons["logASipV3.primaryAction"]
-        XCTAssertTrue(quick.label.contains("I already made it"))
-        quick.tap()
-        XCTAssertTrue(app.staticTexts["Quick log"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.textFields["logASipV3.drinkName"].exists)
-        XCTAssertTrue(app.staticTexts["Photos"].exists)
-        XCTAssertFalse(app.buttons["home.makeWithGuidance"].exists)
+        let drink = app.textFields["home.entry.name"]
+        XCTAssertTrue(drink.waitForExistence(timeout: 5), "Home should start with the drink name or recipe.")
+        drink.tap()
+        drink.typeText("Cinnamon oat latte")
+        let done = app.buttons["home.entry.keyboardDone"]
+        if done.isHittable { done.tap() }
+        let rate = app.buttons["home.entry.rate"]
+        XCTAssertTrue(rate.isHittable)
+        rate.tap()
+        XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 5))
+        let stars = app.descendants(matching: .any).matching(identifier: "logASipV3.sipScore").firstMatch
+        XCTAssertTrue(stars.isHittable)
+        stars.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).tap()
+        XCTAssertEqual(stars.value as? String, "4.0 out of 5")
+        app.buttons["home.sip.savePrivate"].tap()
+        XCTAssertTrue(app.staticTexts["Saved privately"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Cinnamon oat latte"].firstMatch.exists)
     }
 
     @MainActor func testHelpMeMakeItOffersATeaStarterWithoutAShelf() {
