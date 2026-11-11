@@ -4,6 +4,13 @@ status: current
 last_verified: 2026-11-11
 ---
 
+## Journal and Home composer crash repair — November 11 candidate
+
+Build 15 crash reports from the iPhone identify stack exhaustion while opening
+Journal’s Drafts summary and the Home composer. The repair builds the Journal
+scroll layout outside its navigation root, skips record comparisons for active
+drafts, and limits Home composition to the selected screen.
+
 ## Mugsy experiments and cafe Recent sips — November 11 candidate
 
 **Experiment with Mugsy** in a private Home sip offers a small trial the user

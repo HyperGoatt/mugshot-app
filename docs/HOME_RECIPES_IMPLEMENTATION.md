@@ -6,6 +6,10 @@ last_verified: 2026-11-11
 
 ## Mugsy experiments — November 11 candidate
 
+The iPhone crash repair defers Journal’s scroll layout, avoids redundant draft
+counting, and renders the active Home composer screen independently. Both
+rendering paths previously exhausted the main-thread stack in build 15.
+
 From a private Home sip, **Experiment with Mugsy** proposes one change and
 what to taste for. The trial can use a recorded amount, a labeled recipe
 plan, or a tasting exercise that needs no measurements. Starting it opens a

@@ -198,9 +198,7 @@ struct JournalTabView: View {
 
     private var journalBody: some View {
         NavigationStack {
-            // Bound the generic navigation root before adding destinations. The unbounded
-            // Debug view value exhausted the main-thread stack on iPhone.
-            AnyView(journalContent)
+            JournalScrollLayout { AnyView(journalContent) }
             .background(Color.creamWhite)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $activeProfileSheet) { sheet in
@@ -348,6 +346,14 @@ struct JournalTabView: View {
         }
     }
 
+    // Build the scroll content after the navigation root returns. The draft summary
+    // can traverse the Home workspace while this layout is evaluated.
+    private struct JournalScrollLayout: View {
+        let content: () -> AnyView
+
+        var body: some View { content() }
+    }
+
     private var journalContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -426,8 +432,9 @@ struct JournalTabView: View {
 
     private var draftSectionDetail: String {
         if draftReadNeedsAttention { return "Some drafts need attention" }
-        if draftCount == 0 { return "Start a photo draft" }
-        return "\(draftCount) unfinished · resume or manage"
+        let count = draftCount
+        if count == 0 { return "Start a photo draft" }
+        return "\(count) unfinished · resume or manage"
     }
 
     private var compactProfileRow: some View {

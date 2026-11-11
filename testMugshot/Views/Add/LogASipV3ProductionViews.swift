@@ -379,13 +379,9 @@ struct LogASipV3ProductionView: View {
         .padding(.bottom, DesignSystem.Space.md)
     }
 
-    @ViewBuilder
-    private var currentSurface: some View {
-        if isHomeFlow {
-            homeSurface
-        } else {
-            standardSurface
-        }
+    private var currentSurface: AnyView {
+        if isHomeFlow { return homeSurface }
+        return AnyView(standardSurface)
     }
 
     @ViewBuilder
@@ -448,11 +444,12 @@ struct LogASipV3ProductionView: View {
         }
     }
 
-    @ViewBuilder
-    private var homeSurface: some View {
+    // Return only the active screen's view value. The combined conditional
+    // layout exhausted the main-thread stack when opening Home on iPhone.
+    private var homeSurface: AnyView {
         switch draft.homeWorkbenchPhase {
         case .workbench:
-            HomeSipV3SetupView(
+            return AnyView(HomeSipV3SetupView(
                 draft: $draft,
                 usesV4: homeSipV4RouteEnabled,
                 isRecoveryLocked: isRecoveryLocked,
@@ -471,9 +468,9 @@ struct LogASipV3ProductionView: View {
                 },
                 onResumeSession: resumeHomeSession,
                 onResumeSip: onResumeStoredDraft
-            )
-        case .quickCapture:
-            LogASipV3HomeCaptureSurface(
+            ))
+        case .quickCapture, .capture:
+            return AnyView(LogASipV3HomeCaptureSurface(
                 draft: $draft,
                 photoImages: $photoImages,
                 isRecoveryLocked: isRecoveryLocked,
@@ -482,83 +479,54 @@ struct LogASipV3ProductionView: View {
                 onOrganizePhotos: onOrganizePhotos,
                 onEditActuals: homeSipV4RouteEnabled ? { presentedSheet = .homeActuals } : nil,
                 onContinue: { moveHome(to: .sip) }
-            )
+            ))
         case .brew:
-            if let session = activeHomeSession {
-                LogASipV3HomeBrewSurface(
-                    draft: $draft,
-                    content: homeContentFromDraft(),
-                    session: session,
-                    isRecoveryLocked: isRecoveryLocked,
-                    onSessionChange: persistHomeSession,
-                    onSkipGuidance: {
-                        MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationSkipped))
-                    },
-                    onSaveDraft: onCancel,
-                    onContinue: completeHomePreparation
-                )
-                .id(session.id)
-            } else {
-                ProgressView("Opening steps…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            guard let session = activeHomeSession else {
+                return AnyView(ProgressView("Opening steps…").frame(maxWidth: .infinity, maxHeight: .infinity))
             }
-        case .actuals:
-            if homeSipV4RouteEnabled { HomeSipV4ActualsView(
+            return AnyView(LogASipV3HomeBrewSurface(
                 draft: $draft,
                 content: homeContentFromDraft(),
+                session: session,
                 isRecoveryLocked: isRecoveryLocked,
-                onContinue: {
-                    moveHome(to: .capture)
-                }
-            ) } else {
-                LogASipV3HomeActualsFallback(draft: $draft, onContinue: { moveHome(to: .capture) })
+                onSessionChange: persistHomeSession,
+                onSkipGuidance: {
+                    MugshotAnalytics.shared.capture(.homeWorkbench(action: .preparationSkipped))
+                },
+                onSaveDraft: onCancel,
+                onContinue: completeHomePreparation
+            ).id(session.id))
+        case .actuals:
+            if homeSipV4RouteEnabled {
+                return AnyView(HomeSipV4ActualsView(
+                    draft: $draft,
+                    content: homeContentFromDraft(),
+                    isRecoveryLocked: isRecoveryLocked,
+                    onContinue: { moveHome(to: .capture) }
+                ))
             }
-        case .capture:
-            LogASipV3HomeCaptureSurface(
-                draft: $draft,
-                photoImages: $photoImages,
-                isRecoveryLocked: isRecoveryLocked,
-                onAddPhoto: onAddPhoto,
-                onRemovePhoto: onRemovePhoto,
-                onOrganizePhotos: onOrganizePhotos,
-                onEditActuals: homeSipV4RouteEnabled ? { presentedSheet = .homeActuals } : nil,
-                onContinue: { moveHome(to: .sip) }
-            )
+            return AnyView(LogASipV3HomeActualsFallback(draft: $draft, onContinue: { moveHome(to: .capture) }))
         case .sip:
-            homeRating
+            return AnyView(homeRating)
         case .recipe:
-            LogASipV3HomeSavedSurface(
-                draft: $draft,
-                coverImage: selectedCoverImage,
-                store: homeStore,
+            return AnyView(homeRecipeSavedSurface)
+        case .saved:
+            if !homeSipV4RouteEnabled { return AnyView(homeRecipeSavedSurface) }
+            guard let attemptID = draft.launchContext.homeAttemptID else { return AnyView(EmptyView()) }
+            return AnyView(HomeAttemptCanonicalDetailView(
+                attemptID: attemptID,
+                receipt: homeSaveReceipt,
                 saveError: homeSaveError,
                 onShare: beginHomeShare,
+                onMakeAgain: startHomeRepeat,
                 onDone: onPrivateHomeSaved,
-                onMakeAgain: startHomeRepeat
-            )
-        case .saved:
-            if !homeSipV4RouteEnabled {
-                LogASipV3HomeSavedSurface(
-                    draft: $draft, coverImage: selectedCoverImage,
-                    store: homeStore, saveError: homeSaveError,
-                    onShare: beginHomeShare, onDone: onPrivateHomeSaved,
-                    onMakeAgain: startHomeRepeat
-                )
-            } else if let attemptID = draft.launchContext.homeAttemptID {
-                HomeAttemptCanonicalDetailView(
-                    attemptID: attemptID,
-                    receipt: homeSaveReceipt,
-                    saveError: homeSaveError,
-                    onShare: beginHomeShare,
-                    onMakeAgain: startHomeRepeat,
-                    onDone: onPrivateHomeSaved,
-                    onHistory: { showsHomeHistory = true },
-                    onLogServing: startHomeServing,
-                    onChangeNextBrew: { startHomeRepeat(change: $0) },
-                    onStartExperiment: startRepeatedHomeDraft
-                )
-            }
+                onHistory: { showsHomeHistory = true },
+                onLogServing: startHomeServing,
+                onChangeNextBrew: { startHomeRepeat(change: $0) },
+                onStartExperiment: startRepeatedHomeDraft
+            ))
         case .publish:
-            LogASipV3PublishSurface(
+            return AnyView(LogASipV3PublishSurface(
                 draft: $draft,
                 photoImages: $photoImages,
                 isSaving: isSaving || isSavingHomeAttempt,
@@ -579,8 +547,20 @@ struct LogASipV3ProductionView: View {
                         preparation: homeContentFromDraft(),
                         actuals: draft.homeAttemptActuals
                     ), resolveLinked: { homeStore.workspace.version($0)?.content })
-            )
+            ))
         }
+    }
+
+    private var homeRecipeSavedSurface: some View {
+        LogASipV3HomeSavedSurface(
+            draft: $draft,
+            coverImage: selectedCoverImage,
+            store: homeStore,
+            saveError: homeSaveError,
+            onShare: beginHomeShare,
+            onDone: onPrivateHomeSaved,
+            onMakeAgain: startHomeRepeat
+        )
     }
 
     private var homeRating: some View {

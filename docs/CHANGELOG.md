@@ -4,6 +4,11 @@ status: current
 last_verified: 2026-11-11
 ---
 
+## 2026-11-11 — Journal and Home composer crash repair
+
+- Resolve iPhone main-thread stack exhaustion when opening Journal with Home drafts or entering the Home composer. Journal defers its scroll layout and counts drafts once. The Home composer builds the active screen independently.
+- Check deletion markers before comparing complete Home records during draft indexing.
+
 ## 2026-11-11 — Mugsy experiments and cafe Recent sips
 
 - Name Mugsy as the assistant across recipe capture, bean scanning, Journal, and settings. The permission copy identifies OpenAI as the provider for connected suggestions.
