@@ -39,18 +39,25 @@ final class HomeLibraryFlowUITests: XCTestCase {
     }
 
     @MainActor
-    func testHomeQuickPathUsesSharedRatingAndReview() {
+    func testRecipeLogAMakeOpensPrefilledRatingAndPrivateSave() {
         let app = launch()
-        app.buttons["mugshot.tab.add"].tap()
-        app.buttons["logASipV3.context.home"].tap()
-        app.buttons["logASipV4.home.starter.espresso"].tap()
-        app.buttons["logASipV3.primaryAction"].tap()
-        let name = app.textFields["logASipV3.drinkName"]
-        XCTAssertTrue(name.waitForExistence(timeout: 5))
-        app.buttons["logASipV3.primaryAction"].tap()
+        app.buttons["mugshot.tab.saved"].tap(); app.buttons["home.library.entry"].tap()
+        app.buttons["home.library.addRecipe"].tap()
+        let name = app.textFields["home.recipe.name"]
+        for _ in 0..<4 where !name.isHittable { app.swipeUp(velocity: .slow) }
+        name.tap(); name.typeText("Morning espresso")
+        app.buttons["home.recipe.keyboardDone"].tap()
+        app.buttons["home.recipe.saveIdea"].tap()
+        let log = app.buttons["home.recipe.log"]
+        XCTAssertTrue(log.waitForExistence(timeout: 6)); log.tap()
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 5))
-        app.buttons["logASipV3.primaryAction"].tap()
-        XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["home.sip.name"].value as? String, "Morning espresso")
+        app.buttons["home.sip.savePrivate"].tap()
+        XCTAssertTrue(app.staticTexts["Saved to Journal"].waitForExistence(timeout: 6))
+        app.buttons["home.sip.share"].tap()
+        XCTAssertTrue(app.staticTexts["Share your sip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Recipe attachment"].firstMatch.exists)
+        capture("Recipe attachment and audience", in: app)
     }
 
     @MainActor
@@ -109,7 +116,6 @@ final class HomeLibraryFlowUITests: XCTestCase {
         name.tap(); name.typeText("Guided tea")
         app.buttons["home.recipe.keyboardDone"].tap()
         let extracted = app.staticTexts["home.recipe.extractedCount"]
-        for _ in 0..<3 where !extracted.isHittable { app.swipeUp() }
         XCTAssertTrue(extracted.waitForExistence(timeout: 5), "Pasting recipe instructions must fill the draft without a separate copy prompt.")
         XCTAssertFalse(app.switches["home.recipe.allowInstructions"].exists)
         clearNotificationBanner()
@@ -117,16 +123,12 @@ final class HomeLibraryFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["home.recipe.saveIdea"].waitForNonExistence(timeout: 6))
         let make = app.buttons["home.recipe.make"]
         XCTAssertTrue(make.waitForExistence(timeout: 5)); make.tap()
-        let guidance = app.buttons["home.makeWithGuidance"]
-        if guidance.waitForExistence(timeout: 5) { guidance.tap() }
         XCTAssertTrue(app.staticTexts["Make"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Today’s target"].exists, "Instructions without planned measurements must not show an empty target card.")
         capture("Guidance", in: app)
-        for _ in 0..<8 where !app.staticTexts["Capture your sip"].exists {
+        for _ in 0..<8 where !app.staticTexts["How was the sip?"].exists {
             app.buttons["logASipV3.primaryAction"].tap()
         }
-        XCTAssertTrue(app.staticTexts["Capture your sip"].waitForExistence(timeout: 4))
-        app.buttons["logASipV3.primaryAction"].tap()
         XCTAssertTrue(app.staticTexts["How was the sip?"].waitForExistence(timeout: 4))
         let score = app.descendants(matching: .any).matching(identifier: "logASipV3.sipScore").firstMatch
         for _ in 0..<3 where !score.isHittable { app.swipeUp() }
@@ -134,10 +136,9 @@ final class HomeLibraryFlowUITests: XCTestCase {
         score.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).tap()
         XCTAssertEqual(score.value as? String, "4.0 out of 5")
         capture("Rating", in: app)
-        app.buttons["logASipV3.primaryAction"].tap()
-        XCTAssertTrue(app.staticTexts["Review your sip"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.staticTexts["Save to Journal · Private"].exists)
-        capture("Review", in: app)
+        app.buttons["home.sip.savePrivate"].tap()
+        XCTAssertTrue(app.staticTexts["Saved to Journal"].waitForExistence(timeout: 6))
+        capture("Private Journal receipt", in: app)
     }
 
     @MainActor

@@ -337,11 +337,16 @@ struct HomeRecipeEditorView: View {
                     .font(.footnote).foregroundStyle(Color.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Button("Save recipe", action: save)
+            Button(draft.recipeID == nil ? "Save recipe" : "Save changes to recipe") { save() }
                 .buttonStyle(PrimaryButtonStyle()).frame(maxWidth: .infinity)
                 .disabled(draft.content.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.scope != originalScope)
                 .accessibilityIdentifier("home.recipe.save")
-            Text("Your edits stay in a draft until you save.").font(.caption).foregroundStyle(Color.secondaryText)
+            if draft.recipeID != nil {
+                Button("Save as new recipe") { save(asCopy: true) }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(draft.content.name.remoteTrimmedNonEmpty == nil || store.scope != originalScope)
+                    .accessibilityIdentifier("home.recipe.saveCopy")
+            }
         }
         .padding(.horizontal, 20).padding(.vertical, 10).background(Color.creamWhite)
     }
@@ -382,14 +387,14 @@ struct HomeRecipeEditorView: View {
         }
         if template == .component || template == .drink { showIngredients = true; showSteps = true }
     }
-    private func save() {
-        guard store.scope == originalScope else {
+    private func save(asCopy: Bool = false) {
+        guard !didSave, store.scope == originalScope else {
             error = "Your account changed. This recipe was not moved to another account."
             return
         }
         endEditing()
         autosaveTask?.cancel()
-        do { let id = try store.saveRecipe(draft); didSave = true; onSaved(id); dismiss() }
+        do { let id = try store.saveRecipe(draft, asCopy: asCopy); didSave = true; onSaved(id); dismiss() }
         catch { self.error = error.localizedDescription }
     }
 }

@@ -1,8 +1,37 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-11
 ---
+
+## Mugsy experiments — November 11 candidate
+
+The on-device trial uses the scoped Home attempt and its preparation comparison.
+The selected instruction lives in the private sip draft's launch context. A
+measured adjustment uses the repeat draft's existing one-target validation.
+Connected suggestions send the evidence shown in the sheet only after an
+explicit request and account permission. Private notes and next-time notes
+are excluded from that request.
+
+## Home private save and shared recipe sources — November 10 candidate
+
+The Home rating screen commits to the account-scoped workspace using the
+composer draft ID. Guidance stores the attempt and preparation session
+together. The sip records the exact saved recipe version, today's preparation,
+and only the actuals explicitly recorded. The Journal receipt follows a local
+commit. Share sip creates a separate publication draft and uses the existing
+audience and attachment boundaries.
+
+The iOS extension writes a bounded link/text or metadata-stripped screenshot
+into a separate recipe queue in the existing app group. The extension checks
+the active owner generation at write time. Home reads the same owner's packet
+on demand. The capture ID becomes the recipe ID on save, and the packet is
+atomically replaced with a receipt after the commit. A retry or interrupted
+acknowledgement can reconcile the existing recipe. Account purge removes the
+owner's packets and receipts. The extension makes no recipe network request.
+A shared web link is read after the user requests it in Home. Screenshot text
+can be read on-device, and Mugsy uses the existing account permission.
+[Implementation plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## Cafe orders and Pocket Sip — November 9 candidate
 
@@ -14,8 +43,9 @@ reusable order fields. Its media, reflection and audience start fresh and privat
 Edits to the repeated order use the same account-scoped draft store during the
 input event. The field keeps the typed wording without keyboard autocorrection.
 
-Pocket Sip copies selected image pixels into oriented, bounded JPEGs. The Add
-picker commits straight into the scoped local draft store. The Photos extension
+Pocket Sip copies selected image pixels into oriented, bounded JPEGs. The
+in-app draft picker commits into the account or guest scope that opened Drafts.
+The Photos extension
 commits an atomic packet in the existing app group for the known account or
 guest scope. Mugshot imports it on activation with the capture ID as the draft
 ID. The source packet stays until the draft commits. A retained local receipt

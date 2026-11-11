@@ -9,6 +9,8 @@ struct HomeQuickRecipeSheet: View {
 
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let onSaved: (HomeRecipeRecord, HomeRecipeVersion) -> Void
+    let onMake: ((HomeRecipeRecord, HomeRecipeVersion) -> Void)?
+    private let sharedSource: HomeRecipeShareCapture?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var authModel: AppAuthModel
@@ -39,12 +41,34 @@ struct HomeQuickRecipeSheet: View {
     @State private var isFinished = false
     @State private var extraction = CoffeeAssistanceRecipeImport.Draft()
     @State private var sources = HomeRecipeCaptureSources()
+    @State private var showsSources = true
+    @State private var reviewJump = UUID()
+    @State private var reviewAnchor = "recipe.review"
+    @State private var shouldReadSharedLink = false
+    @State private var saveID = UUID()
+    @State private var confirmsDiscardSource = false
     private let originalScope: LocalAccountScope
 
-    init(store: HomeRecipeWorkspaceStore, onSaved: @escaping (HomeRecipeRecord, HomeRecipeVersion) -> Void) {
-        self.store = store; self.onSaved = onSaved; originalScope = store.scope
+    init(store: HomeRecipeWorkspaceStore, sharedSource: HomeRecipeShareCapture? = nil,
+         onMake: ((HomeRecipeRecord, HomeRecipeVersion) -> Void)? = nil,
+         onSaved: @escaping (HomeRecipeRecord, HomeRecipeVersion) -> Void) {
+        self.store = store
+        self.sharedSource = sharedSource
+        self.onMake = onMake
+        self.onSaved = onSaved
+        originalScope = store.scope
+        if let sharedSource {
+            var initialContent = HomeRecipeContent(name: "", template: .preparation, method: .other)
+            initialContent.sourceURL = sharedSource.url ?? ""
+            _content = State(initialValue: initialContent)
+            _saveID = State(initialValue: sharedSource.id)
+            _showsSources = State(initialValue: false)
+        }
     }
-    private var isCurrentOwner: Bool { !isFinished && store.scope == originalScope && authModel.authenticatedUser?.id == originalScope.userID }
+    private var isCurrentOwner: Bool {
+        !isFinished && store.scope == originalScope && authModel.authenticatedUser?.id == originalScope.userID
+            && (sharedSource == nil || sharedSource?.owner.userID == originalScope.userID)
+    }
     private var canRead: Bool { isCurrentOwner && !showsFullEditor && !showsDrinkBuilder }
     private var hasSource: Bool { image != nil || !sources.text.isEmpty }
     private var isReadingSource: Bool { isReading || isReadingSpeech }
@@ -64,14 +88,23 @@ struct HomeQuickRecipeSheet: View {
             }
             .fullScreenCover(isPresented: $showsFullEditor) {
                 NavigationStack {
-                    HomeRecipeEditorView(store: store, draft: HomeRecipeEditorDraft(content: content)) { id in finish(id) }
+                    HomeRecipeEditorView(store: store, draft: HomeRecipeEditorDraft(id: saveID, content: content)) { id in finish(id) }
                 }
                 .environment(\.dynamicTypeSize, dynamicTypeSize)
+            }
+            .confirmationDialog("Discard this shared source?", isPresented: $confirmsDiscardSource, titleVisibility: .visible) {
+                Button("Discard source", role: .destructive, action: discardSharedSource)
+                Button("Keep source", role: .cancel) {}
+            } message: {
+                Text("This removes the link, text, or screenshot you shared to Mugshot.")
             }
     }
 
     private var captureScreen: some View {
-        activeCapture
+        VStack(spacing: 0) {
+            activeCapture
+            saveBar
+        }
             .background(Color.creamWhite).foregroundStyle(Color.espressoBrown)
             .navigationTitle("Save a recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -79,13 +112,12 @@ struct HomeQuickRecipeSheet: View {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
                     Button("Done") {
-                        sourceField = nil
-                        if !content.ingredients.isEmpty || !content.steps.isEmpty { showsCaption = false }
+                        if hasSource && showsSources { showImportedReview(dismissingKeyboard: true) }
+                        else { sourceField = nil }
                     }
                     .accessibilityIdentifier("home.recipe.keyboardDone")
                 }
             }
-            .safeAreaInset(edge: .bottom) { saveBar }
     }
 
     private var activeCapture: some View {
@@ -94,6 +126,7 @@ struct HomeQuickRecipeSheet: View {
             .task(id: content.sourceURL + linkRetry.uuidString) { await readLink() }
             .task(id: selectedPhoto) { await loadPhoto() }
             .task(id: selectedVideo) { await loadVideo() }
+            .task(id: sharedSource?.id) { await loadSharedSource() }
             .task(id: SpeechReadID(generation: sources.speechGeneration, movieURL: movieURL)) { await readSelectedSpeech() }
             .task(id: importID) { await readWithLuna() }
             .onDisappear {
@@ -127,27 +160,73 @@ struct HomeQuickRecipeSheet: View {
     }
 
     private var captureForm: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                captureHeader
-                sourceInput
-                sourceFeedback
-                if !hasSource && content.name.isEmpty && !showsManual {
-                    Button { sourceField = nil; showsDrinkBuilder = true } label: {
-                        Label("Build a drink instead", systemImage: "mug")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    captureHeader
+                    if showsSources { sourceInput.id("recipe.sources") }
+                    if hasSource || sharedSource != nil || !showsSources { importReview.id("recipe.review") }
+                    sourceFeedback
+                    if !hasSource && sharedSource == nil && content.name.isEmpty && !showsManual {
+                        Button { sourceField = nil; showsDrinkBuilder = true } label: {
+                            Label("Build a drink instead", systemImage: "mug")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .accessibilityIdentifier("home.recipe.buildDrink")
                     }
-                    .accessibilityIdentifier("home.recipe.buildDrink")
+                    identityCard.id("recipe.identity")
+                    recipePreview
+                    if hasSource || !content.name.isEmpty || !content.sourceURL.isEmpty { sourceAndDetails }
                 }
-                identityCard
-                recipePreview
-                if hasSource || !content.name.isEmpty || !content.sourceURL.isEmpty { sourceAndDetails }
+                .padding(.horizontal, 22).padding(.top, 20).padding(.bottom, 22)
+                .frame(maxWidth: 680).frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 22).padding(.top, 20).padding(.bottom, 28)
-            .frame(maxWidth: 680).frame(maxWidth: .infinity)
+            .accessibilityIdentifier("home.recipe.captureScroll")
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: reviewJump) { _, _ in proxy.scrollTo(reviewAnchor, anchor: .top) }
         }
-        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var importReview: some View {
+        HomeEditorSection("Review your recipe", symbol: "checklist") {
+            Text(classifiedContent.recipeContentsSummary)
+                .font(.subheadline.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
+                .accessibilityIdentifier("home.recipe.extractedCount")
+            if content.name.remoteTrimmedNonEmpty == nil {
+                Button("Add a recipe name", systemImage: "pencil") {
+                    jump(to: "recipe.identity")
+                    sourceField = "name"
+                }
+                .frame(minHeight: 44)
+            } else if !classifiedContent.isReadyToMake {
+                Button("Add preparation steps", systemImage: "list.number") {
+                    showsManual = true
+                    showsSteps = true
+                    if content.steps.isEmpty { content.steps.append(HomePreparationStep()) }
+                    jump(to: "recipe.steps")
+                    sourceField = content.steps.first?.id.uuidString
+                }
+                .frame(minHeight: 44)
+            }
+            if !showsSources {
+                Button("Edit source", systemImage: "link") {
+                    showsSources = true
+                    jump(to: "recipe.sources")
+                }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("home.recipe.editSource")
+            }
+            if (try? HomeRecipeSourceURL(content.sourceURL)) != nil {
+                Button(sourceStatus == nil ? "Read link" : "Read link again", systemImage: "arrow.clockwise", action: retryLink)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("home.recipe.readLink")
+            }
+            if sharedSource != nil {
+                Button("Discard shared source", systemImage: "trash", role: .destructive) { confirmsDiscardSource = true }
+                    .frame(minHeight: 44)
+            }
+        }
     }
 
     private var captureHeader: some View {
@@ -222,6 +301,11 @@ struct HomeQuickRecipeSheet: View {
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             }
             .accessibilityIdentifier("home.recipe.typeItIn")
+            if hasSource || sharedSource != nil {
+                Button("Review recipe", systemImage: "checklist") { showImportedReview(dismissingKeyboard: true) }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("home.recipe.reviewSource")
+            }
         }
     }
 
@@ -247,9 +331,9 @@ struct HomeQuickRecipeSheet: View {
                         .accessibilityIdentifier("home.recipe.sourceStatus")
                 }
                 if hasSource && originalScope.userID != nil && !permission.isEnabled(ownerID: originalScope.userID) {
-                    LunaPermissionControl(ownerID: originalScope.userID)
+                    MugsyPermissionControl(ownerID: originalScope.userID)
                 }
-                if assistance.isWorking { ProgressView("Luna is reading your recipe…").tint(Color.mugshotSageText) }
+                if assistance.isWorking { ProgressView("Mugsy is reading your recipe…").tint(Color.mugshotSageText) }
                 if let message = assistance.message { Text(message).font(.footnote).foregroundStyle(Color.secondaryText) }
             }
         }
@@ -274,11 +358,6 @@ struct HomeQuickRecipeSheet: View {
 
     @ViewBuilder private var recipePreview: some View {
         if showsManual || !content.ingredients.isEmpty || !content.steps.isEmpty {
-            if content.ingredients.contains(where: { $0.name.remoteTrimmedNonEmpty != nil }) || content.isReadyToMake {
-                Label(content.recipeContentsSummary, systemImage: "list.bullet.rectangle")
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.mugshotSageText)
-                    .accessibilityIdentifier("home.recipe.extractedCount")
-            }
             ingredientCard
             HomeEditorSection("How to make it", symbol: "list.number",
                 detail: "One clear step at a time. Add instructions whenever you’re ready.") {
@@ -288,7 +367,7 @@ struct HomeQuickRecipeSheet: View {
                         VStack(alignment: .leading, spacing: 14) { stepRows }.padding(.top, 12)
                     }
                 }
-            }
+            }.id("recipe.steps")
         }
     }
 
@@ -356,10 +435,6 @@ struct HomeQuickRecipeSheet: View {
                     TextField("Creator credit", text: $content.creatorCredit)
                         .focused($sourceField, equals: "credit").frame(minHeight: 44)
                     if !content.sourceURL.isEmpty { Text(content.sourceURL).font(.caption).textSelection(.enabled) }
-                    if (try? HomeRecipeSourceURL(content.sourceURL)) != nil {
-                        Button("Read link again", systemImage: "arrow.clockwise") { linkRetry = UUID() }
-                            .frame(minHeight: 44).accessibilityIdentifier("home.recipe.readLink")
-                    }
                 }
                 .padding(.top, 10)
             }
@@ -376,12 +451,29 @@ struct HomeQuickRecipeSheet: View {
                 Label(error, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(Color.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Button(classifiedContent.isReadyToMake ? "Save recipe" : "Save for later", action: save)
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(!isCurrentOwner || content.name.remoteTrimmedNonEmpty == nil)
-                .accessibilityIdentifier("home.recipe.saveIdea")
+            if let onMake, classifiedContent.isReadyToMake, sourceField == nil {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { saveRecipeAction; saveAndMakeAction(onMake) }
+                    VStack(spacing: 8) { saveRecipeAction; saveAndMakeAction(onMake) }
+                }
+            } else { saveRecipeAction }
         }
-        .padding(.horizontal, 22).padding(.vertical, 12).background(Color.creamWhite)
+        .padding(.horizontal, 22).padding(.vertical, 8)
+        .background(Color.creamWhite)
+        .overlay(alignment: .top) { Divider() }
+        .disabled(!isCurrentOwner || content.name.remoteTrimmedNonEmpty == nil)
+    }
+
+    private var saveRecipeAction: some View {
+        Button(classifiedContent.isReadyToMake ? "Save recipe" : "Save for later") { save(using: onSaved) }
+            .buttonStyle(PrimaryButtonStyle())
+            .accessibilityIdentifier("home.recipe.saveIdea")
+    }
+
+    private func saveAndMakeAction(_ action: @escaping (HomeRecipeRecord, HomeRecipeVersion) -> Void) -> some View {
+        Button("Save & make") { save(using: action) }
+            .buttonStyle(SecondaryButtonStyle())
+            .accessibilityIdentifier("home.recipe.saveAndMake")
     }
 
     private func startManual() {
@@ -426,9 +518,38 @@ struct HomeQuickRecipeSheet: View {
         !Task.isCancelled && canRead && operation == sourceGeneration
     }
 
+    private func showImportedReview(dismissingKeyboard: Bool = false) {
+        guard dismissingKeyboard || sourceField == nil || sourceField == "url" else { return }
+        sourceField = nil
+        showsLink = false
+        showsCaption = false
+        showsSources = false
+        jump(to: "recipe.review")
+    }
+
+    private func jump(to anchor: String) {
+        reviewAnchor = anchor
+        reviewJump = UUID()
+    }
+
+    private func retryLink() {
+        shouldReadSharedLink = true
+        linkRetry = UUID()
+    }
+
+    private func discardSharedSource() {
+        guard isCurrentOwner, let sharedSource, let inbox = PocketSipInbox.shared else { return }
+        do {
+            try inbox.acknowledgeRecipe(sharedSource.id, for: sharedSource.owner)
+            stop()
+            dismiss()
+        } catch { self.error = error.localizedDescription }
+    }
+
     private func readLink() async {
         let raw = content.sourceURL
-        guard canRead, (try? HomeRecipeSourceURL(raw)) != nil else { return }
+        guard canRead, (try? HomeRecipeSourceURL(raw)) != nil,
+              raw != sharedSource?.url || shouldReadSharedLink else { return }
         let operation = UUID()
         sourceGeneration = operation
         assistance.invalidate()
@@ -468,11 +589,27 @@ struct HomeQuickRecipeSheet: View {
             guard sourceIsCurrent(operation), raw == content.sourceURL else { return }
             isReading = false
             restartImport()
+            showImportedReview()
         } catch is CancellationError { }
         catch {
             guard sourceIsCurrent(operation), raw == content.sourceURL else { return }
             sourceStatus = (error as? HomeRecipeSourceError)?.localizedDescription ?? HomeRecipeSourceError.unavailable.localizedDescription
         }
+    }
+
+    private func loadSharedSource() async {
+        guard let sharedSource, canRead, sharedSource.owner.userID == originalScope.userID else { return }
+        if let text = sharedSource.text, sources.typedCaption.isEmpty {
+            sources.typedCaption = text
+            sourceStatus = "Shared text is ready to review."
+            updateSourceText()
+        }
+        guard image == nil, let jpeg = sharedSource.screenshot, let chosen = UIImage(data: jpeg) else { return }
+        let operation = UUID()
+        sourceGeneration = operation
+        isReading = true
+        defer { if operation == sourceGeneration { isReading = false } }
+        await applyScreenshot(chosen, operation: operation)
     }
 
     private func loadPhoto() async {
@@ -483,14 +620,22 @@ struct HomeQuickRecipeSheet: View {
         assistance.invalidate()
         defer { if operation == sourceGeneration { isReading = false } }
         guard let data = try? await item.loadTransferable(type: Data.self), data.count <= 20_000_000,
-              sourceIsCurrent(operation), let chosen = UIImage(data: data) else { return }
+              sourceIsCurrent(operation), let chosen = UIImage(data: data) else {
+            if sourceIsCurrent(operation) { sourceStatus = "Couldn’t open that screenshot. Choose it again or type the recipe." }
+            return
+        }
+        await applyScreenshot(chosen, operation: operation)
+    }
+
+    private func applyScreenshot(_ chosen: UIImage, operation: UUID) async {
         image = chosen
         imageSource = .screenshot
         let text = (try? await HomeRecipeMediaReader().text(in: chosen)) ?? ""
         guard sourceIsCurrent(operation) else { return }
         sources.set(.screenshot, text: text)
-        sourceStatus = text.isEmpty ? "Screenshot loaded. Luna can read visible recipe details, or you can enter them yourself." : "Screenshot text read on your iPhone. Check the extracted recipe details."
+        sourceStatus = text.isEmpty ? "Screenshot loaded. Mugsy can read visible recipe details, or you can enter them yourself." : "Screenshot text read on your iPhone. Check the extracted recipe details."
         updateSourceText()
+        showImportedReview()
     }
 
     private func loadVideo() async {
@@ -511,6 +656,7 @@ struct HomeQuickRecipeSheet: View {
             let capture = try await HomeRecipeMediaReader().video(at: movie.url)
             guard sourceIsCurrent(operation), item == selectedVideo else { return }
             applyFrames(capture, kind: .video)
+            showImportedReview()
         } catch is CancellationError { }
         catch {
             guard sourceIsCurrent(operation), item == selectedVideo else { return }
@@ -602,7 +748,7 @@ struct HomeQuickRecipeSheet: View {
         isFinished = true; sourceGeneration = UUID(); assistance.invalidate()
         if let movieURL { try? FileManager.default.removeItem(at: movieURL) }
     }
-    private func save() {
+    private func save(using action: @escaping (HomeRecipeRecord, HomeRecipeVersion) -> Void) {
         guard isCurrentOwner else { return }
         sourceField = nil
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -615,11 +761,14 @@ struct HomeQuickRecipeSheet: View {
             error = "Name each ingredient or remove the unfinished row."
             return
         }
-        do { finish(try store.saveRecipe(HomeRecipeEditorDraft(content: saved))) }
+        do { finish(try store.saveRecipe(HomeRecipeEditorDraft(id: saveID, content: saved)), using: action) }
         catch { self.error = error.localizedDescription }
     }
-    private func finish(_ id: UUID) {
+    private func finish(_ id: UUID, using action: ((HomeRecipeRecord, HomeRecipeVersion) -> Void)? = nil) {
         guard isCurrentOwner, let recipe = store.workspace.recipes.first(where: { $0.id == id }), let version = recipe.current else { return }
-        showsFullEditor = false; stop(); onSaved(recipe, version)
+        if let sharedSource { try? PocketSipInbox.shared?.acknowledgeRecipe(sharedSource.id, for: sharedSource.owner) }
+        showsFullEditor = false
+        stop()
+        (action ?? onSaved)(recipe, version)
     }
 }

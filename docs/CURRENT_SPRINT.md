@@ -1,8 +1,17 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-10
 ---
+
+## Home from recipe to sip — November 10
+
+The [current plan](plans/home-recipe-to-sip-2026-11-10.plan.md) covers the
+eight approved Home changes and supersedes the November 9 entry and rating
+sequence. The candidate is stacked on the cafe crash and Pocket Sip branch.
+The focused verification passed 89 Swift tests and 35 native journeys with
+disposable Simulator fixtures. Physical acceptance and TestFlight remain
+separate gates.
 
 ## Cafe detail and Pocket Sip iPhone QA — November 9
 

@@ -21,6 +21,46 @@ struct PocketSipCapture: Sendable {
     let photos: [Data]
 }
 
+struct HomeRecipeShareCapture: Codable, Equatable, Sendable {
+    let id: UUID
+    let owner: PocketSipOwner
+    var url: String? = nil
+    var text: String? = nil
+    var screenshot: Data? = nil
+
+    static func webURL(_ raw: String?) -> String? {
+        guard let raw, raw.utf8.count <= 4096,
+              let components = URLComponents(string: raw),
+              ["https", "http"].contains(components.scheme?.lowercased() ?? ""),
+              let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil else { return nil }
+        return components.url?.absoluteString
+    }
+
+    func validate() throws {
+        if let screenshot {
+            guard url == nil, text == nil else { throw HomeRecipeShareError.invalidSource }
+            try PocketSipPhoto.validate([screenshot])
+        } else {
+            guard url != nil || text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+                  url == nil || Self.webURL(url) == url,
+                  (text?.utf8.count ?? 0) <= 48_000 else { throw HomeRecipeShareError.invalidSource }
+        }
+    }
+}
+
+enum HomeRecipeShareError: LocalizedError {
+    case invalidSource
+    case inboxFull
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidSource: "Choose a web link, text, or one readable screenshot."
+        case .inboxFull: "Open Home in Mugshot and finish a shared recipe before adding another."
+        }
+    }
+}
+
 enum PocketSipCaptureError: LocalizedError {
     case invalidSelection
     case unreadablePhoto
@@ -31,7 +71,7 @@ enum PocketSipCaptureError: LocalizedError {
         switch self {
         case .invalidSelection: "Choose between 1 and \(PocketSipPhoto.maximumCount) photos."
         case .unreadablePhoto: "One of those photos couldn’t be read. Choose it again or try a different photo."
-        case .inboxUnavailable: "Open Mugshot once, then try sharing these photos again."
+        case .inboxUnavailable: "Open Mugshot once, then try sharing again."
         case .accountChanged: "The active Mugshot account changed. Open Mugshot before sharing again."
         }
     }
@@ -211,6 +251,76 @@ struct PocketSipInbox {
                 try files.removeItem(at: ownerURL)
             }
         }
+    }
+
+    func enqueueRecipe(_ capture: HomeRecipeShareCapture, for session: PocketSipShareSession) throws {
+        try capture.validate()
+        try withLock {
+            guard activeSession() == session, capture.owner == session.owner else { throw PocketSipCaptureError.accountChanged }
+            let directory = recipeDirectory(capture.owner)
+            try files.createDirectory(at: directory, withIntermediateDirectories: true)
+            let destination = recipeFile(capture.id, owner: capture.owner)
+            guard !files.fileExists(atPath: destination.path) else { return }
+            guard try pendingRecipeFiles(capture.owner).count < 20 else { throw HomeRecipeShareError.inboxFull }
+            let encoder = PropertyListEncoder()
+            encoder.outputFormat = .binary
+            try encoder.encode(capture).write(to: destination, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+    }
+
+    func pendingRecipeIDs(for owner: PocketSipOwner) throws -> [UUID] {
+        try withLock {
+            guard activeSession()?.owner == owner else { return [] }
+            return try pendingRecipeFiles(owner).compactMap { UUID(uuidString: $0.deletingPathExtension().lastPathComponent) }
+        }
+    }
+
+    func recipeCapture(_ id: UUID, for owner: PocketSipOwner) throws -> HomeRecipeShareCapture? {
+        try withLock {
+            guard activeSession()?.owner == owner else { throw PocketSipCaptureError.accountChanged }
+            let file = recipeFile(id, owner: owner)
+            guard files.fileExists(atPath: file.path) else { return nil }
+            let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard size > 0 else { return nil }
+            guard size <= PocketSipPhoto.maximumJPEGBytes + 50_000 else { throw HomeRecipeShareError.invalidSource }
+            let capture = try PropertyListDecoder().decode(HomeRecipeShareCapture.self, from: Data(contentsOf: file))
+            guard capture.owner == owner, capture.id == id else { throw PocketSipCaptureError.accountChanged }
+            try capture.validate()
+            return capture
+        }
+    }
+
+    /// Replace the input with a receipt in a single atomic write. A replay of
+    /// the same extension operation cannot restore a saved or discarded source.
+    func acknowledgeRecipe(_ id: UUID, for owner: PocketSipOwner) throws {
+        try withLock {
+            guard activeSession()?.owner == owner else { throw PocketSipCaptureError.accountChanged }
+            let file = recipeFile(id, owner: owner)
+            guard files.fileExists(atPath: file.path) else { return }
+            try Data().write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+    }
+
+    private func recipeDirectory(_ owner: PocketSipOwner) -> URL {
+        ownerDirectory(owner).appendingPathComponent("recipes", isDirectory: true)
+    }
+
+    private func recipeFile(_ id: UUID, owner: PocketSipOwner) -> URL {
+        recipeDirectory(owner).appendingPathComponent(id.uuidString.lowercased()).appendingPathExtension("recipe")
+    }
+
+    private func pendingRecipeFiles(_ owner: PocketSipOwner) throws -> [URL] {
+        let directory = recipeDirectory(owner)
+        guard files.fileExists(atPath: directory.path) else { return [] }
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey]
+        return try files.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys), options: .skipsHiddenFiles)
+            .compactMap { file -> (URL, Date)? in
+                guard file.pathExtension == "recipe", let info = try? file.resourceValues(forKeys: keys),
+                      let size = info.fileSize, size > 0 else { return nil }
+                return (file, info.contentModificationDate ?? .distantPast)
+            }
+            .sorted { $0.1 == $1.1 ? $0.0.lastPathComponent < $1.0.lastPathComponent : $0.1 > $1.1 }
+            .map(\.0)
     }
 
     private func ownerDirectory(_ owner: PocketSipOwner) -> URL {

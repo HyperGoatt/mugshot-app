@@ -1,10 +1,69 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-11
 ---
 
+## Mugsy experiments — November 11 candidate
+
+The iPhone crash repair defers Journal’s scroll layout, avoids redundant draft
+counting, and renders the active Home composer screen independently. Both
+rendering paths previously exhausted the main-thread stack in build 15.
+
+From a private Home sip, **Experiment with Mugsy** proposes one change and
+what to taste for. The trial can use a recorded amount, a labeled recipe
+plan, or a tasting exercise that needs no measurements. Starting it opens a
+private copy with the instruction shown in setup, making, and rating. The
+new draft retains the source recipe reference. [Mugsy permissions](AI_ASSISTANCE.md).
+
+## Home post actions — November 11 candidate
+
+Private Home sips use the same top-right native menu as cafe posts. Edit Sip,
+Make Again, Share Sip, History when available, and Delete Sip open from that
+menu. Deletion still asks for confirmation, and Back returns to the previous
+screen. The post-save view uses the same menu beside its existing Close action.
+
+## Home from recipe to sip — November 10 candidate
+
+**Add → Home** asks **What are you making?** A single field searches the shelf
+or names the sip. Up to two recently made whole drinks appear before typing.
+**Save a recipe** and **Browse recipes** open separate tasks. Offline starters
+and the method catalog sit behind **Try a starter**.
+
+A selected drink shows its Base, Milk, and Add-ins with recorded amounts.
+**Change for this brew → Use for this brew** applies a staged copy of the plan
+to the sip. Cancel keeps the previous plan. Switching the base keeps the
+other parts and the drink's source version. **Follow steps** and a saved
+recipe's **Make this** open the first instruction. **Rate this sip** and
+**Log a make** open the same rating screen. **Save privately** commits the
+Journal entry and its optional photos, rating, notes, and recorded actuals.
+**Share sip** starts a separate review of audience and attachment, with the
+recipe attachment off on a new share.
+
+Capture collapses a source into an editable review with extracted counts.
+Naming an idea allows **Save for later**. A usable recipe supports
+**Save recipe** or **Save & make**. An iOS shared source reopens through
+**Continue recipe**. Website links can be kept as references alongside pasted
+text or a screenshot. The link reader supports public Instagram and TikTok posts.
+Imported ingredients show the ingredient name, printed amount, and printed unit
+in separate editable fields. Fractions such as ½ fill Amount as 0.5. Counted
+ingredients can have a blank Unit, and unmeasured or ambiguous lines stay as
+written for review. A new source read preserves ingredients you edit or remove.
+The footer takes up its own space and the form scrolls
+in the remaining space, including with the keyboard open.
+
+Saved → Home library has **Whole drinks**, **Add-ins**, and **Brew recipes**.
+Build a drink lives under Whole drinks, Use in a drink opens composition
+from an add-in, and Choose a method starts a brew recipe. Saving recipe
+changes adds a version when the content changes. **Save as new recipe**
+writes a distinct recipe. **Used in** opens the exact drink version that
+links to an add-in, including earlier and archived drink versions.
+
+[Current implementation and verification plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
+
 ## Home library and repeat brewing — November 9 candidate
+
+> The November 10 section above supersedes this dated entry and rating sequence.
 
 Saved is the primary entrance to one Home library. Journal opens the same
 library. Empty shelves offer offline coffee, tea and matcha starters and

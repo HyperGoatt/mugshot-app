@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct HomeStarterPicker: View {
+    var onLatte: (() -> Void)? = nil
+    var onMoreMethods: (() -> Void)? = nil
     let onSelect: (HomeRecipeContent) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -18,6 +20,16 @@ struct HomeStarterPicker: View {
                     }
                     ForEach(HomeStarterRecipes.all) { starter in
                         starterRow(starter)
+                    }
+                    if let onLatte {
+                        Button("Latte", systemImage: "mug", action: onLatte)
+                            .buttonStyle(SecondaryButtonStyle())
+                            .accessibilityIdentifier("logASipV4.home.starter.complete_drink")
+                    }
+                    if let onMoreMethods {
+                        Button("Choose a method", systemImage: "slider.horizontal.3", action: onMoreMethods)
+                            .buttonStyle(SecondaryButtonStyle())
+                            .accessibilityIdentifier("home.starter.methods")
                     }
                 }
                 .padding(DesignSystem.Space.md)

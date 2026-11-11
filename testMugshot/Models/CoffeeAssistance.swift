@@ -15,7 +15,7 @@ enum CoffeeAssistanceTask: String, Codable, CaseIterable, Identifiable, Sendable
         case .recipeImport: "Read a recipe"
         case .memorySearch: "Find a memory"
         case .tasteInsight: "Notice a taste pattern"
-        case .brewExperiment: "Explore a next experiment"
+        case .brewExperiment: "Experiment with Mugsy"
         case .weeklyReflection: "Reflect on this week"
         }
     }

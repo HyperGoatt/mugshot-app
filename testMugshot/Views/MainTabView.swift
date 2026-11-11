@@ -743,7 +743,8 @@ struct MainTabView: View {
     }
 
     private func openComposerDraft(_ draft: SipDraft) {
-        if draft.launchContext.source == .nextSip || draft.launchContext.source == .pocketSip {
+        if draft.launchContext.source == .nextSip || draft.launchContext.source == .pocketSip
+            || draft.launchContext.homeBrewExperiment != nil {
             guard draft.ownerUserID == localAccountScope.userID else { return }
         }
         composerDraft = draft

@@ -457,7 +457,7 @@ struct HomeRecipeContent: Codable, Equatable, Sendable {
                     targets.steepSeconds.map(Self.durationSummary)]
                 .compactMap { $0 }.joined(separator: " · ")
         }
-        return [yieldDescription.isEmpty ? "\(Self.number(servings)) serving(s)" : yieldDescription,
+        return [yieldDescription.isEmpty ? "\(Self.number(servings)) \(servings == 1 ? "serving" : "servings")" : yieldDescription,
                 "\(ingredients.count) ingredients"].joined(separator: " · ")
     }
     func cumulativeWater(through index: Int) -> Double? {
@@ -904,6 +904,13 @@ struct HomeRecipeEditorDraft: Identifiable, Codable, Equatable, Sendable {
 }
 
 struct HomeRecipeWorkspace: Codable, Equatable, Sendable {
+    struct DrinkUsage {
+        let drink: HomeRecipeReference
+        let name: String
+        let versionNumber: Int
+        let addInVersions: [Int]
+        let isArchived: Bool
+    }
     var schemaVersion = 1
     var recipes: [HomeRecipeRecord] = []
     var attempts: [HomeAttemptRecord] = []
@@ -923,6 +930,24 @@ struct HomeRecipeWorkspace: Codable, Equatable, Sendable {
     func version(_ reference: HomeRecipeReference) -> HomeRecipeVersion? {
         recipes.first { $0.id == reference.recipeID }?.versions.first { $0.id == reference.versionID }
             ?? retainedVersions?.first { $0.reference == reference }?.version
+    }
+
+    func drinksUsingAddIn(_ recipeID: UUID) -> [DrinkUsage] {
+        recipes.flatMap { recipe in
+            recipe.versions.reversed().compactMap { version -> DrinkUsage? in
+                guard HomeRecipeUse.suggested(for: version.content) == .drink else { return nil }
+                let links = version.content.ingredients.compactMap(\.recipe).filter { $0.recipeID == recipeID }
+                guard !links.isEmpty else { return nil }
+                return DrinkUsage(drink: HomeRecipeReference(recipeID: recipe.id, versionID: version.id),
+                                  name: version.content.name, versionNumber: version.number,
+                                  addInVersions: Set(links.compactMap { self.version($0)?.number }).sorted(),
+                                  isArchived: recipe.isArchived)
+            }
+        }.sorted { lhs, rhs in
+            if lhs.name != rhs.name { return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending }
+            if lhs.drink.recipeID != rhs.drink.recipeID { return lhs.drink.recipeID.uuidString < rhs.drink.recipeID.uuidString }
+            return lhs.versionNumber > rhs.versionNumber
+        }
     }
     var usuals: [HomeRecipeRecord] {
         recipes.filter { !$0.isArchived && ($0.isPinned || $0.lastUsedAt != nil) }.sorted {

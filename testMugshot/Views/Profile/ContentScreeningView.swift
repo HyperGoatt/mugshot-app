@@ -28,7 +28,7 @@ private struct ScreeningAccountView: View {
         List {
             Section {
                 Text("Shared text is checked against basic blocked terms when you save. People can report shared posts, photos, and profiles for Mugshot to review. Your audience and profile settings still apply.")
-                Text("Private journal content is excluded from moderation. Photos are moderated through reports and human review. Optional AI helpers are separate and process only the selected details you review and allow; moderation does not send content to OpenAI.")
+                Text("Private journal content is excluded from moderation. Photos are moderated through reports and human review. Mugsy’s suggestions process only the selected details you review and allow; moderation does not send content to OpenAI.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             if reviewer {

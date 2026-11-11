@@ -62,7 +62,7 @@ extension HomeRecipeWorkspace {
             deletedPhotos.formUnion(item.photoNames.filter(HomeRecipeMediaService.isValidName))
             if let id = item.publicationDraftID, !retainedPublications.contains(id) { deletedDrafts.insert(id) }
         }
-        for item in allRecords where !attempts.contains(where: { $0.id == item.id && $0 == item }) && isRemoved(item) {
+        for item in allRecords where isRemoved(item) && !attempts.contains(where: { $0.id == item.id && $0 == item }) {
             deletedPhotos.formUnion(item.photoNames.filter(HomeRecipeMediaService.isValidName))
             if let id = item.publicationDraftID, !retainedPublications.contains(id) { deletedDrafts.insert(id) }
         }

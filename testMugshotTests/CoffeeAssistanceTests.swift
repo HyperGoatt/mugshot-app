@@ -178,7 +178,9 @@ struct CoffeeAssistanceTests {
         #expect(content.name == "My recipe")
         #expect(content.creatorCredit == "Original creator")
         #expect(content.ingredients.count == 1)
-        #expect(content.ingredients[0].amount == nil)
+        #expect(content.ingredients.first?.name == "syrup")
+        #expect(content.ingredients.first?.amount == 10)
+        #expect(content.ingredients.first?.unit == "g")
         #expect(content.steps.count == 1)
         content.sourceReuseAllowed = false
         let protected = content

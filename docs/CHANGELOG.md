@@ -1,8 +1,38 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-11
 ---
+
+## 2026-11-11 — Imported recipe measurements
+
+- Fill Ingredient, Amount, and Unit separately when recipe capture reads a clear measurement from a screenshot or other source. Keep preparation and optional qualifiers, preserve ambiguous lines for review, and keep edited or removed rows as the user left them when Mugsy reads the source again.
+
+## 2026-11-11 — Journal and Home composer crash repair
+
+- Resolve iPhone main-thread stack exhaustion when opening Journal with Home drafts or entering the Home composer. Journal defers its scroll layout and counts drafts once. The Home composer builds the active screen independently.
+- Check deletion markers before comparing complete Home records during draft indexing.
+
+## 2026-11-11 — Mugsy experiments and cafe Recent sips
+
+- Name Mugsy as the assistant across recipe capture, bean scanning, Journal, and settings. The permission copy identifies OpenAI as the provider for connected suggestions.
+- Give saved Home sips a Mugsy experiment sheet with on-device trials, recorded or planned baselines where available, and a taste cue. Carry the chosen trial into a new private repeat draft.
+- Put Recent sips in one horizontal row on the Map and Saved cafe detail page. A card opens its sip detail.
+
+## 2026-11-11 — Log a Sip and detail polish
+
+- Remove the Pocket Sip callout from Log a Sip. Start an in-app photo draft from Journal → Drafts → Add photos.
+- Give private Home sips the same top-right native actions menu as cafe posts, with edit, make again, sharing, and deletion in the dropdown.
+- Organize the lower cafe page into a private note preview, personal stats, shared drink activity, and grouped cafe information. Open the private note editor from its preview.
+
+## 2026-11-10 — Home from recipe to sip
+
+- Start Home with a recipe search or sip name, recent whole drinks, and Save a recipe. Show base, milk, and add-in amounts for the chosen drink.
+- Open saved recipes at the first making step or directly at rating. Save a private Home sip from rating, then open the separate sharing review from the Journal receipt.
+- Review captured ingredients and instructions before saving an idea, a recipe, or a recipe that opens guided making. Keep the capture footer in the layout at large text sizes.
+- Add explicit recipe, cafe, screenshot, and Pocket Sip destinations in iOS Share. Continue recipe opens the account's pending source in Home.
+- Group the Home library by use. Keep one-brew adjustments separate from saving a new version, making a copy, removing a part, and archiving an add-in.
+- [Implementation and verification plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## 2026-11-09 — Cafe page crash and repeat draft repair
 

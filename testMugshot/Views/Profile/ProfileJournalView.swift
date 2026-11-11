@@ -198,9 +198,7 @@ struct JournalTabView: View {
 
     private var journalBody: some View {
         NavigationStack {
-            // Bound the generic navigation root before adding destinations. The unbounded
-            // Debug view value exhausted the main-thread stack on iPhone.
-            AnyView(journalContent)
+            JournalScrollLayout { AnyView(journalContent) }
             .background(Color.creamWhite)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $activeProfileSheet) { sheet in
@@ -252,7 +250,8 @@ struct JournalTabView: View {
                         onDone: { self.selectedHomeAttempt = nil },
                         onHistory: openHomeLibrary,
                         onLogServing: { logHomeServing(from: selectedHomeAttempt) },
-                        onChangeNextBrew: { repeatHomeAttempt(selectedHomeAttempt, change: $0) }
+                        onChangeNextBrew: { repeatHomeAttempt(selectedHomeAttempt, change: $0) },
+                        onStartExperiment: onComposeDraft
                     )
                 }
             }
@@ -321,10 +320,14 @@ struct JournalTabView: View {
             .sheet(isPresented: $showsDraftManager, onDismiss: {
                 refreshJournalDrafts()
             }) {
-                HomeDraftManagementView(ownerID: localAccountScope.userID, onResumeSip: { draft in
-                    showsDraftManager = false
-                    onComposeDraft(draft)
-                })
+                HomeDraftManagementView(
+                    ownerID: localAccountScope.userID,
+                    onResumeSip: { draft in
+                        showsDraftManager = false
+                        onComposeDraft(draft)
+                    },
+                    onPhotoDraftSaved: { dataManager.noteJournalMutation() }
+                )
                 .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(tabIsActive)") {
@@ -341,6 +344,14 @@ struct JournalTabView: View {
                 openRequestedPassport()
             }
         }
+    }
+
+    // Build the scroll content after the navigation root returns. The draft summary
+    // can traverse the Home workspace while this layout is evaluated.
+    private struct JournalScrollLayout: View {
+        let content: () -> AnyView
+
+        var body: some View { content() }
     }
 
     private var journalContent: some View {
@@ -367,7 +378,7 @@ struct JournalTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
 
-                if phase2CanonicalJournal, draftCount > 0 || draftReadNeedsAttention {
+                if phase2CanonicalJournal {
                     draftSection
                         .padding(.top, 14)
                 }
@@ -404,7 +415,7 @@ struct JournalTabView: View {
                     .background(Color.mugshotMint.opacity(0.3), in: RoundedRectangle(cornerRadius: 13))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Drafts").font(.headline).foregroundStyle(Color.espressoBrown)
-                    Text(draftReadNeedsAttention ? "Some drafts need attention" : "\(draftCount) unfinished · resume or manage")
+                    Text(draftSectionDetail)
                         .font(.subheadline).foregroundStyle(Color.secondaryText)
                 }
                 Spacer()
@@ -417,6 +428,13 @@ struct JournalTabView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("journal.drafts.manage")
         .padding(.horizontal, 16)
+    }
+
+    private var draftSectionDetail: String {
+        if draftReadNeedsAttention { return "Some drafts need attention" }
+        let count = draftCount
+        if count == 0 { return "Start a photo draft" }
+        return "\(count) unfinished · resume or manage"
     }
 
     private var compactProfileRow: some View {
@@ -820,7 +838,7 @@ struct JournalTabView: View {
             draft.homeCoffeeBagID = attempt.homeCoffeeBagID
             draft.launchContext.sourceRecipeIdentityID = attempt.recipe?.recipeID
             draft.launchContext.homeRecipeVersionID = attempt.recipe?.versionID
-            draft.launchContext.homeRecipeAttachmentMode = .nameOnly
+            draft.launchContext.homeRecipeAttachmentMode = .doNotAttach
             try homeStore.setPublicationDraft(publicationID, for: attempt.id)
             let saved = try SipDraftStore.shared.save(draft, images: images, in: homeStore.scope)
             onComposeDraft(saved)
@@ -1308,7 +1326,7 @@ struct JournalArchiveView: View {
 
                     if let ownerID = currentUserID {
                         VStack(alignment: .leading, spacing: 8) {
-                            Toggle("Include private notes in optional AI search", isOn: $includePrivateNotesInAssistance)
+                            Toggle("Include private notes in Mugsy’s search", isOn: $includePrivateNotesInAssistance)
                                 .font(.caption)
                             CoffeeAssistanceButton(ownerID: ownerID, task: .memorySearch,
                                 evidence: CoffeeAssistanceContext.candidates(
@@ -1463,6 +1481,10 @@ struct JournalArchiveView: View {
                                     callback(selectedPrivateHomeAttempt, change)
                                 }
                             }
+                        },
+                        onStartExperiment: { draft in
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onComposeDraft(draft) }
                         }
                     )
                 }

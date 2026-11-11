@@ -113,10 +113,16 @@ struct HomeDrinkBuilderSheet: View {
                 if focusedField == nil && editingAmountID == nil {
                     VStack(spacing: 8) {
                         if draftSaved { Label(dynamicTypeSize.isAccessibilitySize ? "Draft saved" : "Draft saved on this phone", systemImage: "checkmark").font(.caption).foregroundStyle(Color.secondaryText) }
-                        Button(action: save) { Text(dynamicTypeSize.isAccessibilitySize ? "Save recipe" : "Save drink recipe").frame(maxWidth: .infinity) }
+                        Button(draft.recipeID == nil ? "Save recipe" : "Save changes to recipe") { save() }
                             .buttonStyle(PrimaryButtonStyle())
                             .disabled(!isCurrentOwner || draft.content.name.remoteTrimmedNonEmpty == nil)
                             .accessibilityIdentifier("home.drink.save")
+                        if draft.recipeID != nil {
+                            Button("Save as new recipe") { save(asCopy: true) }
+                                .buttonStyle(SecondaryButtonStyle())
+                                .disabled(!isCurrentOwner || draft.content.name.remoteTrimmedNonEmpty == nil)
+                                .accessibilityIdentifier("home.drink.saveCopy")
+                        }
                     }.padding(.horizontal, 22).padding(.vertical, 12).background(Color.creamWhite)
                 }
             }
@@ -408,7 +414,7 @@ struct HomeDrinkBuilderSheet: View {
         guard isCurrentOwner else { return }
         shelf = HomeLibraryStore.shared.load(in: originalScope)
     }
-    private func save() {
+    private func save(asCopy: Bool = false) {
         guard isCurrentOwner, !didSave else { return }
         dismissKeyboard()
         var saved = draft
@@ -416,7 +422,7 @@ struct HomeDrinkBuilderSheet: View {
         if saved.content.coffee == nil, !choseBeans { saved.content.coffee = defaults.bag?.safeSnapshot }
         if saved.content.equipment.isEmpty { saved.content.equipment = defaults.equipment.map(\.snapshot) }
         do {
-            let id = try store.saveRecipe(saved)
+            let id = try store.saveRecipe(saved, asCopy: asCopy)
             didSave = true; onSaved(id); dismiss()
         } catch { self.error = error.localizedDescription }
     }
@@ -488,7 +494,9 @@ private struct HomeDrinkPartRow: View {
         Button(role: .destructive, action: onRemove) {
             Image(systemName: "minus.circle").frame(width: 44, height: 44)
         }
-        .foregroundStyle(Color.tertiaryText).accessibilityLabel("Remove \(ingredient.name)")
+        .foregroundStyle(Color.tertiaryText)
+        .accessibilityLabel("Remove \(ingredient.name) from this drink")
+        .accessibilityIdentifier("home.drink.removePart.\(ingredient.id)")
     }
 
     private var amount: some View {
@@ -576,7 +584,7 @@ private struct HomeDrinkAmountField: UIViewRepresentable {
     }
 }
 
-private struct HomeDrinkPartPicker: View {
+struct HomeDrinkPartPicker: View {
     @ObservedObject var store: HomeRecipeWorkspaceStore
     let selectingBase: Bool
     let excluding: UUID?

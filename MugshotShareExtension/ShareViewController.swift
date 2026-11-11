@@ -12,13 +12,12 @@ final class ShareViewController: UIViewController {
         let close: () -> Void = { [weak self] in
             self?.extensionContext?.completeRequest(returningItems: nil)
         }
-        let content: AnyView
-        if let providers = PocketSipShareView.photoProviders(in: extensionContext?.inputItems ?? []) {
-            content = AnyView(PocketSipShareView(providers: providers, onClose: close))
-        } else {
-            let model = ShareImportViewModel(extensionContext: extensionContext)
-            content = AnyView(ShareImportView(model: model, onFinished: close))
-        }
+        let content = ShareDestinationView(
+            extensionContext: extensionContext,
+            photoProviders: PocketSipShareView.photoProviders(in: extensionContext?.inputItems ?? []),
+            expectedSession: PocketSipInbox.shared?.activeSession(),
+            onClose: close
+        )
         let host = UIHostingController(rootView: content)
         addChild(host)
         host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -31,6 +30,209 @@ final class ShareViewController: UIViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         host.didMove(toParent: self)
+    }
+}
+
+private struct SharedTextInput {
+    var url: URL?
+    var text: String?
+    var suggestedName: String?
+
+    static func load(from context: NSExtensionContext?) async -> Self {
+        var input = Self()
+        for item in context?.inputItems.compactMap({ $0 as? NSExtensionItem }) ?? [] {
+            if input.text == nil { input.text = item.attributedContentText?.string }
+            for provider in item.attachments ?? [] {
+                if input.suggestedName == nil { input.suggestedName = provider.suggestedName }
+                if input.url == nil, provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
+                   let value = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier) {
+                    input.url = value as? URL ?? (value as? String).flatMap(URL.init(string:))
+                }
+                if input.text == nil, provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
+                   let value = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) {
+                    input.text = value as? String ?? (value as? NSAttributedString)?.string
+                }
+            }
+        }
+        return input
+    }
+}
+
+private struct ShareDestinationView: View {
+    enum Destination { case recipe, cafe, pocketSip }
+
+    let extensionContext: NSExtensionContext?
+    let photoProviders: [NSItemProvider]?
+    let expectedSession: PocketSipShareSession?
+    let onClose: () -> Void
+    @State private var destination: Destination?
+    @State private var cafeModel: ShareImportViewModel?
+
+    var body: some View {
+        switch destination {
+        case .recipe:
+            RecipeShareView(extensionContext: extensionContext, photos: photoProviders,
+                            expectedSession: expectedSession, onBack: goBack, onClose: onClose)
+        case .cafe:
+            if let cafeModel { ShareImportView(model: cafeModel, onFinished: onClose, onBack: goBack) }
+        case .pocketSip:
+            if let photoProviders {
+                PocketSipShareView(providers: photoProviders, onClose: onClose, onBack: goBack, expectedSession: expectedSession)
+            }
+        case nil:
+            ShareCaptureLayout(title: "Save to Mugshot", backTitle: "Cancel", onBack: onClose) {
+                if let photoProviders {
+                    shareChoice("Recipe screenshot", detail: "Keep a recipe to review in Home", symbol: "book.pages",
+                                identifier: "share.destination.recipeScreenshot") { destination = .recipe }
+                        .disabled(photoProviders.count != 1)
+                    if photoProviders.count != 1 {
+                        Text("Select one screenshot to save a recipe.").font(.footnote).foregroundStyle(.secondary)
+                    }
+                    shareChoice("Pocket Sip", detail: "Keep the photos in a private sip draft", symbol: "photo.on.rectangle",
+                                identifier: "share.destination.pocketSip") { destination = .pocketSip }
+                } else {
+                    shareChoice("Save a recipe", detail: "Keep the source to review in Home", symbol: "book.pages",
+                                identifier: "share.destination.recipe") { destination = .recipe }
+                    shareChoice("Save a cafe", detail: "Find and save the place in Apple Maps", symbol: "mappin",
+                                identifier: "share.destination.cafe") {
+                        cafeModel = ShareImportViewModel(extensionContext: extensionContext)
+                        destination = .cafe
+                    }
+                }
+            }
+        }
+    }
+
+    private func goBack() { cafeModel = nil; destination = nil }
+
+    private func shareChoice(_ title: String, detail: String, symbol: String, identifier: String,
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 13) {
+                Image(systemName: symbol).foregroundStyle(ShareCaptureLayout<EmptyView>.sage)
+                    .frame(width: 35, height: 35).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.headline)
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 2)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).accessibilityHidden(true)
+            }
+            .padding(14).frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+private struct ShareCaptureLayout<Content: View>: View {
+    static var sage: Color { Color(red: 0.23, green: 0.36, blue: 0.27) }
+    let title: String
+    let backTitle: String
+    let onBack: () -> Void
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label("Mugshot", systemImage: "cup.and.saucer.fill").font(.subheadline.weight(.semibold))
+                    Spacer(minLength: 8)
+                    Button(backTitle, action: onBack).font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                }
+                .foregroundStyle(Self.sage)
+                Text(title).font(.system(.largeTitle, design: .serif).weight(.semibold)).accessibilityAddTraits(.isHeader)
+                content
+            }
+            .padding(22).frame(maxWidth: 520).frame(maxWidth: .infinity)
+        }
+        .foregroundStyle(Color(red: 0.22, green: 0.15, blue: 0.11))
+        .background(Color(red: 250 / 255, green: 246 / 255, blue: 240 / 255).ignoresSafeArea())
+        .preferredColorScheme(.light)
+    }
+}
+
+private struct RecipeShareView: View {
+    let extensionContext: NSExtensionContext?
+    let photos: [NSItemProvider]?
+    let expectedSession: PocketSipShareSession?
+    let onBack: () -> Void
+    let onClose: () -> Void
+    @State private var id = UUID()
+    @State private var capture: HomeRecipeShareCapture?
+    @State private var saved = false
+    @State private var error: String?
+    @State private var reload = 0
+
+    var body: some View {
+        ShareCaptureLayout(title: saved ? "Recipe source saved" : (photos == nil ? "Save a recipe" : "Recipe screenshot"),
+                           backTitle: saved ? "Done" : "Back", onBack: saved ? onClose : onBack) {
+            if saved {
+                Label("Open Add → Home and tap Continue recipe to review it.", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(ShareCaptureLayout<EmptyView>.sage)
+                    .accessibilityIdentifier("share.recipe.saved")
+            } else {
+                Text("Keep this source privately until you’re ready to review it in Mugshot.").font(.subheadline)
+                if let error { Label(error, systemImage: "exclamationmark.circle").font(.subheadline) }
+                if let capture {
+                    if let url = capture.url, let host = URL(string: url)?.host {
+                        Label(host, systemImage: "link").font(.subheadline)
+                    } else if let text = capture.text {
+                        Text(text).font(.subheadline).lineLimit(4)
+                    } else if let jpeg = capture.screenshot, let preview = PocketSipPhoto.preview(from: jpeg) {
+                        Image(decorative: preview, scale: 1).resizable().scaledToFit().frame(maxHeight: 140)
+                            .clipShape(.rect(cornerRadius: 10)).accessibilityLabel("Selected recipe screenshot")
+                    }
+                    Button(action: save) {
+                        Label("Save recipe source", systemImage: "lock.fill")
+                            .font(.body.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 48)
+                            .padding(8).foregroundStyle(.white)
+                            .background(ShareCaptureLayout<EmptyView>.sage, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("share.recipe.save")
+                } else if error != nil {
+                    Button("Try again") { error = nil; reload += 1 }.frame(minHeight: 44)
+                } else { ProgressView("Preparing source…") }
+            }
+        }
+        .task(id: reload) { await prepare() }
+    }
+
+    private func prepare() async {
+        do {
+            guard let expectedSession else { throw PocketSipCaptureError.inboxUnavailable }
+            guard PocketSipInbox.shared?.activeSession() == expectedSession else { throw PocketSipCaptureError.accountChanged }
+            var source = HomeRecipeShareCapture(id: id, owner: expectedSession.owner)
+            if let photos {
+                guard photos.count == 1, let provider = photos.first else { throw HomeRecipeShareError.invalidSource }
+                source.screenshot = try await PocketSipShareView.loadPhoto(provider)
+            } else {
+                let input = await SharedTextInput.load(from: extensionContext)
+                let text = input.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+                source.url = HomeRecipeShareCapture.webURL(input.url?.absoluteString) ?? HomeRecipeShareCapture.webURL(text)
+                if let text, !text.isEmpty, text != source.url {
+                    source.text = String(decoding: text.utf8.prefix(47_900), as: UTF8.self)
+                }
+            }
+            try Task.checkCancellation()
+            try source.validate()
+            capture = source
+        } catch is CancellationError { }
+        catch { self.error = error.localizedDescription }
+    }
+
+    private func save() {
+        guard !saved, let capture, let expectedSession else { return }
+        do {
+            guard let inbox = PocketSipInbox.shared else { throw PocketSipCaptureError.inboxUnavailable }
+            try inbox.enqueueRecipe(capture, for: expectedSession)
+            saved = true
+            self.capture = nil
+            error = nil
+            UIAccessibility.post(notification: .announcement, argument: "Recipe source saved")
+        } catch { self.error = error.localizedDescription }
     }
 }
 
@@ -191,33 +393,11 @@ final class ShareImportViewModel: ObservableObject {
     }
 
     private func loadSharedClue() async {
-        var sharedURL: URL?
-        var sharedText: String?
-        var suggestedName: String?
-
-        for item in extensionContext?.inputItems.compactMap({ $0 as? NSExtensionItem }) ?? [] {
-            if sharedText == nil { sharedText = item.attributedContentText?.string }
-            for provider in item.attachments ?? [] {
-                if suggestedName == nil { suggestedName = provider.suggestedName }
-                if sharedURL == nil,
-                   provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
-                   let value = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier),
-                   let url = value as? URL {
-                    sharedURL = url
-                }
-                if sharedText == nil,
-                   provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
-                   let value = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) {
-                    sharedText = value as? String
-                        ?? (value as? NSAttributedString)?.string
-                }
-            }
-        }
-
+        let input = await SharedTextInput.load(from: extensionContext)
         let clue = await SharedPlaceClueExtractor.clue(
-            url: sharedURL,
-            text: sharedText,
-            suggestedName: suggestedName
+            url: input.url,
+            text: input.text,
+            suggestedName: input.suggestedName
         )
         query = clue.query
         source = clue.source
@@ -232,6 +412,7 @@ final class ShareImportViewModel: ObservableObject {
 private struct ShareImportView: View {
     @ObservedObject var model: ShareImportViewModel
     let onFinished: () -> Void
+    var onBack: (() -> Void)? = nil
 
     private let sage = Color(red: 110 / 255, green: 143 / 255, blue: 124 / 255)
     private let espresso = Color(red: 31 / 255, green: 23 / 255, blue: 18 / 255)
@@ -254,7 +435,7 @@ private struct ShareImportView: View {
             .toolbar {
                 if model.state != .saved {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel", action: onFinished)
+                        Button(onBack == nil ? "Cancel" : "Back", action: onBack ?? onFinished)
                     }
                 }
             }

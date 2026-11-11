@@ -36,6 +36,8 @@ struct SipComposerLaunchContext: Codable, Equatable {
     var homeAttemptID: UUID?
     var homeRecipeAttachments: [HomeRecipePostAttachment]?
     var homeRecipeAttachmentMode: HomeRecipeAttachmentMode? = nil
+    /// Owner-local guidance carried into the next sip's draft.
+    var homeBrewExperiment: HomeBrewExperimentPlan? = nil
 
     static let centralAdd = SipComposerLaunchContext(source: .centralAdd)
 }
@@ -881,6 +883,7 @@ struct SipDraft: Identifiable, Codable, Equatable {
         if normalizedContext != .home && normalizedContext != .recipe {
             homeCoffeeBagID = nil
             homeComparisonSource = nil
+            launchContext.homeBrewExperiment = nil
             brewDetails.coffeeBag = nil
             brewDetails.equipmentSnapshots = nil
             brewDetails.homeMethodDetails = nil

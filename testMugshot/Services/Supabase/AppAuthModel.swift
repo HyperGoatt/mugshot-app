@@ -51,6 +51,19 @@ final class AppAuthModel: ObservableObject {
     private var passwordMutationID: UUID?
 
     init(provider: SupabaseClientProvider = .shared) {
+        #if DEBUG
+        if MugshotLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-home-account") {
+            let id = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
+            self.authService = nil
+            self.profileService = nil
+            self.accountDeletionService = nil
+            self.capturePreferencesService = nil
+            self.authenticatedUser = AuthenticatedUser(id: id, email: nil, preferredDisplayName: "Mugshot Test")
+            self.status = .signedIn
+            return
+        }
+        #endif
         do {
             let client = try provider.client()
             self.authService = AuthService(client: client)

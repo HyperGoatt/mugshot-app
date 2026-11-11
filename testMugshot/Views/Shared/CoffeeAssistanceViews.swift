@@ -11,7 +11,7 @@ struct CoffeeAssistancePresentation: Identifiable {
     let allowsPhoto: Bool
 }
 
-/// A user-invoked tool. Enabled Luna requests a result; persistence stays explicit.
+/// A user-invoked tool. Enabled Mugsy requests a result; persistence stays explicit.
 struct CoffeeAssistanceButton: View {
     let ownerID: UUID?
     let task: CoffeeAssistanceTask
@@ -93,14 +93,14 @@ struct CoffeeAssistanceReviewSheet: View {
             Form {
                 Section {
                     if !consent {
-                        LunaPermissionControl(ownerID: presentation.ownerID)
+                        MugsyPermissionControl(ownerID: presentation.ownerID)
                     } else {
-                        Label("Luna", systemImage: "sparkles").font(.headline)
+                        Label("Mugsy", systemImage: "sparkles").font(.headline)
                         Text("Check the result and make it yours. Saving is always your choice.")
                             .font(.subheadline).foregroundStyle(Color.secondaryText)
                     }
                 }
-                if session.isWorking { Section { ProgressView("Asking Luna…") } }
+                if session.isWorking { Section { ProgressView("Asking Mugsy…") } }
                 if let message = session.message { Section { Text(message).foregroundStyle(Color.secondaryText) } }
                 if let result = session.result { resultSection(result) }
                 Section("Selected details") {
@@ -128,7 +128,7 @@ struct CoffeeAssistanceReviewSheet: View {
                         requested = UUID()
                     } label: {
                         if session.isWorking { ProgressView("Asking Mugsy…") }
-                        else { Text(session.result == nil ? "Ask Luna" : "Try again") }
+                        else { Text(session.result == nil ? "Ask Mugsy" : "Try again") }
                     }
                     .disabled(!canAsk)
                     .accessibilityIdentifier("coffeeAssistance.generate")
@@ -182,7 +182,7 @@ struct CoffeeAssistanceReviewSheet: View {
 
     @ViewBuilder
     private func resultSection(_ result: CoffeeAssistanceResult) -> some View {
-        Section("Luna’s suggestion") {
+        Section("Mugsy’s suggestion") {
             if onAccepted != nil && result.fields.isEmpty {
                 TextField("Edit the suggestion", text: $editedText, axis: .vertical).lineLimit(3...8)
             } else { Text(result.text) }

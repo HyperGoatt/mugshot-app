@@ -1,8 +1,48 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-11
 ---
+
+## Journal and Home composer crash repair — November 11 candidate
+
+Build 15 crash reports from the iPhone identify stack exhaustion while opening
+Journal’s Drafts summary and the Home composer. The repair builds the Journal
+scroll layout outside its navigation root, skips record comparisons for active
+drafts, and limits Home composition to the selected screen.
+
+## Mugsy experiments and cafe Recent sips — November 11 candidate
+
+**Experiment with Mugsy** in a private Home sip offers a small trial the user
+can take into the next brew draft. Sips with measurements or feedback can
+also request a connected suggestion after permission. Mugsy appears across
+assistance in the app. The cafe detail page from Map and Saved shows Recent
+sips as swipeable cards. [Mugsy behavior and permissions](AI_ASSISTANCE.md).
+
+## Log a Sip and detail polish — November 11 candidate
+
+Log a Sip opens on the Cafe, Home, and Elsewhere choices. Journal → Drafts →
+Add photos opens in-app photo capture. Guests reach the same Drafts action
+from Saved → Home library. The Photos share extension also saves photo drafts.
+Private Home sips use the top-right native actions menu shared
+with cafe posts. The Map and Saved cafe page groups its lower sections around
+the private note, personal stats, visible shared drink activity, and cafe info.
+
+## Home from recipe to sip — November 10 candidate
+
+Add → Home asks **What are you making?** Search saved recipes, name a sip,
+or save a recipe from a link, caption, video, screenshot, or manual entry.
+A chosen drink shows its parts and quantities. **Follow steps** and
+**Make this** start guidance. **Rate this sip** and **Log a make** open
+rating. **Save privately** adds the sip to the Journal. Sharing opens
+separately from the saved sip.
+
+The iOS share extension offers a recipe or cafe for web links and text,
+and recipe screenshot or Pocket Sip for photos. Home reopens shared
+recipe sources in the originating account. Recipe capture puts clear printed
+measurements in the editable Amount and Unit fields. Saved → Home library offers
+Whole drinks, Add-ins, and Brew recipes, with explicit version and copy
+actions and historical add-in usage. [Current plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
 
@@ -11,11 +51,10 @@ leads with an entry back to that sip, a repeat action when appropriate, and a
 fresh sip action. Favorite, Want to Try, lists, directions, history, and private
 notes are available on the same page. The Next Sip opens a new private draft with
 the cafe, drink and editable order details. Today's photos, rating, and reflection start
-empty. In Add, Pocket Sip saves selected Photos as a private draft. The system
-share extension accepts the same photo-only capture directly from Photos.
-Build 10 crashed when opening a Map pin on the owner’s iPhone. Build 12 is
-installed with the cafe layout and repeat order repairs. Opening a Map pin
-twice and a Saved cafe, and using Back from each, passed on that iPhone. See the
+empty. The November 11 candidate above relocates in-app photo capture to Journal.
+Build 10 crashed when opening a Map pin on the owner’s iPhone. Build 12 included
+the cafe layout and repeat order repairs. Opening a Map pin twice and a Saved
+cafe, and using Back from each, passed on that iPhone. See the
 [crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up)
 for the current candidate and separate Simulator and phone evidence.
 

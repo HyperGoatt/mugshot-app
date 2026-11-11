@@ -1311,7 +1311,7 @@ struct HomeCoffeeBagEditorSheet: View {
             ) {
                 if configuration.mode != .manual {
                     scanCard
-                    LunaPermissionControl(ownerID: scope.userID) {
+                    MugsyPermissionControl(ownerID: scope.userID) {
                         if let image { beginScan(image) }
                     }
                     if let scanMessage {
@@ -1471,8 +1471,8 @@ struct HomeCoffeeBagEditorSheet: View {
                     Text(isScanning ? "Reading your bag…" : "A photo is all you need.")
                         .font(.system(size: 13, weight: .bold))
                     Text(permission.isEnabled(ownerID: scope.userID)
-                        ? "Luna fills the printed details with OpenAI. Check and edit anything before saving."
-                        : "On-device scanning works offline. You can also enable Luna below.")
+                        ? "Mugsy reads the printed details with OpenAI. Review the fields before saving."
+                        : "On-device scanning works offline. You can also enable Mugsy below.")
                         .font(.system(size: 10))
                         .foregroundStyle(Color.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1570,7 +1570,7 @@ struct HomeCoffeeBagEditorSheet: View {
                           permission.isEnabled(ownerID: owner) else { return }
                     if let result = assistance.result, !result.fields.isEmpty {
                         CoffeeBagAutofill.apply(result.fields, to: &bag, unchangedSince: baseline)
-                        scanMessage = "Luna read the printed details. Make any corrections, then Save."
+                        scanMessage = "Mugsy read the printed details. Make any corrections, then Save."
                         return
                     }
                 } catch { /* Continue with the on-device scanner. */ }

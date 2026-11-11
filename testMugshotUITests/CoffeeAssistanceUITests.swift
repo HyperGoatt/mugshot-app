@@ -23,6 +23,7 @@ final class CoffeeAssistanceUITests: XCTestCase {
     @MainActor
     func testPermissionStartsOffAndClosingNeverChangesOriginal() {
         let app = launch()
+        XCTAssertEqual(app.buttons["coffeeAssistance.enable"].label, "Enable Mugsy")
         XCTAssertFalse(app.buttons["coffeeAssistance.generate"].isEnabled)
         app.buttons["Done"].tap()
         XCTAssertEqual(app.staticTexts["coffeeAssistance.fixture.origin"].label, "Original origin")
