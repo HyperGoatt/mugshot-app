@@ -124,9 +124,60 @@ struct HomeRecipeSourceTests {
         var content = HomeRecipeContent(name: "My own name", template: .preparation, method: .other)
         CoffeeAssistanceRecipeImport.apply(fields, to: &content)
         #expect(content.name == "My own name")
-        #expect(content.ingredients.map(\.name) == ["2 g matcha", "100 ml water"])
+        #expect(content.ingredients.map(\.name) == ["matcha", "water"])
+        #expect(content.ingredients.map(\.amount) == [2, 100])
+        #expect(content.ingredients.map(\.unit) == ["g", "ml"])
         #expect(content.steps.map(\.instruction) == ["Sift the matcha.", "Whisk with water."])
         #expect(HomeRecipeSourceParser.fields(in: "An amazing drink, link in bio!").isEmpty)
+    }
+
+    @Test func blueberryScreenshotFillsSeparateIngredientFields() {
+        let fields = HomeRecipeSourceParser.fields(in: """
+        Blueberry Syrup
+        Ingredients
+        1 cup blueberries, fresh or frozen
+        ½ cup sugar
+        ½ cup water
+        Zest of 1 lemon, avoiding the bitter white pith
+        Optional: ½ teaspoon vanilla
+        Directions
+        Simmer until the berries soften.
+        """)
+        var content = HomeRecipeContent(name: "Blueberry Syrup", template: .component, method: .other)
+        var capture = CoffeeAssistanceRecipeImport.Draft()
+        capture.apply(fields, to: &content)
+        #expect(content.ingredients.map(\.name) == [
+            "blueberries, fresh or frozen", "sugar", "water",
+            "Zest of lemon, avoiding the bitter white pith", "vanilla (optional)"
+        ])
+        #expect(content.ingredients.map(\.amount) == [1, 0.5, 0.5, 1, 0.5])
+        #expect(content.ingredients.map(\.unit) == ["cup", "cup", "cup", "", "teaspoon"])
+        #expect(content.steps.map(\.instruction) == ["Simmer until the berries soften."])
+    }
+
+    @Test func ingredientMeasurementsDoNotGuessAtAmbiguousText() {
+        let examples: [(line: String, name: String, amount: Double?, unit: String)] = [
+            ("1 1⁄2 tbsp maple syrup", "maple syrup", 1.5, "tbsp"),
+            ("1½ fl oz milk", "milk", 1.5, "fl oz"),
+            ("2.5g matcha", "matcha", 2.5, "g"),
+            ("½cup sugar", "sugar", 0.5, "cup"),
+            ("3 blueberries", "blueberries", 3, ""),
+            ("a pinch of salt", "salt", 1, "pinch"),
+            ("ice, to taste", "ice, to taste", nil, ""),
+            ("1–2 tsp syrup", "1–2 tsp syrup", nil, ""),
+            ("1 to 2 tsp syrup", "1 to 2 tsp syrup", nil, ""),
+            ("2% milk", "2% milk", nil, ""),
+            ("1/0 cup sugar", "1/0 cup sugar", nil, "")
+        ]
+        for example in examples {
+            var content = HomeRecipeContent(name: "Recipe")
+            CoffeeAssistanceRecipeImport.apply([
+                .init(key: "ingredient", value: example.line, sourceQuote: example.line)
+            ], to: &content)
+            #expect(content.ingredients.first?.name == example.name, "Source: \(example.line)")
+            #expect(content.ingredients.first?.amount == example.amount, "Source: \(example.line)")
+            #expect(content.ingredients.first?.unit == example.unit, "Source: \(example.line)")
+        }
     }
 
     @Test func screenshotSectionsJoinWrappedIngredientsAndKeepPreparationOutOfTheList() {
@@ -192,7 +243,8 @@ struct HomeRecipeSourceTests {
             .init(key: "ingredient", value: "1 cup oat milk", sourceQuote: "1 cup oat milk"),
             .init(key: "ingredient", value: "Print", sourceQuote: "Print")
         ], to: &content)
-        content.ingredients[1].name = "1 cup whole milk"
+        content.ingredients[1].name = "whole milk"
+        content.ingredients[1].amount = 1.5
         capture.replace([
             .init(key: "name", value: "AI name", sourceQuote: "Recipe title"),
             .init(key: "ingredient", value: "1 cup oat milk", sourceQuote: "1 cup oat milk"),
@@ -200,7 +252,9 @@ struct HomeRecipeSourceTests {
             .init(key: "step", value: "Stir together.", sourceQuote: "Stir together.")
         ], to: &content)
         #expect(content.name == "My syrup")
-        #expect(content.ingredients.map(\.name) == ["My finishing salt", "1 cup whole milk", "2 tsp sugar"])
+        #expect(content.ingredients.map(\.name) == ["My finishing salt", "whole milk", "sugar"])
+        #expect(content.ingredients.map(\.amount) == [nil, 1.5, 2])
+        #expect(content.ingredients[1].unit == "cup")
         #expect(content.steps.map(\.instruction) == ["Stir together."])
     }
 
@@ -245,7 +299,11 @@ struct HomeRecipeSourceTests {
         }
         let text = try await HomeRecipeMediaReader().text(in: image)
         #expect(text.lowercased().contains("matcha"))
-        #expect(!HomeRecipeSourceParser.fields(in: text).isEmpty)
+        var content = HomeRecipeContent(name: "Matcha")
+        CoffeeAssistanceRecipeImport.apply(HomeRecipeSourceParser.fields(in: text), to: &content)
+        #expect(content.ingredients.map(\.name) == ["matcha", "water"])
+        #expect(content.ingredients.map(\.amount) == [2, 100])
+        #expect(content.ingredients.map(\.unit) == ["g", "ml"])
     }
 }
 
