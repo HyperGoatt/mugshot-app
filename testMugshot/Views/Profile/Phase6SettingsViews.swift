@@ -54,7 +54,7 @@ struct PrivacyVisibilitySettingsView: View {
                 Text("Home and Recipe entries always begin Private. You make any sharing decision inside the sip composer.")
             }
             Section("Shared-content screening") {
-                Text("Shared text uses basic blocked-term filtering. Report shared posts, photos, or profiles for human review. Private journal content is excluded from moderation. Optional AI helpers process only the selected details you review and allow; moderation does not send content to OpenAI.")
+                Text("Shared text uses basic blocked-term filtering. Report shared posts, photos, or profiles for human review. Private journal content is excluded from moderation. Mugsy processes only the selected details you review and allow; moderation does not send content to OpenAI.")
                 Text("Screening or review may delay sharing. Passing does not change your audience. See Shared Content Status in Settings for decisions and reconsideration.")
             }
             Section("Private notes") {

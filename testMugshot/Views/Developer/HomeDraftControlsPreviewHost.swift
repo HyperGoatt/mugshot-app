@@ -1,7 +1,7 @@
 #if DEBUG
 import SwiftUI
 
-/// Fictional fixtures may run only in the isolated flow app, never Luna QA.
+/// Fictional fixtures run only in the isolated flow app.
 struct HomeDraftControlsPreviewHost: View {
     var showsProfiles = false
     @State private var ready = false

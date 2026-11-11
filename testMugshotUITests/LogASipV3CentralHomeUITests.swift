@@ -186,6 +186,28 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Edit Sip"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Share Sip"].firstMatch.exists)
         attachScreenshot(named: "home-sip-menu-from-journal", app: app)
+        app.buttons["Experiment with Mugsy"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Try a longer whisk"].waitForExistence(timeout: 6))
+        XCTAssertFalse(app.staticTexts["Selected details"].exists)
+        XCTAssertFalse(app.buttons["home.experiment.ask"].exists)
+        attachScreenshot(named: "mugsy-experiment-sparse-sip", app: app)
+        app.buttons["home.experiment.another"].tap()
+        XCTAssertTrue(app.staticTexts["Taste it at two moments"].exists)
+        app.buttons["home.experiment.start"].tap()
+        let trial = element("home.experiment.draft", in: app)
+        XCTAssertTrue(trial.waitForExistence(timeout: 6))
+        attachScreenshot(named: "mugsy-experiment-private-draft", app: app)
+        app.terminate()
+        app.launch()
+        app.buttons["mugshot.tab.journal"].tap()
+        let drafts = app.buttons["journal.drafts.manage"]
+        XCTAssertTrue(drafts.waitForExistence(timeout: 5)); drafts.tap()
+        let resume = app.buttons.matching(NSPredicate(format: "label == %@ AND value BEGINSWITH %@",
+            "Resume Afternoon matcha", "Taste it at two moments")).firstMatch
+        XCTAssertTrue(resume.waitForExistence(timeout: 5)); resume.tap()
+        XCTAssertTrue(trial.waitForExistence(timeout: 6))
+        XCTAssertTrue(app.staticTexts["Taste it at two moments"].exists)
+        attachScreenshot(named: "mugsy-experiment-reopened-draft", app: app)
     }
 
     @MainActor

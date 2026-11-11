@@ -773,10 +773,10 @@ struct HomeLibraryView: View {
             }
             VStack(alignment: .leading, spacing: 12) {
                 if let ownerID, permission.isEnabled(ownerID: ownerID) {
-                    Toggle("Use Luna", isOn: Binding(get: { permission.isEnabled(ownerID: ownerID) }, set: { permission.setEnabled($0, ownerID: ownerID) }))
-                    Text("OpenAI reads selected photos, recipe text and saved sip details when you use a Luna tool. Manual entry always works.").font(.caption).foregroundStyle(Color.secondaryText)
-                } else if ownerID != nil { LunaPermissionControl(ownerID: ownerID) }
-                else { Text("Sign in to use Luna. Your on-device library and manual entry work here too.").font(.subheadline).foregroundStyle(Color.secondaryText) }
+                    Toggle("Use Mugsy’s connected suggestions", isOn: Binding(get: { permission.isEnabled(ownerID: ownerID) }, set: { permission.setEnabled($0, ownerID: ownerID) }))
+                    Text("OpenAI reads selected photos, recipe text and saved sip details when you ask Mugsy to read them. Manual entry always works.").font(.caption).foregroundStyle(Color.secondaryText)
+                } else if ownerID != nil { MugsyPermissionControl(ownerID: ownerID) }
+                else { Text("Sign in for Mugsy’s connected suggestions.").font(.subheadline).foregroundStyle(Color.secondaryText) }
             }.padding(16).background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 20))
         }
     }

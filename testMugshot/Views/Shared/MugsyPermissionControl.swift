@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One short, explicit account choice instead of a consent form for every request.
-struct LunaPermissionControl: View {
+struct MugsyPermissionControl: View {
     let ownerID: UUID?
     var onEnabled: (() -> Void)? = nil
     @ObservedObject private var permission = CoffeeAssistancePermissionStore.shared
@@ -9,10 +9,10 @@ struct LunaPermissionControl: View {
     var body: some View {
         if let ownerID, !permission.isEnabled(ownerID: ownerID) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("A little help from Luna").font(.headline)
+                Text("A little help from Mugsy").font(.headline)
                 Text("Use OpenAI to read the recipe text and images you choose, including screenshots and video frames, and help with selected saved sips. You control what gets saved. Turn it off anytime in Home preferences.")
                     .font(.subheadline).foregroundStyle(Color.secondaryText)
-                Button("Enable Luna", systemImage: "sparkles") {
+                Button("Enable Mugsy", systemImage: "sparkles") {
                     permission.setEnabled(true, ownerID: ownerID)
                     onEnabled?()
                 }

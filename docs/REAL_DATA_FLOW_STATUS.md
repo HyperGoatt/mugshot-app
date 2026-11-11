@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-11-11
 ---
 
+## Mugsy experiments — November 11 candidate
+
+The on-device trial uses the scoped Home attempt and its preparation comparison.
+The selected instruction lives in the private sip draft's launch context. A
+measured adjustment uses the repeat draft's existing one-target validation.
+Connected suggestions send the evidence shown in the sheet only after an
+explicit request and account permission. Private notes and next-time notes
+are excluded from that request.
+
 ## Home private save and shared recipe sources — November 10 candidate
 
 The Home rating screen commits to the account-scoped workspace using the
@@ -21,7 +30,7 @@ atomically replaced with a receipt after the commit. A retry or interrupted
 acknowledgement can reconcile the existing recipe. Account purge removes the
 owner's packets and receipts. The extension makes no recipe network request.
 A shared web link is read after the user requests it in Home. Screenshot text
-can be read on-device, and Luna uses the existing account permission.
+can be read on-device, and Mugsy uses the existing account permission.
 [Implementation plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
 ## Cafe orders and Pocket Sip — November 9 candidate

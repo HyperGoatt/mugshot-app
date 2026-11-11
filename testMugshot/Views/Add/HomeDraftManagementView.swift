@@ -194,11 +194,13 @@ struct HomeDraftManagementView: View {
         let isPocketSip = draft.launchContext.source == .pocketSip
         let title = draft.drinkName.remoteTrimmedNonEmpty ?? setting ?? (isPocketSip ? "Pocket Sip" : "Untitled sip")
         let photoCount = draft.localPhotoNames.count
-        let kind = isPocketSip ? (photoCount == 1 ? "1 photo" : "\(photoCount) photos") : draft.context.rawValue
+        let experiment = draft.launchContext.homeBrewExperiment
+        let kind = experiment?.title ?? (isPocketSip ? (photoCount == 1 ? "1 photo" : "\(photoCount) photos") : draft.context.rawValue)
         let saved = draft.updatedAt.formatted(.relative(presentation: .named))
         return draftRow(title: title,
             detail: protected ? "Interrupted post · resume to recover" : "\(kind) · saved \(saved)",
-            symbol: draft.context.systemImage, identifier: "sip-\(draft.id)", locked: !canVerifyDiscard || protected,
+            symbol: experiment == nil ? draft.context.systemImage : "sparkles",
+            identifier: "sip-\(draft.id)", locked: !canVerifyDiscard || protected,
             onResume: {
                 guard isCurrentOwner, let fresh = SipDraftStore.shared.load(id: draft.id, in: scope)?.draft else {
                     error = "That draft could not be opened. Its files are still safe."; return
@@ -231,6 +233,7 @@ struct HomeDraftManagementView: View {
             }
             .buttonStyle(.plain).accessibilityIdentifier("home.drafts.resume.\(identifier)")
             .accessibilityLabel("Resume \(title)")
+            .accessibilityValue(detail)
             if locked {
                 Image(systemName: "lock.fill").foregroundStyle(Color.secondaryText).frame(width: 44, height: 44)
                     .accessibilityLabel("Resume to recover this post")

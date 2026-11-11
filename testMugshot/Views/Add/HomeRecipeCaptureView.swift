@@ -331,9 +331,9 @@ struct HomeQuickRecipeSheet: View {
                         .accessibilityIdentifier("home.recipe.sourceStatus")
                 }
                 if hasSource && originalScope.userID != nil && !permission.isEnabled(ownerID: originalScope.userID) {
-                    LunaPermissionControl(ownerID: originalScope.userID)
+                    MugsyPermissionControl(ownerID: originalScope.userID)
                 }
-                if assistance.isWorking { ProgressView("Luna is reading your recipe…").tint(Color.mugshotSageText) }
+                if assistance.isWorking { ProgressView("Mugsy is reading your recipe…").tint(Color.mugshotSageText) }
                 if let message = assistance.message { Text(message).font(.footnote).foregroundStyle(Color.secondaryText) }
             }
         }
@@ -633,7 +633,7 @@ struct HomeQuickRecipeSheet: View {
         let text = (try? await HomeRecipeMediaReader().text(in: chosen)) ?? ""
         guard sourceIsCurrent(operation) else { return }
         sources.set(.screenshot, text: text)
-        sourceStatus = text.isEmpty ? "Screenshot loaded. Luna can read visible recipe details, or you can enter them yourself." : "Screenshot text read on your iPhone. Check the extracted recipe details."
+        sourceStatus = text.isEmpty ? "Screenshot loaded. Mugsy can read visible recipe details, or you can enter them yourself." : "Screenshot text read on your iPhone. Check the extracted recipe details."
         updateSourceText()
         showImportedReview()
     }

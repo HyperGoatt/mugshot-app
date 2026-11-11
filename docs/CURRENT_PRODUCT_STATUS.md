@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-11
 ---
 
+## Mugsy experiments and cafe Recent sips — November 11 candidate
+
+**Experiment with Mugsy** in a private Home sip offers a small trial the user
+can take into the next brew draft. Sips with measurements or feedback can
+also request a connected suggestion after permission. Mugsy appears across
+assistance in the app. The cafe detail page from Map and Saved shows Recent
+sips as swipeable cards. [Mugsy behavior and permissions](AI_ASSISTANCE.md).
+
 ## Log a Sip and detail polish — November 11 candidate
 
 Log a Sip opens on the Cafe, Home, and Elsewhere choices. Journal → Drafts →

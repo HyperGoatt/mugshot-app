@@ -553,7 +553,8 @@ struct LogASipV3ProductionView: View {
                     onDone: onPrivateHomeSaved,
                     onHistory: { showsHomeHistory = true },
                     onLogServing: startHomeServing,
-                    onChangeNextBrew: { startHomeRepeat(change: $0) }
+                    onChangeNextBrew: { startHomeRepeat(change: $0) },
+                    onStartExperiment: startRepeatedHomeDraft
                 )
             }
         case .publish:
@@ -1102,6 +1103,12 @@ struct LogASipV3ProductionView: View {
             homeStore.errorMessage = "The brew plan changed. Open Make again and choose your change again."
             return
         }
+        startRepeatedHomeDraft(repeated)
+    }
+
+    private func startRepeatedHomeDraft(_ repeated: SipDraft) {
+        guard !isRecoveryLocked, draft.ownerUserID == repeated.ownerUserID,
+              homeStore.scope == .forUserID(repeated.ownerUserID) else { return }
         draft = repeated
         photoImages = []
         homeSaveReceipt = nil
@@ -1916,6 +1923,10 @@ private struct LogASipV3HomeBrewSurface: View {
             }
             .padding(.horizontal, DesignSystem.Space.md)
 
+            if let plan = draft.launchContext.homeBrewExperiment {
+                HomeBrewExperimentDraftCard(plan: plan).padding(.horizontal, DesignSystem.Space.md)
+            }
+
             if guidanceSteps.isEmpty {
                 Text(defaultMakingPrompt)
                     .font(.system(size: 19, weight: .semibold, design: .serif))
@@ -2267,6 +2278,10 @@ private struct LogASipV3HomeCaptureSurface: View {
                 Label(draft.homeSipPath == .quick ? "Already made" : "Make complete", systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.mugshotSage)
+            }
+
+            if let plan = draft.launchContext.homeBrewExperiment {
+                HomeBrewExperimentDraftCard(plan: plan).padding(.horizontal, DesignSystem.Space.md)
             }
 
             LogASipV3LabeledField(
@@ -2762,6 +2777,9 @@ private struct LogASipV3SipSurface: View {
 
             if isHomeFlow {
                 homeMemorySummary
+                if let plan = draft.launchContext.homeBrewExperiment {
+                    HomeBrewExperimentDraftCard(plan: plan).padding(.horizontal, DesignSystem.Space.md)
+                }
             } else {
                 LogASipV3MemorySummary(image: coverImage, title: draft.drinkName,
                     subtitle: draft.contextDisplayNameV3, onEdit: onEditSetup)

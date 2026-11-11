@@ -2014,61 +2014,66 @@ struct CafeDetailView: View {
 
     private var localRecentVisitsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent sips")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-                .padding(.horizontal)
-                .padding(.top, 8)
+            cafeDetailSectionHeading("Recent sips")
+            localRecentSipsRail
+        }
+    }
 
+    private var localRecentSipsRail: some View {
+        CafeRecentSipsRail {
             ForEach(visits.prefix(5)) { visit in
-                VisitRow(visit: visit, dataManager: dataManager)
-                    .padding(.horizontal)
+                Button {
+                    selectedLocalVisit = visit
+                } label: {
+                    CafeRecentSipCard(title: visit.journalDrinkName,
+                        byline: visit.date.formatted(date: .abbreviated, time: .omitted),
+                        caption: visit.caption.remoteTrimmedNonEmpty, score: visit.overallScore) {
+                        PhotoThumbnailView(photoPath: visit.posterImagePath, size: 60)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("cafe.recentSip.\(visit.id.uuidString.lowercased())")
             }
         }
-        .padding(.top, 8)
     }
 
     private var remoteRecentVisitsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Recent sips")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.espressoBrown)
-
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
+            cafeDetailSectionHeading("Recent sips")
 
             if isLoadingRemoteVisits && remoteVisits.isEmpty && visits.isEmpty {
                 MugshotLoadingState(layout: .journal, count: 2)
-                    .padding(.horizontal)
             } else if let remoteVisitError {
                 Text(remoteVisitError)
                     .font(.system(size: 13))
                     .foregroundColor(.red.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal)
             } else if remoteVisits.isEmpty && !isLoadingRemoteVisits {
                 if !visits.isEmpty {
-                    ForEach(visits.prefix(5)) { visit in
-                        VisitRow(visit: visit, dataManager: dataManager)
-                            .padding(.horizontal)
-                    }
+                    localRecentSipsRail
                 } else {
                     firstMugshotPrompt
-                        .padding(.horizontal)
                 }
             } else {
-                ForEach(remoteVisits.prefix(5)) { visit in
-                    RemoteCafeVisitRow(visit: visit) {
-                        selectedRemoteVisit = visit
+                CafeRecentSipsRail {
+                    ForEach(remoteVisits.prefix(5)) { summary in
+                        Button {
+                            selectedRemoteVisit = summary
+                        } label: {
+                            let visit = summary.visit
+                            let date = visit.createdAtDate.formatted(date: .abbreviated, time: .omitted)
+                            CafeRecentSipCard(title: visit.drinkDisplayName,
+                                byline: "@\(summary.authorUsername) · \(date)",
+                                caption: visit.caption.remoteTrimmedNonEmpty, score: visit.overallScore) {
+                                RemotePhotoImageView(urlString: visit.posterPhotoURL, placeholderSystemName: "cup.and.saucer.fill")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("cafe.recentSip.\(summary.id.uuidString.lowercased())")
                     }
-                    .padding(.horizontal)
                 }
             }
         }
-        .padding(.top, 8)
     }
 
     private var secondaryActionsSection: some View {
@@ -2529,119 +2534,78 @@ struct CafeDetailView: View {
     }
 }
 
-struct RemoteCafeVisitRow: View {
-    let visit: RemoteVisitSummary
-    let action: () -> Void
+private struct CafeRecentSipsRail<Content: View>: View {
+    @ViewBuilder let content: () -> Content
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                RemotePhotoImageView(
-                    urlString: visit.visit.posterPhotoURL,
-                    placeholderSystemName: "cup.and.saucer.fill"
-                )
-                .frame(width: 74, height: 74)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.smallCornerRadius))
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(visit.visit.drinkDisplayName)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.espressoBrown)
-                        .lineLimit(1)
-
-                    HStack(spacing: 4) {
-                        Text("@\(visit.authorUsername)")
-                        Text("·")
-                        Text(visit.visit.createdAtDate, style: .date)
-                    }
-                    .font(.system(size: 12))
-                    .foregroundColor(.tertiaryText)
-                    .lineLimit(1)
-
-                    if let caption = visit.visit.caption.remoteTrimmedNonEmpty {
-                        Text(caption)
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondaryText)
-                            .lineLimit(2)
-                    }
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(visit.visit.overallScore > 0 ? String(format: "%.1f", visit.visit.overallScore) : "Unrated")
-                            .font(.system(size: 13, weight: .bold))
-                    }
-                    .foregroundColor(.espressoBrown)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(Color.mugshotSage.opacity(0.38))
-                    .clipShape(Capsule())
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.tertiaryText)
-                }
-            }
-            .padding(12)
-            .cardStyle(radius: DesignSystem.Radius.card, shadow: DesignSystem.subtleShadow)
+        ScrollView(.horizontal) {
+            HStack(alignment: .top, spacing: 12, content: content)
+                .scrollTargetLayout()
+                .padding(.vertical, 4)
         }
-        .buttonStyle(.plain)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollIndicators(.hidden)
+        .accessibilityIdentifier("cafe.recentSips.rail")
     }
 }
 
-struct VisitRow: View {
-    let visit: Visit
-    @ObservedObject var dataManager: DataManager
-    @State private var showVisitDetail = false
-    
+private struct CafeRecentSipCard<Photo: View>: View {
+    let title: String
+    let byline: String
+    let caption: String?
+    let score: Double
+    @ViewBuilder let photo: () -> Photo
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
-        Button(action: {
-            showVisitDetail = true
-        }) {
-            HStack(spacing: 12) {
-                // Thumbnail
-                PhotoThumbnailView(photoPath: visit.posterImagePath, size: 60)
-                
+        VStack(alignment: .leading, spacing: 10) {
+            let headerLayout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: 11))
+            headerLayout {
+                photo()
+                    .frame(width: 60, height: 60)
+                    .clipShape(.rect(cornerRadius: DesignSystem.Radius.control))
+                    .accessibilityHidden(true)
+
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(visit.date, style: .date)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
-                    
-                    Text(visit.journalDrinkName)
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondaryText)
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.mugshotSage)
-                        .font(.system(size: 12))
-                    Text(String(format: "%.1f", visit.overallScore))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.espressoBrown)
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(Color.espressoBrown)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                    Text(byline)
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondaryText)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                 }
             }
-            .padding(12)
-            .background(Color.foamWhite)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                    .stroke(Color.mugshotLine, lineWidth: 1)
-            )
+
+            if let caption {
+                Text(caption)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondaryText)
+                    .lineLimit(typeSize.isAccessibilitySize ? 4 : 2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                if score > 0 {
+                    Label(score.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill")
+                        .accessibilityLabel("\(score.formatted(.number.precision(.fractionLength(1)))) out of 5")
+                } else {
+                    Text("Unrated")
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").accessibilityHidden(true)
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Color.mugshotSageText)
         }
-        .buttonStyle(.plain)
-        .navigationDestination(isPresented: $showVisitDetail) {
-            VisitDetailView(
-                visit: visit,
-                dataManager: dataManager,
-                onCafeRequested: { _ in showVisitDetail = false }
-            )
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle(radius: DesignSystem.Radius.heroCard, shadow: DesignSystem.subtleShadow)
+        .containerRelativeFrame(.horizontal) { width, _ in
+            typeSize.isAccessibilitySize ? min(width * 0.92, 510) : min(width * 0.83, 340)
         }
     }
 }

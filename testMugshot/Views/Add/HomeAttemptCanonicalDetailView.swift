@@ -12,6 +12,7 @@ struct HomeAttemptCanonicalDetailView: View {
     var onHistory: (() -> Void)? = nil
     var onLogServing: (() -> Void)? = nil
     var onChangeNextBrew: ((HomeBrewPlanChange) -> Void)? = nil
+    var onStartExperiment: ((SipDraft) -> Void)? = nil
     @State private var originalScope: LocalAccountScope
 
     @EnvironmentObject private var authModel: AppAuthModel
@@ -20,7 +21,8 @@ struct HomeAttemptCanonicalDetailView: View {
     @State private var comment = ""
     @State private var toolbarProgress: CGFloat = 0
     @State private var viewer: SipDetailPhotoViewerPresentation?
-    @State private var assistance: CoffeeAssistancePresentation?
+    @State private var experimentAttempt: HomeAttemptRecord?
+    @State private var pendingExperimentDraft: SipDraft?
     @State private var editingDraft: HomeAttemptRecord?
     @State private var confirmsDelete = false
     @State private var isDeleting = false
@@ -31,11 +33,13 @@ struct HomeAttemptCanonicalDetailView: View {
     init(attemptID: UUID, receipt: MugshotSaveReceipt? = nil, saveError: String? = nil,
          onShare: @escaping () -> Void, onMakeAgain: @escaping () -> Void, onDone: @escaping () -> Void,
          onHistory: (() -> Void)? = nil, onLogServing: (() -> Void)? = nil,
-         onChangeNextBrew: ((HomeBrewPlanChange) -> Void)? = nil) {
+         onChangeNextBrew: ((HomeBrewPlanChange) -> Void)? = nil,
+         onStartExperiment: ((SipDraft) -> Void)? = nil) {
         self.attemptID = attemptID; self.receipt = receipt; self.saveError = saveError
         self.onShare = onShare; self.onMakeAgain = onMakeAgain; self.onDone = onDone
         self.onHistory = onHistory; self.onLogServing = onLogServing
         self.onChangeNextBrew = onChangeNextBrew
+        self.onStartExperiment = onStartExperiment
         _originalScope = State(initialValue: HomeRecipeWorkspaceStore.shared.scope)
     }
 
@@ -156,8 +160,12 @@ struct HomeAttemptCanonicalDetailView: View {
                 }, onKeep: { editingDraft = nil }, startsAtReflection: true)
             }
         }
-        .sheet(item: $assistance) { item in
-            CoffeeAssistanceReviewSheet(presentation: item)
+        .sheet(item: $experimentAttempt, onDismiss: launchExperiment) { source in
+            HomeBrewExperimentSheet(attempt: source, comparison: comparison(for: source),
+                ownerID: originalScope.userID, onStart: { plan, change in
+                    stageExperiment(plan, change: change, source: source)
+                })
+                .presentationBackground(Color.creamWhite)
         }
         .sheet(isPresented: $showsRepeatPlan) {
             if let attempt {
@@ -178,10 +186,10 @@ struct HomeAttemptCanonicalDetailView: View {
                 .interactiveDismissDisabled(isDeleting)
         }
         .onChange(of: store.scope) { _, scope in
-            if scope != originalScope { editingDraft = nil; viewer = nil; assistance = nil; confirmsDelete = false; showsRepeatPlan = false }
+            if scope != originalScope { closeOwnedSheets() }
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, _ in
-            if !isCurrentOwner { editingDraft = nil; viewer = nil; assistance = nil; confirmsDelete = false; showsRepeatPlan = false; onDone() }
+            if !isCurrentOwner { closeOwnedSheets(); onDone() }
         }
     }
 
@@ -197,13 +205,9 @@ struct HomeAttemptCanonicalDetailView: View {
             Button("Make Again", systemImage: "arrow.clockwise") { repeatPlan(brew) }
             Button("Share Sip", systemImage: "square.and.arrow.up", action: onShare)
             if let onHistory { Button("History", systemImage: "clock.arrow.circlepath", action: onHistory) }
-            if let ownerID = store.scope.userID, ownerID == authModel.authenticatedUser?.id {
-                Button("Explore a Next Experiment", systemImage: "sparkles") {
-                    assistance = CoffeeAssistancePresentation(ownerID: ownerID, task: .brewExperiment,
-                        query: "Explain one recorded difference or offer one small trial. Use only recorded values and feedback. Plans are not actuals; leave unknowns unknown. Never infer espresso extraction from a flavored drink alone.",
-                        evidence: brew.assistanceEvidence(for: attempt),
-                        image: nil, allowsPhoto: false)
-                }
+            if onStartExperiment != nil {
+                Button("Experiment with Mugsy", systemImage: "sparkles") { experimentAttempt = attempt }
+                    .accessibilityIdentifier("home.sip.experiment")
             }
             if !attempt.pendingKeptIngredientIDs.isEmpty {
                 Button("Retry Keeping Recipe Changes", systemImage: "arrow.triangle.2.circlepath") {
@@ -226,6 +230,32 @@ struct HomeAttemptCanonicalDetailView: View {
             }
             .accessibilityIdentifier("home.sip.delete")
         }
+    }
+
+    private func stageExperiment(_ plan: HomeBrewExperimentPlan, change: HomeBrewPlanChange?,
+                                 source: HomeAttemptRecord) -> Bool {
+        guard !isDeleting, let attempt, attempt == source, let draft = HomeBrewRepeat.draft(
+            for: attempt, ownerID: originalScope.userID,
+            versionNumber: attempt.recipe.flatMap { store.workspace.version($0)?.number },
+            change: change, experiment: plan, resolveLinked: { store.workspace.version($0)?.content }
+        ) else { return false }
+        pendingExperimentDraft = draft
+        experimentAttempt = nil
+        return true
+    }
+
+    private func launchExperiment() {
+        defer { pendingExperimentDraft = nil }
+        if isCurrentOwner, let pendingExperimentDraft { onStartExperiment?(pendingExperimentDraft) }
+    }
+
+    private func closeOwnedSheets() {
+        editingDraft = nil
+        viewer = nil
+        experimentAttempt = nil
+        pendingExperimentDraft = nil
+        confirmsDelete = false
+        showsRepeatPlan = false
     }
 
     private func beginEditing(_ source: HomeAttemptRecord) {

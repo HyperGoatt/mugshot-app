@@ -39,7 +39,7 @@ enum CoffeeAssistanceRecipeImport {
 
         mutating func replace(_ fields: [CoffeeAssistanceField], to content: inout HomeRecipeContent) {
             guard content.sourceReuseAllowed != false else { return }
-            // An insufficient/partial AI result cannot erase a usable fallback
+            // An incomplete suggestion cannot erase a usable fallback
             // section that it did not actually replace.
             removeGenerated(from: &content, keys: Set(fields.map(\.key)))
             apply(fields, to: &content)

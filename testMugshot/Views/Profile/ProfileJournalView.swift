@@ -252,7 +252,8 @@ struct JournalTabView: View {
                         onDone: { self.selectedHomeAttempt = nil },
                         onHistory: openHomeLibrary,
                         onLogServing: { logHomeServing(from: selectedHomeAttempt) },
-                        onChangeNextBrew: { repeatHomeAttempt(selectedHomeAttempt, change: $0) }
+                        onChangeNextBrew: { repeatHomeAttempt(selectedHomeAttempt, change: $0) },
+                        onStartExperiment: onComposeDraft
                     )
                 }
             }
@@ -1318,7 +1319,7 @@ struct JournalArchiveView: View {
 
                     if let ownerID = currentUserID {
                         VStack(alignment: .leading, spacing: 8) {
-                            Toggle("Include private notes in optional AI search", isOn: $includePrivateNotesInAssistance)
+                            Toggle("Include private notes in Mugsy’s search", isOn: $includePrivateNotesInAssistance)
                                 .font(.caption)
                             CoffeeAssistanceButton(ownerID: ownerID, task: .memorySearch,
                                 evidence: CoffeeAssistanceContext.candidates(
@@ -1473,6 +1474,10 @@ struct JournalArchiveView: View {
                                     callback(selectedPrivateHomeAttempt, change)
                                 }
                             }
+                        },
+                        onStartExperiment: { draft in
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onComposeDraft(draft) }
                         }
                     )
                 }

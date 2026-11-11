@@ -275,6 +275,9 @@ struct HomeSipV3SetupView: View {
         ScrollView {
             if isCurrentOwner {
                 VStack(alignment: .leading, spacing: 18) {
+                    if let plan = draft.launchContext.homeBrewExperiment {
+                        HomeBrewExperimentDraftCard(plan: plan)
+                    }
                     if let statusMessage {
                         Label(statusMessage, systemImage: "exclamationmark.circle")
                             .font(.footnote).foregroundStyle(Color.secondaryText)
@@ -640,6 +643,7 @@ struct HomeSipV3SetupView: View {
 
     private func select(_ recipe: HomeRecipeRecord, version: HomeRecipeVersion) {
         guard canEdit, hasActiveScope else { return }
+        draft.launchContext.homeBrewExperiment = nil
         HomeBrewSetup.applySavedRecipe(recipe, version: version, to: &draft, shelf: shelf, path: .guided) {
             store.workspace.version($0)?.content
         }
@@ -649,6 +653,7 @@ struct HomeSipV3SetupView: View {
 
     private func select(method: HomeBrewMethod) {
         guard canEdit else { return }
+        draft.launchContext.homeBrewExperiment = nil
         var content = HomeRecipeContent(
             name: method == .other ? "" : method.title,
             template: .preparation,
@@ -665,6 +670,7 @@ struct HomeSipV3SetupView: View {
 
     private func selectStarter(_ content: HomeRecipeContent) {
         guard canEdit else { return }
+        draft.launchContext.homeBrewExperiment = nil
         var plan = content
         plan.equipment = HomeBrewSetup.equipment(in: shelf, ownerID: draft.ownerUserID, locationName: draft.locationName).map(\.snapshot)
         HomeBrewSetup.applyTodayPlan(plan, to: &draft)

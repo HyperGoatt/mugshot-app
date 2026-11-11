@@ -91,7 +91,8 @@ struct HomeRecipeExperienceView: View {
                                     launchHomeServing(from: batch)
                                 }
                             },
-                            onChangeNextBrew: { repeatMake(id, change: $0) }
+                            onChangeNextBrew: { repeatMake(id, change: $0) },
+                            onStartExperiment: onShare
                         )
                     } else {
                         HomeAttemptDetailScreen(store: store, attemptID: id,

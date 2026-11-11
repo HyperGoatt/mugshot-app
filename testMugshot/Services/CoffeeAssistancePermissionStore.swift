@@ -28,6 +28,7 @@ final class CoffeeAssistancePermissionStore: ObservableObject {
     }
 
     private func key(_ ownerID: UUID) -> String {
+        // The persisted key predates the Mugsy branding and holds the owner's existing choice.
         "Mugshot.Luna.selected-tools.v1.\(ownerID.uuidString.lowercased())"
     }
 }

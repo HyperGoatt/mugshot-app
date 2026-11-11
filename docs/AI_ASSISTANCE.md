@@ -1,10 +1,25 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-09
+last_verified: 2026-11-11
 ---
 
-# Optional coffee assistance
+# Mugsy coffee assistance
+
+## Mugsy experiments — November 11 candidate
+
+Open a private Home sip and choose **Experiment with Mugsy** from its actions.
+Mugsy starts with a practical trial and a taste cue. A measured trial identifies
+whether its baseline came from the sip or the recipe plan. A quick log can use
+a tasting trial with no measurements. **Another idea** cycles through on-device
+options. **Start this experiment** opens a new private draft carrying the trial
+and any supported adjustment to a single planned measurement. The experiment
+title appears under the drink name in Drafts.
+
+An owned sip with recorded measurements or feedback can request a separate
+suggestion. The user can inspect the details sent to OpenAI and ask explicitly
+after enabling Mugsy. Choosing a connected suggestion carries its text into
+the new draft. Any proposed amounts in that text are for the user to review.
 
 ## Recipe focus update — November 5
 
@@ -28,8 +43,8 @@ The `codex/luna-assistance` stack is production-configured for optional
 eight authenticated synthetic text/image probes and quota/ownership denial
 checks. Existing data was preserved around the exact additive migration.
 
-**Mugshot Luna QA 0.5.3 (10)** is the
-[current development install](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#signed-iphone-install) on the owner’s
+**Mugshot Luna QA 0.5.3 (10)** was a
+[November 9 development install](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#signed-iphone-install) on the owner’s
 iPhone 16 Pro / iOS 27.0.1. The receipt verifies launch. Owner acceptance of
 real helper responses is pending. No TestFlight action
 occurred. Parent PR holds remain, and the separate Weekly Pour visual proposal
@@ -65,14 +80,12 @@ the Photos picker and optional spoken-step recognition remain separate checks.
 The [recipe canvas and drink builder](design/home-recipe-composer-2026-11-04/README.md)
 reuse the existing extractor. Combining saved parts needs no model request.
 Changing a capture's recipe-use label refreshes the optional source read to focus
-on that component/drink; native parsing still works without Luna. Source caption/image boundaries, remembered Luna
-permission and ordinary Save remain unchanged. Composition links private saved
+on that component or drink. Native parsing works on-device. Composition links private saved
 versions; it does not copy or publish their instructions automatically.
 
 The [source-capture follow-up](audits/HOME_SOURCE_CAPTURE_2026-11-04.md) adds native
 reads of available public Instagram/TikTok captions and screenshot/video-frame
-OCR before optional Luna structuring. Clear section parsing remains available
-without AI. Chosen source facts fill the new capture draft automatically, without
+OCR before optional structuring with Mugsy. Chosen source facts fill the new capture draft automatically, without
 a per-recipe legal checkbox. Video speech recognition is optional and on-device;
 raw audio is not sent to OpenAI. Combined text reserves the credit slot inside the existing
 20-item/800-UTF-16-unit evidence limit. The server/model/quota are unchanged.
@@ -83,17 +96,14 @@ raw audio is not sent to OpenAI. Combined text reserves the credit slot inside t
 | Recipe capture | Bring in a recipe in the recipe editor | Blank/template entry, source text and normal recipe draft/save |
 | Memory search | Find a memory alongside Journal archive search | Ordinary local search, filters and timeline |
 | Taste observations | Notice a taste pattern in Journal tools after three completed memories | Existing evidence-based Taste Passport |
-| Home experiments | Explore a next experiment in a saved Home sip's actions | Private plan/actual/last-time comparison, next-time notes and repeat with one change |
+| Home experiments | Experiment with Mugsy in a saved Home sip's actions | On-device trial ideas, private plan/actual/last-time comparison, and repeat with one change |
 | Weekly reflection | Reflect on this week inside the existing week recap | Canonical deterministic recap, counts, photos and sharing |
 
-These are five feature groups; capture has separate bag and recipe tasks. There
-is no general chat, autonomous agent, background generation, or AI dependency in
-authentication, save, publication, recipe persistence, search, scoring or recaps.
-Luna starts disabled for each account on this device. Its short enable control
-names OpenAI and selected photos, recipe text and saved sip details. After explicit
-enablement, the user starts work by selecting a scan/import source or invoking a
-contextual tool. Selected evidence stays inspectable. No passive journal-wide
-background processing occurs.
+Mugsy’s connected suggestions start disabled for each account on this device.
+The enable control names OpenAI and the photos, recipe text, and saved sip
+details it can receive. The user chooses a scan or import source, invokes a
+contextual tool, or explicitly requests an experiment suggestion. The selected
+evidence is available to review.
 The legacy in-editor copy helper retains its source-copying confirmation. New
 public-link/attachment capture automatically fills factual fields, keeps source
 credit and does not assert or expand a source's reuse permission. Known
@@ -101,13 +111,13 @@ protected/no-copy recipes cannot use import. Accepted fields update only
 the editable draft; ordinary Save remains a separate action. Recipe capture
 preserves attribution and existing fields, appends selected literal ingredient
 and instruction text without inventing numeric amounts, and does not change
-recipe visibility. Brew suggestions are read-only and do not modify a recipe.
-The saved-sip comparison runs locally. Its optional experiment request can
-include reviewed, comparable recorded readings and clearly labeled plans.
+recipe visibility. The saved-sip comparison runs locally. Its optional
+experiment request can include reviewed recorded readings and labeled plans.
+Starting an experiment creates a private repeat draft.
 It excludes private notes by default and uses the existing account and
 request review. A missing reading is not a value to estimate.
 
-Model interpretation is labeled as an AI suggestion with inspectable source
+Model interpretation appears as Mugsy’s suggestion with inspectable source
 references. Printed roaster notes are never personal sensory evidence. Planned
 targets never become recorded actuals. Sparse evidence cannot establish a fixed
 taste identity, expertise, extraction diagnosis, or causal conclusion. Weekly
@@ -117,9 +127,10 @@ drafts. AI reflection text stays out of the existing automatic share card.
 ## Privacy and ownership
 
 - API keys remain server-only; `.env.local` is ignored and never an iOS resource.
-- Opening the library or an unenabled helper makes no AI request. After explicit
-  enablement, choosing a scan source or opening a contextual tool starts that
-  bounded request. Bag reads fill editable identity fields while preserving typing
+- Opening the library or an unenabled helper makes no provider request. After
+  enablement, choosing a scan source or opening other contextual tools can start
+  a bounded request. Home experiments require a separate **Ask Mugsy** action.
+  Bag reads fill editable identity fields while preserving typing
   made during the request. Manual save does not wait for a provider.
 - The remembered permission is versioned and account-specific, revocable in Home
   preferences and erased on deletion. It is never adopted across accounts. A

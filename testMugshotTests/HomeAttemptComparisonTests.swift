@@ -107,6 +107,42 @@ struct HomeAttemptComparisonTests {
         #expect(next.homeSetupContent?.steps.first?.waitSeconds == 180)
     }
 
+    @Test func sparseLatteGetsAnExperimentWithoutInventingMeasurements() throws {
+        let sip = HomeAttemptRecord(name: "S’mores latte")
+        let ideas = HomeBrewExperiment.suggestions(for: sip, comparison: HomeAttemptComparison(sip, history: []))
+        let first = try #require(ideas.first)
+        #expect(first.plan.title == "Find the sweetness you like")
+        #expect(first.plan.instruction.contains("If you use syrup"))
+        #expect(ideas.count > 1)
+        #expect(ideas.allSatisfy { $0.measurement == nil && $0.change == nil })
+    }
+
+    @Test func experimentReturnsToAPlannedAmountWhenTheRecordedAmountDiffers() throws {
+        let sip = brew(nil, time: 10, dose: 20, output: nil)
+        let idea = try #require(HomeBrewExperiment.suggestions(for: sip,
+            comparison: HomeAttemptComparison(sip, history: [])).first)
+        #expect(idea.measurement?.isRecorded == true)
+        #expect(idea.measurement?.before == "20 g")
+        #expect(idea.measurement?.next == "18 g")
+        #expect(idea.change == nil)
+    }
+
+    @Test func experimentDraftPersistsOneTargetAndItsInstruction() throws {
+        let sip = brew(nil, time: 10, dose: 18, output: nil)
+        let idea = try #require(HomeBrewExperiment.suggestions(for: sip,
+            comparison: HomeAttemptComparison(sip, history: [])).first)
+        let draft = try #require(HomeBrewRepeat.draft(for: sip, ownerID: UUID(),
+            change: idea.change, experiment: idea.plan))
+        let restored = try JSONDecoder().decode(SipDraft.self, from: JSONEncoder().encode(draft))
+        #expect(idea.change?.key == .dose)
+        #expect(restored.launchContext.homeBrewExperiment == idea.plan)
+        #expect(restored.homeSetupContent?.targets.dose == 16.2)
+        #expect(restored.homeSetupContent?.targets.resolvedOutput == 36)
+        #expect(restored.homeAttemptActuals == HomeAttemptActuals())
+        #expect(restored.visibility == .private)
+        #expect(sip.preparation?.targets.dose == 18)
+    }
+
     private func brew(_ recipe: HomeRecipeReference?, time: Double, dose: Double?, output: Double?, saved: Bool = true) -> HomeAttemptRecord {
         let date = Date(timeIntervalSince1970: time)
         var attempt = HomeAttemptRecord(createdAt: date, name: "Morning espresso", recipe: recipe,

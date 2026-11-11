@@ -4,6 +4,14 @@ status: current
 last_verified: 2026-11-11
 ---
 
+## Mugsy experiments — November 11 candidate
+
+From a private Home sip, **Experiment with Mugsy** proposes one change and
+what to taste for. The trial can use a recorded amount, a labeled recipe
+plan, or a tasting exercise that needs no measurements. Starting it opens a
+private copy with the instruction shown in setup, making, and rating. The
+new draft retains the source recipe reference. [Mugsy permissions](AI_ASSISTANCE.md).
+
 ## Home post actions — November 11 candidate
 
 Private Home sips use the same top-right native menu as cafe posts. Edit Sip,

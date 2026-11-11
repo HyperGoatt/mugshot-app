@@ -174,6 +174,29 @@ final class SavedCafeRedesignUITests: XCTestCase {
     }
 
     @MainActor
+    func testRecentSipsSwipeAcrossAndOpenTheSelectedSip() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--saved-audit-scenario=populated"]
+        app.launch()
+        let card = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Harborlight Coffee Roasters")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 6)); card.tap()
+        let detail = app.scrollViews["cafe.detail.scroll"]
+        let rail = app.scrollViews["cafe.recentSips.rail"]
+        let first = app.buttons["cafe.recentSip.00000000-0000-4000-8010-000000000201"]
+        let last = app.buttons["cafe.recentSip.00000000-0000-4000-8010-000000000203"]
+        for _ in 0..<6 where !first.isHittable { detail.swipeUp(velocity: .slow) }
+        XCTAssertTrue(rail.exists && first.isHittable)
+        XCTAssertFalse(last.isHittable)
+        attachScreenshot(named: "cafe-recent-sips-horizontal")
+        for _ in 0..<3 where !last.isHittable { rail.swipeLeft(velocity: .slow) }
+        XCTAssertTrue(last.isHittable)
+        attachScreenshot(named: "cafe-recent-sips-after-swipe")
+        last.tap()
+        XCTAssertTrue(element("sip.detail.screen", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Espresso tonic"].exists)
+    }
+
+    @MainActor
     func testLowerCafeSectionsAndPrivateNoteEditor() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out",

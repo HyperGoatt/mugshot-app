@@ -11,6 +11,7 @@ last_verified: 2026-11-11
 | Add → Home | One search/name field, up to two recently made whole drinks, source capture, selected drink parts, and optional guided making |
 | Rating and Journal | One private save with optional stars, photos, notes and measurements. The Journal receipt opens optional audience and recipe attachment review |
 | Private Home post actions | Top-right native menu shared with cafe posts |
+| Mugsy experiments | On-device trials for measured and sparse sips, optional connected suggestions, and a private repeat draft with the selected trial |
 | Recipe intake | Link, caption, screenshot, video, and manual review. Save for later, Save recipe, and Save & make |
 | iOS Share | Recipe or cafe for web/text input. Recipe screenshot or Pocket Sip for images |
 | Home library and edit scope | Whole drinks, Add-ins, and Brew recipes. One-brew changes, immutable versions, copies, archive recovery, and exact Used in links |
@@ -27,7 +28,7 @@ The repeat and Pocket Sip checks below are from Simulator.
 
 | Surface | Candidate behavior | Evidence |
 | --- | --- | --- |
-| Map and Saved cafe detail | Full-height page with source-aware Back and order states. The lower page groups the note, personal stats, visible shared activity, and cafe info | [Integration plan and checks](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md) |
+| Map and Saved cafe detail | Full-height page with source-aware Back and order states. Recent sips scroll horizontally and each card opens the sip | [Current product status](CURRENT_PRODUCT_STATUS.md) |
 | The Next Sip | Account-scoped private draft from the latest owned cafe order | Same candidate |
 | Pocket Sip | The in-app Drafts picker and the Photos share extension feed the scoped draft library | [Current routes](REPAIR_SHARING_STATUS.md#photo-drafts--november-11-candidate) |
 

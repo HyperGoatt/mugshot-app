@@ -84,7 +84,6 @@ struct HomeAttemptComparison: Equatable {
         let facts = rows.compactMap { row -> String? in
             guard let actual = row.actual, actual.amount != nil, !actual.unit.isEmpty else { return nil }
             let plan = row.planned.flatMap { Self.unitsMatch($0.unit, actual.unit) ? $0 : nil }
-            guard plan != nil || row.last != nil else { return nil }
             return [
                 row.title + ":",
                 plan.map { "plan \($0.display)" },
@@ -231,6 +230,7 @@ enum HomeBrewRepeat {
     /// recorded measurements, photos and reflections are never mutated.
     static func draft(for attempt: HomeAttemptRecord, ownerID: UUID?, versionNumber: Int? = nil,
                       change: HomeBrewPlanChange? = nil,
+                      experiment: HomeBrewExperimentPlan? = nil,
                       resolveLinked: (HomeRecipeReference) -> HomeRecipeContent? = { _ in nil }) -> SipDraft? {
         let isServing = attempt.batchSourceAttemptID != nil
         var content = isServing ? nil : (attempt.preparation ?? attempt.targets)
@@ -279,6 +279,7 @@ enum HomeBrewRepeat {
         launch.homeRecipeVersionID = attempt.recipe?.versionID
         launch.sourceRecipeVersion = versionNumber.map { "v\($0)" }
         launch.homeBatchSourceAttemptID = attempt.batchSourceAttemptID
+        launch.homeBrewExperiment = experiment
         let hasPlan = content != nil
         var draft = SipDraft(
             ownerUserID: ownerID, launchContext: launch, context: .home,

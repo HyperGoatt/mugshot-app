@@ -4,6 +4,12 @@ status: current
 last_verified: 2026-11-11
 ---
 
+## 2026-11-11 — Mugsy experiments and cafe Recent sips
+
+- Name Mugsy as the assistant across recipe capture, bean scanning, Journal, and settings. The permission copy identifies OpenAI as the provider for connected suggestions.
+- Give saved Home sips a Mugsy experiment sheet with on-device trials, recorded or planned baselines where available, and a taste cue. Carry the chosen trial into a new private repeat draft.
+- Put Recent sips in one horizontal row on the Map and Saved cafe detail page. A card opens its sip detail.
+
 ## 2026-11-11 — Log a Sip and detail polish
 
 - Remove the Pocket Sip callout from Log a Sip. Start an in-app photo draft from Journal → Drafts → Add photos.
