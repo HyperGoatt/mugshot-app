@@ -1,8 +1,17 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
+
+## Log a Sip and detail polish — November 11 candidate
+
+Log a Sip opens on the Cafe, Home, and Elsewhere choices. Journal → Drafts →
+Add photos opens in-app photo capture. Guests reach the same Drafts action
+from Saved → Home library. The Photos share extension also saves photo drafts.
+Private Home sips use the top-right native actions menu shared
+with cafe posts. The Map and Saved cafe page groups its lower sections around
+the private note, personal stats, visible shared drink activity, and cafe info.
 
 ## Home from recipe to sip — November 10 candidate
 
@@ -26,11 +35,10 @@ leads with an entry back to that sip, a repeat action when appropriate, and a
 fresh sip action. Favorite, Want to Try, lists, directions, history, and private
 notes are available on the same page. The Next Sip opens a new private draft with
 the cafe, drink and editable order details. Today's photos, rating, and reflection start
-empty. In Add, Pocket Sip saves selected Photos as a private draft. The system
-share extension accepts the same photo-only capture directly from Photos.
-Build 10 crashed when opening a Map pin on the owner’s iPhone. Build 12 is
-installed with the cafe layout and repeat order repairs. Opening a Map pin
-twice and a Saved cafe, and using Back from each, passed on that iPhone. See the
+empty. The November 11 candidate above relocates in-app photo capture to Journal.
+Build 10 crashed when opening a Map pin on the owner’s iPhone. Build 12 included
+the cafe layout and repeat order repairs. Opening a Map pin twice and a Saved
+cafe, and using Back from each, passed on that iPhone. See the
 [crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up)
 for the current candidate and separate Simulator and phone evidence.
 

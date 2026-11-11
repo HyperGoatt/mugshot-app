@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
+
+## Photo drafts — November 11 candidate
+
+Journal → Drafts → Add photos opens the native picker. Guests can open Drafts
+from Saved → Home library. Photos → Share → Mugshot → Pocket Sip is the other
+photo capture route. Both save private drafts that reopen in the same account
+or guest scope. Log a Sip opens on its context choices.
 
 ## iOS Share destinations and Home sip sharing — November 10 candidate
 

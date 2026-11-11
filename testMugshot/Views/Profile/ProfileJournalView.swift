@@ -321,10 +321,14 @@ struct JournalTabView: View {
             .sheet(isPresented: $showsDraftManager, onDismiss: {
                 refreshJournalDrafts()
             }) {
-                HomeDraftManagementView(ownerID: localAccountScope.userID, onResumeSip: { draft in
-                    showsDraftManager = false
-                    onComposeDraft(draft)
-                })
+                HomeDraftManagementView(
+                    ownerID: localAccountScope.userID,
+                    onResumeSip: { draft in
+                        showsDraftManager = false
+                        onComposeDraft(draft)
+                    },
+                    onPhotoDraftSaved: { dataManager.noteJournalMutation() }
+                )
                 .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .task(id: "\(authModel.authenticatedUser?.id.uuidString ?? "signed-out")-\(dataManager.journalRevision)-\(tabIsActive)") {
@@ -367,7 +371,7 @@ struct JournalTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
 
-                if phase2CanonicalJournal, draftCount > 0 || draftReadNeedsAttention {
+                if phase2CanonicalJournal {
                     draftSection
                         .padding(.top, 14)
                 }
@@ -404,7 +408,7 @@ struct JournalTabView: View {
                     .background(Color.mugshotMint.opacity(0.3), in: RoundedRectangle(cornerRadius: 13))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Drafts").font(.headline).foregroundStyle(Color.espressoBrown)
-                    Text(draftReadNeedsAttention ? "Some drafts need attention" : "\(draftCount) unfinished · resume or manage")
+                    Text(draftSectionDetail)
                         .font(.subheadline).foregroundStyle(Color.secondaryText)
                 }
                 Spacer()
@@ -417,6 +421,12 @@ struct JournalTabView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("journal.drafts.manage")
         .padding(.horizontal, 16)
+    }
+
+    private var draftSectionDetail: String {
+        if draftReadNeedsAttention { return "Some drafts need attention" }
+        if draftCount == 0 { return "Start a photo draft" }
+        return "\(draftCount) unfinished · resume or manage"
     }
 
     private var compactProfileRow: some View {

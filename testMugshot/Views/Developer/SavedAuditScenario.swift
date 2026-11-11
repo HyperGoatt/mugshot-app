@@ -66,6 +66,23 @@ enum SavedAuditFixtures {
     static let secondaryPhotoKey = "saved-audit-creamy-latte"
     static let brokenPhotoKey = "saved-audit-intentionally-missing-photo"
 
+    static var lowerDetailActivity: (visits: [RemoteVisitSummary], friends: Set<UUID>) {
+        let friend = UUID(uuidString: "00000000-0000-4000-8010-000000000002")!
+        let visitor = UUID(uuidString: "00000000-0000-4000-8010-000000000003")!
+        let orders = [(friend, "Iced maple latte"), (visitor, "Iced maple latte"), (visitor, "Flat white")]
+        let summaries = orders.map { userID, drink in
+            let row = SupabaseVisitRow(
+                id: UUID(), userId: userID, cafeId: primaryCafeID, drinkType: "Coffee",
+                drinkTypeCustom: nil, drinkSubtype: drink, caption: "", notes: nil,
+                visibility: "Public", ratings: ["Overall": 4], overallScore: 4, posterPhotoURL: nil,
+                contextType: "Cafe", locationName: nil, cityState: nil, brewMethod: nil,
+                createdAt: "2026-11-09T12:00:00Z"
+            )
+            return RemoteVisitSummary(visit: row, cafe: nil)
+        }
+        return (summaries, [friend])
+    }
+
     static func appData(for scenario: SavedAuditScenario, signedOut: Bool) -> AppData {
         let populated = scenario.usesPopulatedFixture
         let fixtureCafes = populated ? cafes : []

@@ -62,17 +62,29 @@ final class CafeNextSipUITests: XCTestCase {
     }
 
     @MainActor
-    func testPocketSipCancelReturnsToAddWithoutADraft() {
+    func testLogASipOmitsPhotoCalloutAndJournalPhotoCaptureCancelsWithoutADraft() {
         let app = XCUIApplication()
-        launch(app, reset: true)
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-home-account", "--ui-testing-reduce-motion"]
+        app.launch()
         app.buttons["mugshot.tab.add"].tap()
-        let pocket = app.buttons["pocketSip.entry"]
-        XCTAssertTrue(pocket.waitForExistence(timeout: 5))
-        pocket.tap()
+        XCTAssertTrue(app.buttons["logASipV3.context.home"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["pocketSip.entry"].exists)
+        XCTAssertFalse(app.buttons["Pocket Sip"].exists)
+        let setup = XCTAttachment(screenshot: app.screenshot())
+        setup.name = "log-a-sip-context-first"
+        setup.lifetime = .keepAlways
+        add(setup)
+        app.buttons["Close Log a Sip"].tap()
+
+        app.buttons["mugshot.tab.journal"].tap()
+        let drafts = app.buttons["journal.drafts.manage"]
+        XCTAssertTrue(drafts.waitForExistence(timeout: 5)); drafts.tap()
+        let photos = app.buttons["drafts.addPhotos"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 5)); photos.tap()
         XCTAssertTrue(app.buttons["pocketSip.choose"].waitForExistence(timeout: 5))
         app.buttons["pocketSip.close"].tap()
-        XCTAssertTrue(pocket.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["logASipV3.resumeDraft"].exists)
+        XCTAssertTrue(photos.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Resume Pocket Sip"].exists)
     }
 
     @MainActor

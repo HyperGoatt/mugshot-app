@@ -102,9 +102,7 @@ final class HomeEditorControlsUITests: XCTestCase {
         capture(app, "06-private-home-edit")
         XCTAssertEqual(app.buttons["home.log.save"].label, "Save changes")
         app.buttons["home.log.save"].tap()
-        XCTAssertTrue(app.buttons["More"].waitForExistence(timeout: 5)); app.buttons["More"].tap()
-        let done = app.buttons["Done"].firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
+        closePrivateDetail(app)
         XCTAssertTrue(app.staticTexts["1 saved sip"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Name: Iced cinnamon latte"].exists)
         XCTAssertTrue(app.staticTexts["Score: 5"].exists)
@@ -133,9 +131,7 @@ final class HomeEditorControlsUITests: XCTestCase {
         app.buttons["Cancel"].firstMatch.tap()
         let discard = app.buttons["Discard draft"].firstMatch
         XCTAssertTrue(discard.waitForExistence(timeout: 5)); discard.tap()
-        XCTAssertTrue(app.buttons["More"].waitForExistence(timeout: 5)); app.buttons["More"].tap()
-        let done = app.buttons["Done"].firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
+        closePrivateDetail(app)
         XCTAssertTrue(app.staticTexts["1 saved sip"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Name: Cinnamon latte"].exists)
         XCTAssertTrue(app.staticTexts["Original journal identity kept"].exists)
@@ -145,9 +141,8 @@ final class HomeEditorControlsUITests: XCTestCase {
 
     @MainActor func testLargestTextDeleteConfirmationKeepsBothActionsReachableAndCanBeCancelled() {
         let app = launch(["--ui-testing-home-private-edit", "--ui-testing-accessibility-xxxl"])
-        let more = app.buttons["More"]
-        XCTAssertTrue(more.waitForExistence(timeout: 8)); more.tap()
-        app.buttons["home.sip.delete"].firstMatch.tap()
+        openPrivateActions(app)
+        app.buttons["Delete Sip"].firstMatch.tap()
         let cancel = app.buttons["sip.delete.cancel"]
         let confirm = app.buttons["sip.delete.confirm"]
         XCTAssertTrue(cancel.waitForExistence(timeout: 5))
@@ -157,9 +152,7 @@ final class HomeEditorControlsUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(confirm.frame.height, 44)
         capture(app, "07-delete-confirmation-largest-text")
         cancel.tap()
-        XCTAssertTrue(more.waitForExistence(timeout: 5)); more.tap()
-        let done = app.buttons["Done"].firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
+        closePrivateDetail(app)
         XCTAssertTrue(app.staticTexts["1 saved sip"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Name: Cinnamon latte"].exists)
         XCTAssertTrue(app.staticTexts["Original journal identity kept"].exists)
@@ -167,9 +160,8 @@ final class HomeEditorControlsUITests: XCTestCase {
 
     @MainActor func testPrivateHomeDeleteRemovesTheSavedSipAndKeepsItsRecipe() {
         let app = launch(["--ui-testing-home-private-edit"])
-        let more = app.buttons["More"]
-        XCTAssertTrue(more.waitForExistence(timeout: 8)); more.tap()
-        app.buttons["home.sip.delete"].firstMatch.tap()
+        openPrivateActions(app)
+        app.buttons["Delete Sip"].firstMatch.tap()
         let confirm = app.buttons["sip.delete.confirm"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5)); confirm.tap()
         XCTAssertTrue(app.staticTexts["0 saved sip"].waitForExistence(timeout: 5))
@@ -179,12 +171,34 @@ final class HomeEditorControlsUITests: XCTestCase {
     }
 
     @MainActor private func openPrivateEdit(_ app: XCUIApplication, expectsReflection: Bool = true) {
-        let more = app.buttons["More"]
-        XCTAssertTrue(more.waitForExistence(timeout: 8)); reveal(more, app); more.tap()
+        openPrivateActions(app)
         // iOS 27 exposes one SwiftUI menu control as nested AX button matches.
         let edit = app.buttons["home.sip.edit"].firstMatch
         XCTAssertTrue(edit.waitForExistence(timeout: 5)); edit.tap()
         XCTAssertTrue(app.buttons[expectsReflection ? "home.log.save" : "home.log.reflect"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor private func openPrivateActions(_ app: XCUIApplication) {
+        let menu = app.buttons["sip.detail.actions"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 8))
+        XCTAssertTrue(menu.isHittable)
+        XCTAssertGreaterThan(menu.frame.midX, app.frame.maxX - 90)
+        XCTAssertLessThan(menu.frame.midY, app.frame.minY + 120)
+        XCTAssertFalse(app.buttons["More"].exists)
+        capture(app, "home-sip-toolbar")
+        menu.tap()
+        let edit = app.buttons["home.sip.edit"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(edit.frame.midX, app.frame.midX)
+        XCTAssertLessThan(edit.frame.midY, app.frame.minY + 240)
+        capture(app, "home-sip-anchored-menu")
+    }
+
+    @MainActor private func closePrivateDetail(_ app: XCUIApplication) {
+        let back = app.buttons["home.sip.back"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: back)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 6), .completed)
+        back.tap()
     }
 
     @MainActor private func replaceText(_ field: XCUIElement, with replacement: String) {

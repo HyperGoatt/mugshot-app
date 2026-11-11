@@ -20,7 +20,6 @@ struct HomeAttemptCanonicalDetailView: View {
     @State private var comment = ""
     @State private var toolbarProgress: CGFloat = 0
     @State private var viewer: SipDetailPhotoViewerPresentation?
-    @State private var showsActions = false
     @State private var assistance: CoffeeAssistancePresentation?
     @State private var editingDraft: HomeAttemptRecord?
     @State private var confirmsDelete = false
@@ -87,7 +86,6 @@ struct HomeAttemptCanonicalDetailView: View {
                         switch action {
                         case .share: onShare()
                         case .repeatSip: repeatPlan(brew)
-                        case .more: showsActions = true
                         default: break
                         }
                     },
@@ -134,49 +132,18 @@ struct HomeAttemptCanonicalDetailView: View {
                         .padding(.bottom, 8)
                     }
                 }
-                .confirmationDialog("Your Home sip", isPresented: $showsActions) {
-                    if isCurrentOwner {
-                        Button("Edit sip") { beginEditing(attempt) }
-                            .disabled(attempt.publicationStatus == .posting)
-                            .accessibilityIdentifier("home.sip.edit")
-                    }
-                    Button("Make again") { repeatPlan(brew) }
-                    if let ownerID = store.scope.userID, ownerID == authModel.authenticatedUser?.id {
-                        Button("Explore a next experiment") {
-                            assistance = CoffeeAssistancePresentation(ownerID: ownerID, task: .brewExperiment,
-                                query: "Explain one recorded difference or offer one small trial. Use only recorded values and feedback. Plans are not actuals; leave unknowns unknown. Never infer espresso extraction from a flavored drink alone.",
-                                evidence: brew.assistanceEvidence(for: attempt),
-                                image: nil, allowsPhoto: false)
-                        }
-                    }
-                    if !attempt.pendingKeptIngredientIDs.isEmpty {
-                        Button("Retry keeping recipe changes") {
-                            do {
-                                try store.applyKeptIngredientChanges(attemptID: attempt.id)
-                                store.errorMessage = nil
-                                Task { await store.synchronize() }
-                            } catch {
-                                store.errorMessage = "Your sip is safe. Recipe change needs attention: \(error.localizedDescription)"
-                            }
-                        }
-                    }
-                    if attempt.batchID != nil, attempt.batchSourceAttemptID == nil,
-                       let onLogServing {
-                        Button("Log a serving from this batch", action: onLogServing)
-                    }
-                    Button("Share sip", action: onShare)
-                    if let onHistory { Button("History", action: onHistory) }
-                    if isCurrentOwner {
-                        Button("Delete sip", role: .destructive) { deletionError = nil; confirmsDelete = true }
-                            .accessibilityIdentifier("home.sip.delete")
-                    }
-                    Button("Done", action: onDone)
-                }
+                .toolbar { detailToolbar(attempt, brew: brew) }
             } else {
                 ContentUnavailableView("Sip unavailable", systemImage: "cup.and.saucer")
             }
         }
         .background(Color.creamWhite)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(Color.creamWhite, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .mugshotBottomNavHidden()
         .fullScreenCover(item: $viewer) { SipDetailPhotoViewer(presentation: $0) }
         .sheet(item: $editingDraft) { draft in
             NavigationStack {
@@ -215,6 +182,49 @@ struct HomeAttemptCanonicalDetailView: View {
         }
         .onChange(of: authModel.authenticatedUser?.id) { _, _ in
             if !isCurrentOwner { editingDraft = nil; viewer = nil; assistance = nil; confirmsDelete = false; showsRepeatPlan = false; onDone() }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private func detailToolbar(_ attempt: HomeAttemptRecord, brew: HomeAttemptComparison) -> some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            SipDetailToolbarTitle(drinkName: attempt.name, progress: toolbarProgress)
+        }
+        SipDetailActionsToolbarItem(isDisabled: isDeleting || !isCurrentOwner) {
+            Button("Edit Sip", systemImage: "pencil") { beginEditing(attempt) }
+                .disabled(attempt.publicationStatus == .posting)
+                .accessibilityIdentifier("home.sip.edit")
+            Button("Make Again", systemImage: "arrow.clockwise") { repeatPlan(brew) }
+            Button("Share Sip", systemImage: "square.and.arrow.up", action: onShare)
+            if let onHistory { Button("History", systemImage: "clock.arrow.circlepath", action: onHistory) }
+            if let ownerID = store.scope.userID, ownerID == authModel.authenticatedUser?.id {
+                Button("Explore a Next Experiment", systemImage: "sparkles") {
+                    assistance = CoffeeAssistancePresentation(ownerID: ownerID, task: .brewExperiment,
+                        query: "Explain one recorded difference or offer one small trial. Use only recorded values and feedback. Plans are not actuals; leave unknowns unknown. Never infer espresso extraction from a flavored drink alone.",
+                        evidence: brew.assistanceEvidence(for: attempt),
+                        image: nil, allowsPhoto: false)
+                }
+            }
+            if !attempt.pendingKeptIngredientIDs.isEmpty {
+                Button("Retry Keeping Recipe Changes", systemImage: "arrow.triangle.2.circlepath") {
+                    do {
+                        try store.applyKeptIngredientChanges(attemptID: attempt.id)
+                        store.errorMessage = nil
+                        Task { await store.synchronize() }
+                    } catch {
+                        store.errorMessage = "Your sip is safe. Recipe change needs attention. \(error.localizedDescription)"
+                    }
+                }
+            }
+            if attempt.batchID != nil, attempt.batchSourceAttemptID == nil,
+               let onLogServing {
+                Button("Log a Serving", systemImage: "cup.and.saucer", action: onLogServing)
+            }
+            Button("Delete Sip", systemImage: "trash", role: .destructive) {
+                deletionError = nil
+                confirmsDelete = true
+            }
+            .accessibilityIdentifier("home.sip.delete")
         }
     }
 

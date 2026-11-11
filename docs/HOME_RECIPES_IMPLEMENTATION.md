@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
+
+## Home post actions — November 11 candidate
+
+Private Home sips use the same top-right native menu as cafe posts. Edit Sip,
+Make Again, Share Sip, History when available, and Delete Sip open from that
+menu. Deletion still asks for confirmation, and Back returns to the previous
+screen. The post-save view uses the same menu beside its existing Close action.
 
 ## Home from recipe to sip — November 10 candidate
 

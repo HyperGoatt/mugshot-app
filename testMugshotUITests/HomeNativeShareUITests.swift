@@ -66,28 +66,40 @@ final class HomeNativeShareUITests: XCTestCase {
         capture("13-system-pocket-sip-reopened")
     }
 
-    @MainActor func testAddPocketSipKeepsTwoPhotosAcrossRelaunch() throws {
+    @MainActor func testGuestPhotoDraftKeepsTwoPhotosAcrossRelaunch() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["MUGSHOT_NATIVE_SHARE_FIXTURE"] == "1")
         continueAfterFailure = false
         let mugshot = XCUIApplication()
         mugshot.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out", "--ui-testing-reduce-motion"]
         mugshot.launch()
-        mugshot.buttons["mugshot.tab.add"].tap()
-        let pocket = mugshot.buttons["pocketSip.entry"]
-        XCTAssertTrue(pocket.waitForExistence(timeout: 5)); pocket.tap()
-        mugshot.buttons["pocketSip.choose"].tap()
-        let pickerTitle = try visibleText("Select up to 10 photos")
-        let privacyCard = try? visibleText("Private Access to Photos", timeout: 1)
-        // The iPhone QA fixture is the first thumbnail in a three-column grid.
-        let firstRow = privacyCard.map { $0.dy + 0.235 } ?? (pickerTitle.dy + 0.165)
-        mugshot.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: firstRow)).tap()
-        mugshot.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: firstRow)).tap()
-        mugshot.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: pickerTitle.dy + 0.045)).tap()
-        XCTAssertTrue(mugshot.staticTexts["2 photos are ready in your private draft."].waitForExistence(timeout: 10))
-        capture("14-add-pocket-sip-two-photos-saved")
+        openGuestDrafts(mugshot)
+        let photos = mugshot.buttons["drafts.addPhotos"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 5)); photos.tap()
+        try saveTwoPhotos(mugshot)
+        capture("14-guest-photo-draft-saved")
         relaunch(mugshot)
         openPocketDraft(mugshot, expectedPhotos: 2)
-        capture("15-add-pocket-sip-two-photos-reopened")
+        capture("15-guest-photo-draft-reopened")
+    }
+
+    @MainActor func testJournalPhotoDraftCanOpenImmediatelyAndAfterRelaunch() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["MUGSHOT_NATIVE_SHARE_FIXTURE"] == "1")
+        continueAfterFailure = false
+        let mugshot = XCUIApplication()
+        mugshot.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-home-account", "--ui-testing-reduce-motion"]
+        mugshot.launch()
+        openJournalDrafts(mugshot)
+        let photos = mugshot.buttons["drafts.addPhotos"]
+        XCTAssertTrue(photos.waitForExistence(timeout: 5)); photos.tap()
+        try saveTwoPhotos(mugshot)
+        mugshot.buttons["pocketSip.open"].tap()
+        assertDraftPhotos(in: mugshot, count: 2)
+        relaunch(mugshot)
+        openJournalDrafts(mugshot)
+        let draft = mugshot.buttons["Resume Pocket Sip"]
+        XCTAssertTrue(draft.waitForExistence(timeout: 6)); draft.tap()
+        assertDraftPhotos(in: mugshot, count: 2)
+        capture("journal-photo-draft-reopened")
     }
 
     @MainActor func testSafariLinkOffersRecipeAndCafeAndReopensTheSource() throws {
@@ -143,15 +155,43 @@ final class HomeNativeShareUITests: XCTestCase {
     }
 
     @MainActor private func openPocketDraft(_ app: XCUIApplication, expectedPhotos: Int) {
-        app.buttons["mugshot.tab.add"].tap()
-        let drafts = app.buttons["logASipV3.resumeDraft"]
-        XCTAssertTrue(drafts.waitForExistence(timeout: 8)); drafts.tap()
+        openGuestDrafts(app)
         let pocketSip = app.buttons["Resume Pocket Sip"]
         XCTAssertTrue(pocketSip.waitForExistence(timeout: 6)); pocketSip.tap()
-        for index in 0..<expectedPhotos {
+        assertDraftPhotos(in: app, count: expectedPhotos)
+    }
+
+    @MainActor private func assertDraftPhotos(in app: XCUIApplication, count: Int) {
+        for index in 0..<count {
             let photo = app.descendants(matching: .any)["logASipV3.photos.thumbnail.\(index)"].firstMatch
             XCTAssertTrue(photo.waitForExistence(timeout: 6))
         }
+    }
+
+    @MainActor private func openJournalDrafts(_ app: XCUIApplication) {
+        app.buttons["mugshot.tab.journal"].tap()
+        let drafts = app.buttons["journal.drafts.manage"]
+        XCTAssertTrue(drafts.waitForExistence(timeout: 8)); drafts.tap()
+    }
+
+    @MainActor private func saveTwoPhotos(_ app: XCUIApplication) throws {
+        app.buttons["pocketSip.choose"].tap()
+        let pickerTitle = try visibleText("Select up to 10 photos")
+        let privacyCard = try? visibleText("Private Access to Photos", timeout: 1)
+        // The first row contains two fictional QA images in a three-column grid.
+        let firstRow = privacyCard.map { $0.dy + 0.235 } ?? (pickerTitle.dy + 0.165)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: firstRow)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: firstRow)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: pickerTitle.dy + 0.045)).tap()
+        XCTAssertTrue(app.staticTexts["2 photos are ready in your private draft."].waitForExistence(timeout: 10))
+    }
+
+    @MainActor private func openGuestDrafts(_ app: XCUIApplication) {
+        app.buttons["mugshot.tab.saved"].tap()
+        let library = app.buttons["home.library.entry"]
+        XCTAssertTrue(library.waitForExistence(timeout: 8)); library.tap()
+        let drafts = app.buttons["home.drafts.open"]
+        XCTAssertTrue(drafts.waitForExistence(timeout: 8)); drafts.tap()
     }
 
     @MainActor private func openMugshotShare(from photos: XCUIApplication) throws {

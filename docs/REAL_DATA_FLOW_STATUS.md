@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
 
 ## Home private save and shared recipe sources — November 10 candidate
@@ -34,8 +34,9 @@ reusable order fields. Its media, reflection and audience start fresh and privat
 Edits to the repeated order use the same account-scoped draft store during the
 input event. The field keeps the typed wording without keyboard autocorrection.
 
-Pocket Sip copies selected image pixels into oriented, bounded JPEGs. The Add
-picker commits straight into the scoped local draft store. The Photos extension
+Pocket Sip copies selected image pixels into oriented, bounded JPEGs. The
+in-app draft picker commits into the account or guest scope that opened Drafts.
+The Photos extension
 commits an atomic packet in the existing app group for the known account or
 guest scope. Mugshot imports it on activation with the capture ID as the draft
 ID. The source packet stays until the draft commits. A retained local receipt

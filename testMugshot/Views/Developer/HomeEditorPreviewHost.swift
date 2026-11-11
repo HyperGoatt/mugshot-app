@@ -33,6 +33,13 @@ struct HomeEditorPreviewHost: View {
                     if arguments.contains("--ui-testing-home-private-edit") {
                         HomeAttemptCanonicalDetailView(attemptID: Self.editAttemptID,
                             onShare: {}, onMakeAgain: {}, onDone: { inspectedPrivateEdit = true })
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button("Back", systemImage: "chevron.left") { inspectedPrivateEdit = true }
+                                        .labelStyle(.iconOnly)
+                                        .accessibilityIdentifier("home.sip.back")
+                                }
+                            }
                     } else if arguments.contains("--ui-testing-home-legacy-log") {
                         HomeQuickLogScreen(store: store, initial: HomeAttemptRecord(name: "Cinnamon matcha"),
                             onSaved: { _ in saved = "Sip saved" })

@@ -1,8 +1,14 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
+
+## 2026-11-11 — Log a Sip and detail polish
+
+- Remove the Pocket Sip callout from Log a Sip. Start an in-app photo draft from Journal → Drafts → Add photos.
+- Give private Home sips the same top-right native actions menu as cafe posts, with edit, make again, sharing, and deletion in the dropdown.
+- Organize the lower cafe page into a private note preview, personal stats, shared drink activity, and grouped cafe information. Open the private note editor from its preview.
 
 ## 2026-11-10 — Home from recipe to sip
 

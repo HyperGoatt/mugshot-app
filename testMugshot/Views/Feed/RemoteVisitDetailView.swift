@@ -541,24 +541,16 @@ struct RemoteVisitDetailView: View {
             )
         }
 
-        ToolbarItem(placement: .topBarTrailing) {
-            if let detail {
-                Menu {
-                    profileHideAction
-                    ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
-                        Button(role: action == .delete ? .destructive : nil) {
-                            perform(action)
-                        } label: {
-                            Label(action.title, systemImage: action.systemImage)
-                        }
+        if let detail {
+            SipDetailActionsToolbarItem(isDisabled: isDeletingVisit) {
+                profileHideAction
+                ForEach(sharedPresentation(for: detail).capabilities.menuActions) { action in
+                    Button(role: action == .delete ? .destructive : nil) {
+                        perform(action)
+                    } label: {
+                        Label(action.title, systemImage: action.systemImage)
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 15, weight: .bold))
-                        .frame(width: 44, height: 44)
                 }
-                .disabled(isDeletingVisit)
-                .accessibilityLabel("Sip actions")
             }
         }
     }

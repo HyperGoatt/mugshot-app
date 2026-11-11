@@ -607,7 +607,7 @@ enum SipDetailPresentationAdapter {
             content: content,
             capabilities: SipDetailCapabilities(
                 isOwner: true,
-                dockActions: [.share, .more],
+                dockActions: [.share],
                 menuActions: [.repeatSip],
                 canComment: false
             )
@@ -1157,6 +1157,24 @@ struct SipDetailToolbarTitle: View {
                 .accessibilityHidden(normalizedProgress <= 0.5)
         }
         .animation(.easeOut(duration: 0.16), value: normalizedProgress)
+    }
+}
+
+struct SipDetailActionsToolbarItem<Actions: View>: ToolbarContent {
+    let isDisabled: Bool
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu(content: actions) {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(isDisabled)
+            .accessibilityLabel("Sip actions")
+            .accessibilityIdentifier("sip.detail.actions")
+        }
     }
 }
 

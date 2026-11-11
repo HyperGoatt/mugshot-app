@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
 
 ## Home from recipe to sip — November 10 candidate
@@ -10,6 +10,7 @@ last_verified: 2026-11-10
 | --- | --- |
 | Add → Home | One search/name field, up to two recently made whole drinks, source capture, selected drink parts, and optional guided making |
 | Rating and Journal | One private save with optional stars, photos, notes and measurements. The Journal receipt opens optional audience and recipe attachment review |
+| Private Home post actions | Top-right native menu shared with cafe posts |
 | Recipe intake | Link, caption, screenshot, video, and manual review. Save for later, Save recipe, and Save & make |
 | iOS Share | Recipe or cafe for web/text input. Recipe screenshot or Pocket Sip for images |
 | Home library and edit scope | Whole drinks, Add-ins, and Brew recipes. One-brew changes, immutable versions, copies, archive recovery, and exact Used in links |
@@ -19,16 +20,16 @@ last_verified: 2026-11-10
 
 ## Cafe detail, The Next Sip and Pocket Sip — November 9 candidate
 
-Build 12 is installed with the cafe crash and repeat order edit repairs. The
+Build 12 was installed with the cafe crash and repeat order edit repairs. The
 Map pin and Saved cafe routes passed on the owner’s iPhone 16 Pro. See the
 [crash follow-up](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md#cafe-detail-crash-follow-up).
 The repeat and Pocket Sip checks below are from Simulator.
 
 | Surface | Candidate behavior | Evidence |
 | --- | --- | --- |
-| Map and Saved cafe detail | Full-height page with source-aware Back and last-order, fresh-order and first-visit states | [Integration plan and checks](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md) |
+| Map and Saved cafe detail | Full-height page with source-aware Back and order states. The lower page groups the note, personal stats, visible shared activity, and cafe info | [Integration plan and checks](plans/cafe-next-and-pocket-sip-2026-11-09.plan.md) |
 | The Next Sip | Account-scoped private draft from the latest owned cafe order | Same candidate |
-| Pocket Sip | Native Add picker and Photos share extension feeding the scoped draft library | Same candidate |
+| Pocket Sip | The in-app Drafts picker and the Photos share extension feed the scoped draft library | [Current routes](REPAIR_SHARING_STATUS.md#photo-drafts--november-11-candidate) |
 
 ## Home library and repeat brewing — November 9 candidate
 

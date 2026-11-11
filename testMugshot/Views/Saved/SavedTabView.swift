@@ -798,7 +798,7 @@ struct CafeDetailView: View {
             .sheet(isPresented: $showPrivateNote) {
                 NavigationStack {
                     ScrollView {
-                        privateDiscoveryNoteSection.padding(16)
+                        privateDiscoveryNoteEditor.padding(16)
                     }
                     .background(Color.creamWhite)
                     .navigationTitle("Private cafe note")
@@ -1057,11 +1057,8 @@ struct CafeDetailView: View {
                         communityHighlightsSection
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("About this cafe")
-                            .mugshotDisplay(size: 24)
-                            .foregroundStyle(Color.espressoBrown)
-                            .accessibilityAddTraits(.isHeader)
+                    VStack(alignment: .leading, spacing: 12) {
+                        cafeDetailSectionHeading("About this cafe")
                         secondaryActionsSection
                     }
                 }
@@ -1495,18 +1492,11 @@ struct CafeDetailView: View {
 
     private var detailStatsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(spacing: 10) {
-                        personalSipAverageCard
-                        cafeReflectionCard
-                    }
-                } else {
-                    HStack(spacing: 10) {
-                        personalSipAverageCard
-                        cafeReflectionCard
-                    }
-                }
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .topLeading),
+                                count: dynamicTypeSize.isAccessibilitySize ? 1 : 2)
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                personalSipAverageStat
+                cafeReflectionStat
             }
             .redacted(
                 reason: isPresentingCafeExperienceLoading && cafeExperienceSummary == nil
@@ -1518,38 +1508,33 @@ struct CafeDetailView: View {
                 cafeRelationshipEvidence(summary)
             }
 
-            Text(personalHistoryLine)
-                .font(.system(size: 13))
-                .foregroundColor(.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-
             if let favoriteDrinkEvidence {
                 Label(favoriteDrinkEvidence, systemImage: "cup.and.saucer")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.subheadline.weight(.medium))
                     .foregroundColor(.mugshotSageText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if let presentedCafeExperienceError {
                 Label(presentedCafeExperienceError, systemImage: "exclamationmark.circle")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.tertiaryText)
+                    .font(.footnote)
+                    .foregroundColor(.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
         }
     }
 
-    private var personalSipAverageCard: some View {
-        detailStatCard(
-            title: "Personal sip average",
+    private var personalSipAverageStat: some View {
+        detailStat(
+            title: "Your sip average",
             value: personalAverageRating.map { String(format: "%.1f", $0) } ?? "—",
             systemImage: "cup.and.saucer.fill"
         )
     }
 
-    private var cafeReflectionCard: some View {
-        detailStatCard(
+    private var cafeReflectionStat: some View {
+        detailStat(
             title: "Cafe reflection",
             value: cafeAverageDisplayValue,
             systemImage: "storefront.fill"
@@ -1582,45 +1567,33 @@ struct CafeDetailView: View {
     }
 
     private var personalRelationshipSection: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            MugshotSectionTitle(
-                title: "Your Mugshot",
-                subtitle: personalRelationshipSubtitle
-            )
+        VStack(alignment: .leading, spacing: 12) {
+            cafeDetailSectionHeading("Your Mugshot", detail: personalRelationshipSubtitle)
 
-            if let mapPinScore {
-                HStack(spacing: 12) {
-                    MugshotRatingBadge(score: mapPinScore.value, label: mapPinScore.sourceLabel)
-                        .accessibilityLabel(mapPinScore.accessibilityLabel)
-                    Text(mapPinScore.evidenceDescription)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-                .accessibilityElement(children: .combine)
-            }
+            VStack(alignment: .leading, spacing: 14) {
+                detailStatsSection
 
-            detailStatsSection
-
-            if currentCafe.isFavorite || currentCafe.wantToTry {
-                HStack(spacing: 8) {
-                    if currentCafe.isFavorite {
-                        relationshipPill("Favorite", systemImage: "heart.fill")
+                if let mapPinScore {
+                    Divider()
+                    let layout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                        : AnyLayout(HStackLayout(spacing: 10))
+                    layout {
+                        MugshotRatingBadge(score: mapPinScore.value, label: mapPinScore.sourceLabel)
+                            .accessibilityLabel(mapPinScore.accessibilityLabel)
+                        Text(mapPinScore.evidenceDescription)
+                            .font(.footnote)
+                            .foregroundStyle(Color.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    if currentCafe.wantToTry {
-                        relationshipPill("Want to Try", systemImage: "bookmark.fill")
-                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.foamWhite, in: .rect(cornerRadius: DesignSystem.Radius.heroCard))
+            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard).strokeBorder(Color.mugshotLine))
         }
-        .padding(16)
-        .background(Color.mugshotMint.opacity(0.22))
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous)
-                .stroke(Color.mugshotSage.opacity(0.28))
-        )
     }
 
     private var ownRemoteVisits: [RemoteVisitSummary] {
@@ -1647,7 +1620,7 @@ struct CafeDetailView: View {
         guard let summary = cafeExperienceSummary,
               summary.ratedSessionCount > 0,
               let average = summary.averageCafeRating else {
-            return "Cafe not rated yet"
+            return "Not rated yet"
         }
         return String(format: "%.1f", average)
     }
@@ -1670,11 +1643,7 @@ struct CafeDetailView: View {
     }
 
     private var personalRelationshipSubtitle: String {
-        let remoteDate = ownRemoteVisits.map(\.visit.createdAtDate).max()
-        let localDate = visits.map(\.createdAt).max()
-        if let latest = [remoteDate, localDate].compactMap({ $0 }).max() {
-            return "Last remembered \(latest.formatted(date: .abbreviated, time: .omitted))"
-        }
+        if personalSipCount > 0 { return personalHistoryLine }
         if currentCafe.wantToTry {
             return "Saved for a future coffee run"
         }
@@ -1801,28 +1770,69 @@ struct CafeDetailView: View {
     }
 
     private var privateDiscoveryNoteSection: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Label("Private note", systemImage: "lock.fill")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.espressoBrown)
-            TextField("Why do you want to try this cafe?", text: $privateNoteDraft, axis: .vertical)
-                .lineLimit(2 ... 4)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Text(privateNoteStatus ?? "Only you can see this note.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondaryText)
-                Spacer()
-                Button(isSavingPrivateNote ? "Saving…" : "Save note") {
-                    Task { await savePrivateDiscoveryNote() }
+        let note = currentCafe.discoveryNote?.remoteTrimmedNonEmpty
+        return Button {
+            showPrivateNote = true
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "lock.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                    .frame(width: 38, height: 38)
+                    .background(Color.mugshotMint.opacity(0.32), in: .rect(cornerRadius: 12))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Private note")
+                        .font(.headline)
+                        .foregroundStyle(Color.espressoBrown)
+                    Text(note ?? "Add a note for next time")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.secondaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
                 }
-                .font(.system(size: 12, weight: .bold))
-                .disabled(isSavingPrivateNote)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                    .accessibilityHidden(true)
             }
+            .padding(14)
+            .background(Color.foamWhite, in: .rect(cornerRadius: DesignSystem.Radius.heroCard))
+            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard).strokeBorder(Color.mugshotLine))
+            .contentShape(.rect)
         }
-        .padding(14)
-        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotLine))
+        .buttonStyle(.plain)
+        .accessibilityHint(note == nil ? "Add a private note" : "Edit your private note")
+        .accessibilityIdentifier("cafe.detail.privateNote")
+    }
+
+    private var privateDiscoveryNoteEditor: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            TextField("What would you like to remember?", text: $privateNoteDraft, axis: .vertical)
+                .font(.body)
+                .foregroundStyle(Color.espressoBrown)
+                .lineLimit(3 ... 6)
+                .padding(14)
+                .background(Color.foamWhite, in: .rect(cornerRadius: DesignSystem.Radius.card))
+                .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).strokeBorder(Color.mugshotLine))
+                .accessibilityLabel("Private note")
+                .accessibilityIdentifier("cafe.detail.noteEditor")
+            Text(privateNoteStatus ?? (currentCafe.wantToTry
+                ? "Only you can see this note."
+                : "Only you can see this note. Saving also adds the cafe to Want to Try."))
+                .font(.footnote)
+                .foregroundStyle(Color.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                Task { await savePrivateDiscoveryNote() }
+            } label: {
+                Text(isSavingPrivateNote ? "Saving…" : "Save note")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(isSavingPrivateNote)
+            .accessibilityIdentifier("cafe.detail.saveNote")
+        }
     }
 
     private var whyThisFitsSection: some View {
@@ -1855,22 +1865,40 @@ struct CafeDetailView: View {
 
     private var communityHighlightsSection: some View {
         let friendVisits = Set(communityRemoteVisits.filter { friendUserIDs.contains($0.visit.userId) }.map(\.visit.userId)).count
+        let detail = friendVisits == 1 ? "1 friend shared a sip here" : "\(friendVisits) friends shared sips here"
+        let drinks = Array(communityDrinkCounts.prefix(5))
 
-        return VStack(alignment: .leading, spacing: 10) {
-            MugshotSectionTitle(
-                title: friendVisits == 0 ? "Community at this cafe" : "Friends at this cafe",
-                subtitle: friendVisits == 0 ? "From visible community Mugshots" : "\(friendVisits) friends have shared visible Mugshots here"
+        return VStack(alignment: .leading, spacing: 12) {
+            cafeDetailSectionHeading(
+                friendVisits == 0 ? "Community at this cafe" : "Friends at this cafe",
+                detail: friendVisits == 0 ? nil : detail
             )
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(communityDrinkCounts.prefix(5)) { drink in
-                        MugshotTagChip(title: "\(drink.name) · \(drink.count)")
+            VStack(alignment: .leading, spacing: 0) {
+                Label("Drinks in shared sips", systemImage: "cup.and.saucer")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                    .padding(.bottom, 6)
+                ForEach(drinks) { drink in
+                    if drink.id != drinks.first?.id { Divider() }
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(drink.name)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Color.espressoBrown)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("\(drink.count)")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(Color.secondaryText)
+                            .accessibilityLabel("\(drink.count) \(drink.count == 1 ? "sip" : "sips")")
                     }
+                    .padding(.vertical, 9)
+                    .accessibilityElement(children: .combine)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.foamWhite, in: .rect(cornerRadius: DesignSystem.Radius.heroCard))
+            .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard).strokeBorder(Color.mugshotLine))
         }
-        .padding(16)
-        .cardStyle()
     }
 
     private var communityDrinkCounts: [CommunityDrinkCount] {
@@ -1883,23 +1911,34 @@ struct CafeDetailView: View {
             .sorted { $0.count == $1.count ? $0.name < $1.name : $0.count > $1.count }
     }
 
-    private func detailStatCard(title: String, value: String, systemImage: String) -> some View {
+    private func detailStat(title: String, value: String, systemImage: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 20 : 12, weight: .semibold))
-                .foregroundColor(.espressoBrown.opacity(0.58))
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.mugshotSageText)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(value)
-                .font(.system(size: dynamicTypeSize.isAccessibilitySize ? 28 : 22, weight: .bold))
-                .foregroundColor(.espressoBrown)
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Color.espressoBrown)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.foamWhite.opacity(0.94))
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Radius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.card).stroke(Color.mugshotLine))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func cafeDetailSectionHeading(_ title: String, detail: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .mugshotDisplay(size: 24)
+                .foregroundStyle(Color.espressoBrown)
+                .accessibilityAddTraits(.isHeader)
+            if let detail {
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.secondaryText)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func detailActionButton(
@@ -2034,22 +2073,34 @@ struct CafeDetailView: View {
 
     private var secondaryActionsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let address = currentCafe.address.remoteTrimmedNonEmpty {
+                Button {
+                    UIPasteboard.general.string = address
+                } label: {
+                    secondaryActionRow("Copy address", systemImage: "doc.on.doc", detail: address)
+                }
+                .buttonStyle(.plain)
+                secondaryActionDivider
+            }
+
             if let applePhoneNumber = applePhoneNumber?.remoteTrimmedNonEmpty {
                 Button {
                     openPhone(number: applePhoneNumber)
                 } label: {
-                    secondaryActionRow(applePhoneNumber, systemImage: "phone.fill")
+                    secondaryActionRow("Call", systemImage: "phone", detail: applePhoneNumber)
                 }
                 .buttonStyle(.plain)
+                secondaryActionDivider
             }
 
             if let websiteURL = currentCafe.websiteURL?.remoteTrimmedNonEmpty {
                 Button {
                     openWebsite(urlString: websiteURL)
                 } label: {
-                    secondaryActionRow("Website", systemImage: "safari")
+                    secondaryActionRow("Website", systemImage: "safari", opensExternally: true)
                 }
                 .buttonStyle(.plain)
+                secondaryActionDivider
             }
 
             ShareLink(
@@ -2059,15 +2110,8 @@ struct CafeDetailView: View {
             ) {
                 secondaryActionRow("Share cafe", systemImage: "square.and.arrow.up")
             }
-
-            if let address = currentCafe.address.remoteTrimmedNonEmpty {
-                Button {
-                    UIPasteboard.general.string = address
-                } label: {
-                    secondaryActionRow("Copy address", systemImage: "doc.on.doc")
-                }
-                .buttonStyle(.plain)
-            }
+            .buttonStyle(.plain)
+            secondaryActionDivider
 
             Button {
                 showReportUnavailable = true
@@ -2076,25 +2120,47 @@ struct CafeDetailView: View {
             }
             .buttonStyle(.plain)
         }
-        .background(Color.foamWhite, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.mugshotLine))
+        .background(Color.foamWhite, in: .rect(cornerRadius: DesignSystem.Radius.heroCard))
+        .overlay(RoundedRectangle(cornerRadius: DesignSystem.Radius.heroCard).strokeBorder(Color.mugshotLine))
     }
 
-    private func secondaryActionRow(_ title: String, systemImage: String) -> some View {
+    private var secondaryActionDivider: some View {
+        Divider().padding(.leading, 52)
+    }
+
+    private func secondaryActionRow(
+        _ title: String,
+        systemImage: String,
+        detail: String? = nil,
+        opensExternally: Bool = false
+    ) -> some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.mugshotSageText)
-                .frame(width: 28)
-            Text(title)
-                .font(.system(size: 15))
-                .foregroundColor(.espressoBrown)
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.tertiaryText)
+                .font(.body.weight(.medium))
+                .foregroundStyle(Color.mugshotSageText)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                if let detail {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            if opensExternally {
+                Image(systemName: "arrow.up.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.mugshotSageText)
+                    .accessibilityHidden(true)
+            }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .frame(minHeight: 52)
         .contentShape(Rectangle())
     }
@@ -2206,6 +2272,15 @@ struct CafeDetailView: View {
     @MainActor
     private func loadRemoteVisits() async {
         let key = remoteVisitTaskID
+#if DEBUG
+        if MugshotLaunchEnvironment.savedAuditScenario != nil,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-cafe-lower-sections"),
+           currentCafe.id == SavedAuditFixtures.primaryCafeID {
+            let activity = SavedAuditFixtures.lowerDetailActivity
+            remoteHistory = (key, activity.visits, activity.friends)
+            return
+        }
+#endif
         guard let remoteCafeID = signedInRemoteCafeId,
               let userID = authModel.authenticatedUser?.id else {
             remoteHistory = nil

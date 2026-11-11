@@ -104,6 +104,7 @@ struct HomeLibraryView: View {
     private var preferences: HomeLibraryPreferences { library.preferences ?? HomeLibraryPreferences() }
     private var profiles: [HomePlaceProfile] { (preferences.homeProfiles ?? []).filter { $0.ownerUserID == ownerID } }
     private var canStartRecipe: Bool { includesSipDrafts || onSelectStarter != nil }
+    private var offersGuestPhotoDrafts: Bool { includesSipDrafts && ownerID == nil }
     private var availableSections: [HomeLibrarySection] {
         includesSipDrafts || onSelectRecipe != nil || onSelectStarter != nil ? HomeLibrarySection.allCases : [initialSection]
     }
@@ -201,9 +202,14 @@ struct HomeLibraryView: View {
                     .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .sheet(isPresented: $showsDrafts, onDismiss: reload) {
-                HomeDraftManagementView(ownerID: ownerID, includesSipDrafts: includesSipDrafts, onResumeSip: { draft in
-                    showsDrafts = false; dismiss(); onComposeDraft(draft)
-                }).environment(\.dynamicTypeSize, dynamicTypeSize)
+                HomeDraftManagementView(
+                    ownerID: ownerID,
+                    includesSipDrafts: includesSipDrafts,
+                    onResumeSip: { draft in
+                        showsDrafts = false; dismiss(); onComposeDraft(draft)
+                    },
+                    onPhotoDraftSaved: offersGuestPhotoDrafts ? { reload() } : nil
+                ).environment(\.dynamicTypeSize, dynamicTypeSize)
             }
             .sheet(item: $profileEditor, onDismiss: reload) { profile in
                 HomePlaceProfileEditorView(ownerID: ownerID, profile: profile) { _ in reload() }
@@ -237,7 +243,7 @@ struct HomeLibraryView: View {
                     Text(heading).font(.system(.largeTitle, design: .serif).weight(.semibold))
                     Text(subtitle).font(.subheadline).foregroundStyle(Color.secondaryText)
                     if availableSections.count > 1 { sectionPicker }
-                    if section == .recipes, includesSipDrafts, draftCount > 0 {
+                    if section == .recipes, includesSipDrafts, draftCount > 0 || offersGuestPhotoDrafts {
                         HomeDraftSummaryButton(count: draftCount) { showsDrafts = true }
                     }
                     sectionContent

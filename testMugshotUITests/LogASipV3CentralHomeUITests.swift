@@ -168,6 +168,7 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         app.buttons["home.sip.savePrivate"].tap()
         XCTAssertTrue(app.staticTexts["Not rated"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Afternoon matcha"].exists)
+        XCTAssertTrue(app.buttons["sip.detail.actions"].firstMatch.isHittable)
         attachScreenshot(named: "02-home-quick-log-unrated-private-save", app: app)
         app.terminate()
         app.launchArguments = ["--ui-testing", "--ui-testing-home-account", "--ui-testing-reduce-motion"]
@@ -177,6 +178,14 @@ final class LogASipV3CentralHomeUITests: XCTestCase {
         XCTAssertTrue(entry.waitForExistence(timeout: 6))
         entry.tap()
         XCTAssertTrue(app.staticTexts["Not rated"].waitForExistence(timeout: 5))
+        let actions = app.buttons["sip.detail.actions"].firstMatch
+        XCTAssertTrue(actions.isHittable)
+        XCTAssertFalse(app.buttons["mugshot.tab.journal"].exists)
+        attachScreenshot(named: "home-sip-from-journal", app: app)
+        actions.tap()
+        XCTAssertTrue(app.buttons["Edit Sip"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Share Sip"].firstMatch.exists)
+        attachScreenshot(named: "home-sip-menu-from-journal", app: app)
     }
 
     @MainActor

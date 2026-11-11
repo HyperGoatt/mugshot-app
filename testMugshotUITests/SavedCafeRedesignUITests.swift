@@ -48,6 +48,12 @@ final class SavedCafeRedesignUITests: XCTestCase {
         XCTAssertTrue(app.buttons["cafe.detail.back"].label.contains("Map"))
         XCTAssertTrue(app.buttons["cafe.nextSip.repeat"].waitForExistence(timeout: 3))
         attachScreenshot(named: "implementation-map-detail")
+        let scroll = app.scrollViews["cafe.detail.scroll"]
+        let note = app.buttons["cafe.detail.privateNote"]
+        for _ in 0..<5 where !note.isHittable { scroll.swipeUp(velocity: .slow) }
+        XCTAssertTrue(note.isHittable)
+        XCTAssertTrue(app.staticTexts["Your Mugshot"].exists)
+        attachScreenshot(named: "map-lower-cafe-detail")
     }
 
     @MainActor
@@ -122,6 +128,16 @@ final class SavedCafeRedesignUITests: XCTestCase {
         for _ in 0..<4 where !repeatAction.isHittable { scroll.swipeUp() }
         XCTAssertTrue(repeatAction.isHittable)
         attachScreenshot(named: "implementation-detail-accessibility-xxxl")
+        let note = app.buttons["cafe.detail.privateNote"]
+        for _ in 0..<8 where !note.isHittable { scroll.swipeUp(velocity: .slow) }
+        XCTAssertTrue(note.isHittable)
+        attachScreenshot(named: "cafe-private-note-largest-text")
+        note.tap()
+        XCTAssertTrue(element("cafe.detail.noteEditor", in: app).waitForExistence(timeout: 5))
+        let save = app.buttons["cafe.detail.saveNote"]
+        XCTAssertTrue(save.exists)
+        if !save.isHittable { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(save.isHittable)
     }
 
     @MainActor
@@ -155,6 +171,45 @@ final class SavedCafeRedesignUITests: XCTestCase {
         XCTAssertTrue(cafeDetail.waitForExistence(timeout: 4))
         XCTAssertFalse(sipDetail.exists)
         XCTAssertTrue(app.staticTexts["Harborlight Coffee Roasters"].exists)
+    }
+
+    @MainActor
+    func testLowerCafeSectionsAndPrivateNoteEditor() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-signed-out",
+                               "--saved-audit-scenario=populated", "--ui-testing-cafe-lower-sections"]
+        app.launch()
+        let card = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Harborlight Coffee Roasters")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 6)); card.tap()
+        let scroll = app.scrollViews["cafe.detail.scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 5))
+        let note = app.buttons["cafe.detail.privateNote"]
+        for _ in 0..<5 where !note.isHittable { scroll.swipeUp(velocity: .slow) }
+        XCTAssertTrue(note.isHittable)
+        XCTAssertTrue(app.staticTexts["Your Mugshot"].exists)
+        XCTAssertFalse(element("cafe.detail.noteEditor", in: app).exists)
+        attachScreenshot(named: "cafe-private-note-and-your-mugshot")
+        note.tap()
+        let editor = element("cafe.detail.noteEditor", in: app)
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        attachScreenshot(named: "cafe-private-note-editor")
+        editor.tap()
+        editor.typeText("Try the window seat")
+        let save = app.buttons["cafe.detail.saveNote"]
+        XCTAssertTrue(save.isHittable); save.tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Saved privately")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.label.contains("Try the window seat"))
+
+        let about = app.staticTexts["About this cafe"]
+        for _ in 0..<5 where !about.isHittable { scroll.swipeUp(velocity: .slow) }
+        XCTAssertTrue(about.isHittable)
+        XCTAssertTrue(app.staticTexts["Friends at this cafe"].exists)
+        XCTAssertTrue(app.staticTexts["1 friend shared a sip here"].exists)
+        XCTAssertTrue(app.buttons.containing(NSPredicate(format: "label BEGINSWITH %@", "Copy address")).firstMatch.exists)
+        XCTAssertTrue(app.buttons["Share cafe"].exists)
+        attachScreenshot(named: "cafe-friends-and-about")
     }
 
     @MainActor

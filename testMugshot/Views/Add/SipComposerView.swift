@@ -72,12 +72,6 @@ struct LogVisitView: View {
     @State private var photoOrganizerOriginalImages: [UIImage]?
     @State private var photoOrganizerOriginalPosterIndex: Int?
     @State private var resumableDrafts: [SipDraft] = []
-    @State private var pocketSipPresentation: PocketSipPresentation?
-
-    private struct PocketSipPresentation: Identifiable {
-        let id = UUID()
-        let scope: LocalAccountScope
-    }
     @State private var presentedDraftResumePicker: SipDraftResumePickerPresentation?
     @State private var remoteCafeSessionsAvailable = false
     @State private var cafeLearningSignals: [CafePreferenceSignal] = []
@@ -297,18 +291,6 @@ struct LogVisitView: View {
                     onSave: { companions in
                         draft.taggedCompanions = companions
                         draft.companions = companions.map(\.displayName)
-                    }
-                )
-            }
-            .sheet(item: $pocketSipPresentation, onDismiss: refreshResumableDrafts) { presentation in
-                let scope = presentation.scope
-                PocketSipSheet(
-                    scope: scope,
-                    canSave: { localAccountScope == scope },
-                    onSaved: { dataManager.noteJournalMutation() },
-                    onOpen: { draft in
-                        guard localAccountScope == scope else { return }
-                        resumeDraft(draft)
                     }
                 )
             }
@@ -554,7 +536,6 @@ struct LogVisitView: View {
                 if let location { updateSearchRegion(for: location) }
             }
             .onChange(of: localAccountScope) { _, _ in
-                pocketSipPresentation = nil
             }
             .onChange(of: dataManager.journalRevision) { _, _ in
                 refreshResumableDrafts()
@@ -627,10 +608,6 @@ struct LogVisitView: View {
                 .names(scope: pinnedContextScope).isEmpty,
             onCancel: cancelComposer,
             onResumeDraft: requestDraftResume,
-            onPocketSip: draft.launchContext.source == .centralAdd
-                && !draft.hasDraftWorthyUserContent && photoImages.isEmpty
-                ? { pocketSipPresentation = PocketSipPresentation(scope: localAccountScope) }
-                : nil,
             onResumeStoredDraft: resumeDraft,
             onEditRepeatOrderNotes: { [draftID = draft.id] notes in
                 guard draft.id == draftID, draft.launchContext.source == .nextSip,

@@ -1,5 +1,8 @@
 # Cafe detail, The Next Sip and Pocket Sip
 
+> The November 11 candidate moves in-app capture from Add to Journal → Drafts →
+> Add photos. See the [current photo draft routes](../REPAIR_SHARING_STATUS.md#photo-drafts--november-11-candidate).
+
 ## Goal
 
 Integrate the approved Mugshot Lab experience into the existing iOS app. A cafe opens at full height from Map or Saved. A returning visitor can start from their latest order, and a person with coffee photos can keep a private draft from Add or directly from Photos.

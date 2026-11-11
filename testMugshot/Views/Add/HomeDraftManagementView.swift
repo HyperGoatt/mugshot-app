@@ -32,7 +32,7 @@ struct HomeDraftSummaryButton: View {
                     .background(Color.mugshotMint.opacity(0.32), in: RoundedRectangle(cornerRadius: 13))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Your drafts").font(.headline)
-                    Text(count == 0 ? "A little room for your next idea" : "Pick up where you left off, or clear a little space")
+                    Text(count == 0 ? "Save photos for later" : "Resume or manage")
                         .font(.caption).foregroundStyle(Color.secondaryText)
                 }
                 Spacer(minLength: 4)
@@ -54,6 +54,7 @@ struct HomeDraftManagementView: View {
     var excludingSipID: UUID? = nil
     var onResumeSip: ((SipDraft) -> Void)? = nil
     var onResumeSession: ((UUID) -> Void)? = nil
+    var onPhotoDraftSaved: (() -> Void)? = nil
     @EnvironmentObject private var authModel: AppAuthModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -64,6 +65,8 @@ struct HomeDraftManagementView: View {
     @State private var error: String?
     @State private var pendingDiscard: DiscardTarget?
     @State private var destination: Destination?
+    @State private var showsPhotoDraftCapture = false
+    @State private var photoDraftToResume: SipDraft?
 
     private enum DiscardTarget { case sip(SipDraft), home(HomeDraftItem) }
     private enum Destination: Identifiable {
@@ -121,13 +124,34 @@ struct HomeDraftManagementView: View {
                 }
             }
             .navigationTitle("Your drafts").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                if onPhotoDraftSaved != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            showsPhotoDraftCapture = true
+                        } label: {
+                            Label("Add photos", systemImage: "photo.badge.plus")
+                                .labelStyle(.titleOnly)
+                                .frame(minHeight: 44)
+                        }
+                        .accessibilityLabel("Add photos")
+                        .accessibilityIdentifier("drafts.addPhotos")
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
             .task {
                 guard currentOwnerID == ownerID else { return }
                 workspace.activate(scope); reload()
             }
             .onChange(of: authModel.authenticatedUser?.id) { _, _ in
-                if currentOwnerID != ownerID { destination = nil; pendingDiscard = nil; dismiss() }
+                if currentOwnerID != ownerID {
+                    destination = nil
+                    pendingDiscard = nil
+                    photoDraftToResume = nil
+                    showsPhotoDraftCapture = false
+                    dismiss()
+                }
             }
             .sheet(isPresented: Binding(
                 get: { pendingDiscard != nil }, set: { if !$0 { pendingDiscard = nil } }
@@ -139,9 +163,28 @@ struct HomeDraftManagementView: View {
                     .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
             }
             .sheet(item: $destination, onDismiss: { reload() }) { item in destinationView(item) }
+            .sheet(isPresented: $showsPhotoDraftCapture, onDismiss: finishPhotoDraftCapture) {
+                PocketSipSheet(
+                    scope: scope,
+                    canSave: { isCurrentOwner },
+                    onSaved: { if isCurrentOwner { onPhotoDraftSaved?() } },
+                    onOpen: { if isCurrentOwner { photoDraftToResume = $0 } }
+                )
+            }
         }
         .tint(Color.mugshotSageText)
         .disabled(!isCurrentOwner)
+    }
+
+    private func finishPhotoDraftCapture() {
+        defer { photoDraftToResume = nil }
+        guard isCurrentOwner else { return }
+        if let draft = photoDraftToResume, let onResumeSip {
+            dismiss()
+            onResumeSip(draft)
+        } else {
+            reload()
+        }
     }
 
     private func sipRow(_ draft: SipDraft) -> some View {
