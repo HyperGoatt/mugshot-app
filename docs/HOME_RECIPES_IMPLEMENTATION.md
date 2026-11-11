@@ -45,6 +45,10 @@ Naming an idea allows **Save for later**. A usable recipe supports
 **Save recipe** or **Save & make**. An iOS shared source reopens through
 **Continue recipe**. Website links can be kept as references alongside pasted
 text or a screenshot. The link reader supports public Instagram and TikTok posts.
+Imported ingredients show the ingredient name, printed amount, and printed unit
+in separate editable fields. Fractions such as ½ fill Amount as 0.5. Counted
+ingredients can have a blank Unit, and unmeasured or ambiguous lines stay as
+written for review. A new source read preserves ingredients you edit or remove.
 The footer takes up its own space and the form scrolls
 in the remaining space, including with the keyboard open.
 

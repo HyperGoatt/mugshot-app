@@ -109,9 +109,11 @@ public-link/attachment capture automatically fills factual fields, keeps source
 credit and does not assert or expand a source's reuse permission. Known
 protected/no-copy recipes cannot use import. Accepted fields update only
 the editable draft; ordinary Save remains a separate action. Recipe capture
-preserves attribution and existing fields, appends selected literal ingredient
-and instruction text without inventing numeric amounts, and does not change
-recipe visibility. The saved-sip comparison runs locally. Its optional
+preserves attribution and existing fields. The same on-device import step
+separates clear printed measurements into Ingredient, Amount, and Unit for
+OCR and Mugsy results. Ambiguous lines stay as written for review. Instructions
+and original source quotes are retained, and recipe visibility is unchanged.
+The saved-sip comparison runs locally. Its optional
 experiment request can include reviewed recorded readings and labeled plans.
 Starting an experiment creates a private repeat draft.
 It excludes private notes by default and uses the existing account and

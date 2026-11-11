@@ -4,6 +4,10 @@ status: current
 last_verified: 2026-11-11
 ---
 
+## 2026-11-11 — Imported recipe measurements
+
+- Fill Ingredient, Amount, and Unit separately when recipe capture reads a clear measurement from a screenshot or other source. Keep preparation and optional qualifiers, preserve ambiguous lines for review, and keep edited or removed rows as the user left them when Mugsy reads the source again.
+
 ## 2026-11-11 — Journal and Home composer crash repair
 
 - Resolve iPhone main-thread stack exhaustion when opening Journal with Home drafts or entering the Home composer. Journal defers its scroll layout and counts drafts once. The Home composer builds the active screen independently.

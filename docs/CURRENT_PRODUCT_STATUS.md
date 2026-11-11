@@ -39,7 +39,8 @@ separately from the saved sip.
 
 The iOS share extension offers a recipe or cafe for web links and text,
 and recipe screenshot or Pocket Sip for photos. Home reopens shared
-recipe sources in the originating account. Saved → Home library offers
+recipe sources in the originating account. Recipe capture puts clear printed
+measurements in the editable Amount and Unit fields. Saved → Home library offers
 Whole drinks, Add-ins, and Brew recipes, with explicit version and copy
 actions and historical add-in usage. [Current plan](plans/home-recipe-to-sip-2026-11-10.plan.md).
 
