@@ -1290,16 +1290,9 @@ struct MainTabView: View {
     }
 
     private var signedInOnboardingPresentation: Binding<Bool> {
-        Binding(
-            get: { showsSignedInOnboarding || requiresSignedInOnboarding },
-            set: { isPresented in
-                if isPresented {
-                    showsSignedInOnboarding = true
-                } else if !requiresSignedInOnboarding {
-                    showsSignedInOnboarding = false
-                }
-            }
-        )
+        // The DEBUG tour is scheduled once. Its launch flag must not keep the
+        // introduction presented over the tour after the user continues.
+        $showsSignedInOnboarding
     }
 
     private func scheduleGuestIntroductionIfNeeded() {

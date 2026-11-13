@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-13
 ---
+
+## Reflection preference recovery — November 13 candidate
+
+Unavailable reflection preferences show an actionable reload state; signed-out
+views explain the missing account instead of showing empty controls. Save failure
+retains the user's edits. Loading and saving are scoped to the current account
+and presentation, with late/canceled results ignored. Reminder permission prompts
+still follow an acknowledged opt-in save. No notification schedule, APNs delivery,
+backend contract, or production configuration changes in this sprint.
+[Simulator audit and limits](audits/premium-polish-2026-11-13/README.md).
 
 Owner follow-up on 2026-09-14 confirmed reminder settings persist after Save.
 The client now exposes Save in the navigation bar and marks unsaved changes;

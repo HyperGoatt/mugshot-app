@@ -22,7 +22,10 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-home-drafts") {
+            if MugshotLaunchEnvironment.isUITesting,
+               ProcessInfo.processInfo.arguments.contains("--ui-testing-premium-polish") {
+                PremiumPolishPreviewHost()
+            } else if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-home-drafts") {
                 HomeDraftControlsPreviewHost()
             } else if MugshotLaunchEnvironment.isUITesting && ProcessInfo.processInfo.arguments.contains("--ui-testing-home-profiles") {
                 HomeDraftControlsPreviewHost(showsProfiles: true)

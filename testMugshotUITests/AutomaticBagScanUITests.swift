@@ -17,10 +17,10 @@ final class AutomaticBagScanUITests: XCTestCase {
     }
 
     @MainActor
-    func testLunaFillsTheActualBagEditorWithoutAnImproveOrReviewStep() {
+    func testMugsyFillsTheActualBagEditorWithoutAnImproveOrReviewStep() {
         let app = launch()
         let message = app.staticTexts["home.bag.scan.status"]
-        let filled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Luna read"), object: message)
+        let filled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Mugsy read"), object: message)
         XCTAssertEqual(XCTWaiter.wait(for: [filled], timeout: 8), .completed)
         XCTAssertFalse(app.buttons["Improve this scan"].exists)
         XCTAssertFalse(app.buttons["coffeeAssistance.accept"].exists)
@@ -30,7 +30,7 @@ final class AutomaticBagScanUITests: XCTestCase {
     }
 
     @MainActor
-    func testFailedLunaReadFallsBackToTheOnDeviceScanner() {
+    func testFailedMugsyReadFallsBackToTheOnDeviceScanner() {
         let app = launch(failure: true)
         let message = app.staticTexts["home.bag.scan.status"]
         let fallback = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@", "Read on your iPhone"), object: message)

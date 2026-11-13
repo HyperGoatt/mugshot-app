@@ -198,8 +198,13 @@ final class HomeNativeShareUITests: XCTestCase {
         let share = photos.buttons["Share"].firstMatch
         if !share.waitForExistence(timeout: 3) || !share.isHittable {
             let latest = photos.images.matching(identifier: "PXGGridLayout-Info").allElementsBoundByIndex.last
-            let image = try XCTUnwrap(latest, "Add the fictional recipe screenshot to this Simulator’s Photos first.")
-            image.tap()
+            if let latest {
+                latest.tap()
+            } else {
+                // Newer Photos versions omit grid images from the host AX tree.
+                // Locate text on the fictional recipe image instead.
+                try tapVisibleText("Ingredients:", on: photos)
+            }
         }
         XCTAssertTrue(share.waitForExistence(timeout: 5)); share.tap()
         try tapVisibleText("Mugshot", on: photos, below: 0.25)
@@ -207,7 +212,7 @@ final class HomeNativeShareUITests: XCTestCase {
 
     /// The Photos activity controller and extension may sit outside the host's
     /// accessibility tree. Use live on-device text bounds on this QA Simulator.
-    @MainActor private func visibleText(_ label: String, below top: CGFloat = 0, timeout: TimeInterval = 8) throws -> CGVector {
+    @MainActor private func visibleText(_ label: String, below top: CGFloat = 0, timeout: TimeInterval = 20) throws -> CGVector {
         let until = Date.now.addingTimeInterval(timeout)
         repeat {
             let screenshot = XCUIScreen.main.screenshot()

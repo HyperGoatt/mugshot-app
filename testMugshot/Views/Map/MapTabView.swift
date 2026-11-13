@@ -2895,23 +2895,57 @@ private final class MugshotAggregateAnnotationView: MKAnnotationView {
 struct RatingsLegend: View {
     let showsFriendContext: Bool
     var title: String? = nil
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showsExpandedKey = false
+
+    private var heading: String { title ?? (showsFriendContext ? "Friends’ ratings" : "Your ratings") }
 
     var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Button { showsExpandedKey = true } label: {
+                Label(heading, systemImage: "info.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                    .frame(maxWidth: .infinity)
+                    .padding(16)
+                    .background(Color.creamWhite, in: RoundedRectangle(cornerRadius: 18))
+            }
+            .accessibilityHint("Opens the rating and bookmark key")
+            .accessibilityIdentifier("map.ratingsLegend.open")
+            .sheet(isPresented: $showsExpandedKey) {
+                NavigationStack {
+                    ScrollView { legendContent.padding(20) }
+                        .background(Color.creamWhite)
+                        .navigationTitle("Map key")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showsExpandedKey = false }
+                                    .accessibilityIdentifier("map.ratingsLegend.close")
+                            }
+                        }
+                }
+                .tint(Color.mugshotSageText)
+            }
+        } else {
+            legendContent
+        }
+    }
+
+    private var legendContent: some View {
         VStack(spacing: 8) {
-            Text(title ?? (showsFriendContext ? "Friends’ ratings" : "Your ratings"))
-                .font(.system(size: 12, weight: .semibold))
+            Text(heading)
+                .font(.caption.weight(.semibold))
                 .foregroundColor(.roastBrown)
 
-            HStack(spacing: 16) {
-                LegendItem(color: .mapPinHigh, text: "≥ 4.0", accessibilityText: "High", accessibilityValueText: "4.0 or higher")
-                LegendItem(color: .mapPinMiddle, text: "3.0–3.9", accessibilityText: "Mid", accessibilityValueText: "3.0 to 3.9")
-                LegendItem(color: .mapPinLow, text: "< 3.0", accessibilityText: "Low", accessibilityValueText: "Below 3.0")
-                LegendItem(icon: "bookmark.fill", color: .mugshotSage, text: "Want to try", accessibilityText: "Want to try")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { items }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), alignment: .leading, spacing: 8) { items }
             }
-            
-            Text("Tap a pin to see its source and evidence.")
-                .font(.system(size: 10))
-                .foregroundColor(.tertiaryText)
+            Text(dynamicTypeSize.isAccessibilitySize ? "Tap a pin for details." : "Tap a pin to see its source and evidence.")
+                .font(.caption2)
+                .foregroundColor(.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -2921,6 +2955,19 @@ struct RatingsLegend: View {
             stroke: Color.foamWhite.opacity(0.58),
             shadow: DesignSystem.Shadow(color: .black.opacity(0.10), radius: 16, x: 0, y: 6)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(heading)
+        .accessibilityValue("High: 4.0 or higher. Mid: 3.0 to 3.9. Low: below 3.0. Bookmark: Want to try.")
+        .accessibilityHint("Tap a pin to see its source and evidence.")
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityIdentifier("map.ratingsLegend")
+    }
+
+    @ViewBuilder private var items: some View {
+        LegendItem(color: .mapPinHigh, text: "≥ 4.0")
+        LegendItem(color: .mapPinMiddle, text: "3.0–3.9")
+        LegendItem(color: .mapPinLow, text: "< 3.0")
+        LegendItem(icon: "bookmark.fill", color: .mugshotSage, text: "Want to try")
     }
 }
 
@@ -2945,7 +2992,8 @@ struct LegendItem: View {
                     .accessibilityHidden(true)
             }
             Text(text)
-                .font(.system(size: 11))
+                .fixedSize()
+                .font(.caption2)
                 .foregroundColor(.roastBrown)
                 .accessibilityLabel(accessibilityText ?? text)
                 .accessibilityValue(accessibilityValueText ?? "")

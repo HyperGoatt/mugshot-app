@@ -376,7 +376,7 @@ final class AppAuthModel: ObservableObject {
             try await authService.requestPasswordReset(email: email.normalizedEmail)
             accountRecoveryMessage = "If that address belongs to a Mugshot account, a password reset link is on its way."
         } catch {
-            accountRecoveryError = safeMessage(for: error)
+            accountRecoveryError = safeMessage(for: error, context: .passwordReset)
         }
         isPerformingAccountRecovery = false
     }
@@ -1414,7 +1414,7 @@ final class AppAuthModel: ObservableObject {
         isPerformingAccountRecovery = false
     }
 
-    private func safeMessage(for error: Error) -> String {
+    private func safeMessage(for error: Error, context: MugshotUserFacingError.Context = .account) -> String {
         if isCanceledWebAuthentication(error) {
             return "Sign-in was canceled. Nothing changed."
         }
@@ -1447,7 +1447,7 @@ final class AppAuthModel: ObservableObject {
                 break
             }
         }
-        return MugshotUserFacingError.message(for: error, context: .account)
+        return MugshotUserFacingError.message(for: error, context: context)
     }
 
     private func isCanceledWebAuthentication(_ error: Error) -> Bool {

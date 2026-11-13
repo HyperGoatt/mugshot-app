@@ -1,8 +1,32 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-11
+last_verified: 2026-11-13
 ---
+
+## Simulator audit and premium polish — November 13 candidate
+
+The [front-to-back audit](audits/premium-polish-2026-11-13/README.md) records
+normal navigation, isolated failure fixtures, compact-screen checks and explicit
+service/hardware gaps. Account health now reports local pending work without
+claiming a verified cloud backup. Discovery settings distinguish unknown values
+from confirmed preferences and require a reload after an uncertain save.
+Reflection preferences offer recovery without dropping unsaved edits.
+
+First launch has eight accurate steps and a native, scrollable presentation for
+accessibility text sizes and VoiceOver, using canonical Mugsy. The Map legend has
+one semantic description and an expandable key at accessibility text sizes.
+Support uses the shared cream canvas, semantic type, and immediate copied-address feedback. Password-reset
+errors describe the requested action. The Simulator sprint included no schema,
+production configuration, marketing-version, or TestFlight change. Subsequent
+owner-requested development delivery is recorded below.
+
+The owner-requested [iPhone delivery](audits/premium-polish-2026-11-13/PHONE_INSTALLED.md)
+is installed and launch-verified as development **0.5.3 (18)**, replacing build 16
+in place after private backups. All 45 content files remain byte-identical after
+launch; app and shared preference values are preserved. The app opened on Feed.
+This establishes development delivery only; hands-on acceptance of changed flows,
+dependency holds, and TestFlight acceptance remain separate.
 
 ## Journal and Home composer crash repair — November 11 candidate
 

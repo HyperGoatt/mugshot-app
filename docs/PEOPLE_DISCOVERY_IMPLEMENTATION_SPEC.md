@@ -1,8 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-11-13
 ---
+
+## Discovery preference recovery — November 13 candidate
+
+Unknown discovery settings are never rendered as three off switches. The client
+shows loading, sign-in, or reload guidance until preferences are confirmed.
+Writes serialize within one account/presentation. An uncertain write restores
+the last confirmed display, disables further edits, and asks the user to reload;
+it does not claim that a failed network response proves a server rollback.
+Reload reconciles the server response before editing resumes. Late, canceled,
+dismissed, and previous-account results cannot replace the current screen.
+
+Focused isolated store tests cover retry, lost acknowledgements, duplicate
+writes, cancellation and ownership. Simulator coverage and remaining hosted
+acceptance are recorded in the [audit](audits/premium-polish-2026-11-13/README.md).
+No RPC, consent, contact-upload, or discovery eligibility contract changes.
 
 # People discovery implementation spec
 
