@@ -20,6 +20,12 @@ Support uses the shared cream canvas, semantic type, and immediate copied-addres
 errors describe the requested action. No schema, production configuration,
 marketing version, physical-device, or TestFlight change is included.
 
+The owner-requested [iPhone delivery](audits/premium-polish-2026-11-13/PHONE_DELIVERY.md)
+has a verified, signed development **0.5.3 (18)** package ready. The paired phone
+is unavailable to Xcode; fresh backup, installation, and launch remain blocked.
+The phone's existing app and data are untouched. This does not establish physical
+acceptance or change the dependency holds.
+
 ## Journal and Home composer crash repair — November 11 candidate
 
 Build 15 crash reports from the iPhone identify stack exhaustion while opening

@@ -15,6 +15,12 @@ fixtures provide regression coverage; hosted authentication, social writes,
 physical-device and TestFlight acceptance remain separate. This branch retains
 the Home recipe dependency stack and its unresolved acceptance holds.
 
+The owner subsequently requested an in-place iPhone install. Signed development
+**0.5.3 (18)** is verified and ready, but the paired device is unavailable.
+[Delivery receipt and remaining checks](audits/premium-polish-2026-11-13/PHONE_DELIVERY.md).
+Backup, installation, and launch remain pending; no phone data or TestFlight state
+was changed.
+
 ## Home from recipe to sip — November 10
 
 The [current plan](plans/home-recipe-to-sip-2026-11-10.plan.md) covers the
