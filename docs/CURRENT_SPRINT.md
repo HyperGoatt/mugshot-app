@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-10
+last_verified: 2026-11-13
 ---
+
+## Premium audit and polish — November 13
+
+The [audit and implementation plan](audits/premium-polish-2026-11-13/README.md)
+and [flow coverage matrix](audits/premium-polish-2026-11-13/FLOW_COVERAGE.md)
+track this Simulator-only sprint. Repairs address account-status truthfulness,
+settings recovery, onboarding accessibility, the Map legend, Support feedback,
+and reset-link error copy. Existing local brewing, Journal, cafe and publication
+fixtures provide regression coverage; hosted authentication, social writes,
+physical-device and TestFlight acceptance remain separate. This branch retains
+the Home recipe dependency stack and its unresolved acceptance holds.
 
 ## Home from recipe to sip — November 10
 

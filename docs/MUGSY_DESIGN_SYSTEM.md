@@ -1,8 +1,24 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-05
+last_verified: 2026-11-13
 ---
+
+## Accessibility and recovery finishing — November 13 candidate
+
+First-launch education retains the approved marketing artwork at standard sizes,
+with a native eight-step counter. At accessibility text sizes or with VoiceOver,
+readable native headings, body text and scrollable actions replace raster copy;
+the existing onboarding Mugsy configuration supplies the character moment.
+No canonical artwork or proportions change. The DEBUG product-tour group keeps
+separate, meaningful button labels rather than inheriting the character speech.
+
+Settings and support stay quiet. Support uses full cream, semantic typography,
+and a finite copied-state crossfade with immediate state change and optional
+haptic feedback. Reduce Motion removes that animation. The Map key groups its
+decorations into one semantic description. At accessibility text sizes, a compact
+button opens the full readable key in a sheet, preserving the Map and recenter control.
+[Audit evidence](audits/premium-polish-2026-11-13/README.md).
 
 ## Home editors and shared Journal row — November 5 candidate
 

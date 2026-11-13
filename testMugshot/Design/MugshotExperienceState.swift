@@ -70,6 +70,8 @@ enum MugshotUserFacingError {
             return "Location isn’t available. You can still search for a cafe."
         case .account:
             return "We couldn’t update your account. Please try again."
+        case .passwordReset:
+            return "We couldn’t request a reset link. Check your connection, then try again."
         case .loading:
             return "We couldn’t load this yet. Please try again."
         }
@@ -83,6 +85,7 @@ enum MugshotUserFacingError {
         case cafeSearch
         case location
         case account
+        case passwordReset
         case loading
     }
 }

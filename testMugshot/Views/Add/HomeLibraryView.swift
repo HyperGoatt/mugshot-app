@@ -256,6 +256,7 @@ struct HomeLibraryView: View {
                     if let error { HomeEditorError(message: error) }
                 }.padding(20)
             }
+            .accessibilityIdentifier("home.library.scroll")
             .background(Color.creamWhite)
             .scrollDismissesKeyboard(.interactively)
         } else {

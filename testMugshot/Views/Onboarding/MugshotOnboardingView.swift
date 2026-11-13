@@ -865,7 +865,7 @@ struct MugshotProductTourOverlay: View {
                 .stroke(Color.mugshotLine, lineWidth: 1)
         }
         .shadow(color: Color.espressoBrown.opacity(0.18), radius: 16, y: 7)
-        .accessibilityLabel("Mugsy says: \(step.message)")
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -1084,6 +1084,8 @@ struct MugshotFirstLaunchOnboardingView: View {
     let onExploreWithoutAccount: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
+    private var effectiveReduceMotion: Bool { reduceMotionOverride ?? reduceMotion }
     @State private var step: MugshotFirstLaunchStep = .welcome
 
     var body: some View {
@@ -1096,7 +1098,7 @@ struct MugshotFirstLaunchOnboardingView: View {
             onExploreWithoutAccount: onExploreWithoutAccount
         )
         .id(step)
-        .transition(reduceMotion ? .identity : .opacity)
+        .transition(effectiveReduceMotion ? .identity : .opacity)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .interactiveDismissDisabled(true)
@@ -1108,12 +1110,12 @@ struct MugshotFirstLaunchOnboardingView: View {
 
     private func advance() {
         guard let next = MugshotFirstLaunchStep(rawValue: step.rawValue + 1) else { return }
-        withAnimation(reduceMotion ? nil : MugshotMotion.reveal) { step = next }
+        withAnimation(effectiveReduceMotion ? nil : MugshotMotion.reveal) { step = next }
         MugshotHaptic.selection.play()
     }
 
     private func skipToAccountSetup() {
-        withAnimation(reduceMotion ? nil : MugshotMotion.reveal) { step = .add }
+        withAnimation(effectiveReduceMotion ? nil : MugshotMotion.reveal) { step = .add }
         MugshotHaptic.selection.play()
     }
 }

@@ -10,9 +10,20 @@ struct MugshotFirstLaunchArtworkView: View {
     let onSignIn: () -> Void
     let onExploreWithoutAccount: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+
     private let artworkAspectRatio: CGFloat = 853.0 / 1844.0
 
     var body: some View {
+        if dynamicTypeSize.isAccessibilitySize || voiceOverEnabled {
+            accessibleContent
+        } else {
+            artworkContent
+        }
+    }
+
+    private var artworkContent: some View {
         GeometryReader { proxy in
             let artworkFrame = fittedArtworkFrame(in: proxy.size)
 
@@ -32,6 +43,15 @@ struct MugshotFirstLaunchArtworkView: View {
                         step.title + " " + step.message
                     )
 
+                Text("\(step.number) of \(MugshotFirstLaunchStep.allCases.count)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                    .frame(width: artworkFrame.width * 0.22, height: artworkFrame.height * 0.047)
+                    .background(Color.creamWhite, in: Capsule())
+                    .position(x: artworkFrame.minX + artworkFrame.width * 0.14,
+                              y: artworkFrame.minY + artworkFrame.height * 0.039)
+                    .accessibilityHidden(true)
+
                 if step.isAuthenticationStep {
                     accountActions(in: artworkFrame)
                 } else {
@@ -40,6 +60,59 @@ struct MugshotFirstLaunchArtworkView: View {
             }
         }
         .ignoresSafeArea()
+    }
+
+    private var accessibleContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Step \(step.number) of \(MugshotFirstLaunchStep.allCases.count)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.secondaryText)
+                    .accessibilityIdentifier("mugshot.firstLaunch.progress")
+
+                MugsyAnimatedView(
+                    configuration: MugsyPlacement.onboarding.configuration,
+                    action: .entering,
+                    tapBehavior: MugsyPlacement.onboarding.tapBehavior
+                )
+                .frame(width: 112, height: 112)
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+
+                Text(step.title)
+                    .font(.system(.largeTitle, design: .serif).weight(.semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("mugshot.firstLaunch.title")
+                Text(step.message)
+                    .font(.body)
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if step.isAuthenticationStep {
+                    Button("Create account", action: onCreateAccount)
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityIdentifier("mugshot.firstLaunch.createAccount")
+                    Button("Sign in", action: onSignIn)
+                        .buttonStyle(SecondaryButtonStyle())
+                        .accessibilityIdentifier("mugshot.firstLaunch.signIn")
+                    Button("Explore Map without an account", action: onExploreWithoutAccount)
+                        .buttonStyle(SecondaryButtonStyle())
+                        .accessibilityIdentifier("mugshot.firstLaunch.exploreWithoutAccount")
+                } else {
+                    Button("Continue", action: onContinue)
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityIdentifier("mugshot.firstLaunch.continue")
+                    Button("Skip to account setup", action: onSkipToAccountSetup)
+                        .buttonStyle(SecondaryButtonStyle())
+                        .accessibilityIdentifier("mugshot.firstLaunch.skip")
+                }
+            }
+            .padding(24)
+        }
+        .background(Color.creamWhite.ignoresSafeArea())
+        .accessibilityIdentifier("mugshot.firstLaunch.accessibleScroll")
     }
 
     private func fittedArtworkFrame(in size: CGSize) -> CGRect {

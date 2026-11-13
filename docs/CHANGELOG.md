@@ -1,8 +1,16 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-11
+last_verified: 2026-11-13
 ---
+
+## 2026-11-13 — Simulator audit and premium polish
+
+- Replace unverified cloud-health claims with local-queue status; keep unreadable-data warnings.
+- Make discovery preferences recoverable and account-scoped; require confirmation after uncertain saves. Add reflection reload guidance while retaining unsaved edits.
+- Correct eight-step onboarding progress, add native largest-text/VoiceOver content with canonical Mugsy, and repair DEBUG tour presentation and control labels.
+- Group and reflow the Map key, finish Support's cream layout and copy feedback, and clarify password-reset failures.
+- Refresh stale UI-test copy/navigation assumptions. [Audit, evidence and remaining gates](audits/premium-polish-2026-11-13/README.md); no physical or TestFlight release acceptance is implied.
 
 ## 2026-11-11 — Imported recipe measurements
 

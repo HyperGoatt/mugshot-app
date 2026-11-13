@@ -121,7 +121,9 @@ final class MapSearchRecentUITests: XCTestCase {
         let field = element(identifier, in: app)
         reveal(field, in: app)
         field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         field.typeText(value)
+        XCTAssertEqual(field.value as? String, value, "Confirm input before testing selection preservation.")
     }
 
     @MainActor

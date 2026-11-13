@@ -128,41 +128,76 @@ struct PrivacyVisibilitySettingsView: View {
 }
 
 struct FriendsDiscoverabilitySettingsView: View {
-    @State private var preferences: PeopleDiscoveryPreferences?
-    @State private var isLoading = true
-    @State private var isSaving = false
-    @State private var errorMessage: String?
+    @EnvironmentObject private var authModel: AppAuthModel
+    @StateObject private var store: DiscoveryPreferencesStore
+#if DEBUG
+    private var previewAccountID: UUID?
+#endif
+
+    init() { _store = StateObject(wrappedValue: DiscoveryPreferencesStore()) }
+#if DEBUG
+    init(previewStore: DiscoveryPreferencesStore, accountID: UUID) {
+        _store = StateObject(wrappedValue: previewStore)
+        previewAccountID = accountID
+    }
+#endif
+
+    private var accountID: UUID? {
+#if DEBUG
+        if MugshotLaunchEnvironment.isUITesting, let previewAccountID { return previewAccountID }
+#endif
+        return authModel.authenticatedUser?.id
+    }
 
     var body: some View {
         Form {
             Section {
-                Toggle("Let contacts find me by email", isOn: preferenceBinding(\.emailDiscoverable, name: "email"))
-                Toggle("People suggestions", isOn: preferenceBinding(\.suggestionsEnabled, name: "suggestions"))
-                Toggle("Show mutual-friend reasons", isOn: preferenceBinding(\.mutualExplanationsEnabled, name: "mutual_explanations"))
+                if store.preferences != nil {
+                    Toggle("Let contacts find me by email", isOn: preferenceBinding(\.emailDiscoverable, name: "email"))
+                    Toggle("People suggestions", isOn: preferenceBinding(\.suggestionsEnabled, name: "suggestions"))
+                    Toggle("Show mutual-friend reasons", isOn: preferenceBinding(\.mutualExplanationsEnabled, name: "mutual_explanations"))
+                } else if store.isLoading {
+                    ProgressView("Checking your preferences…")
+                }
             } header: {
                 Text("Discovery")
             } footer: {
                 Text("Email discoverability is optional and separate from contact invitations. Contact invitations keep the chosen phone number on your iPhone.")
+            }
+            .disabled(!store.canEdit)
+
+            if store.isSaving {
+                Section { ProgressView("Saving your preference…") }
+            }
+            if let error = store.errorMessage {
+                Section {
+                    Label(error, systemImage: "exclamationmark.circle")
+                        .foregroundStyle(Color.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if accountID != nil {
+                        Button("Reload settings") {
+                            Task { await store.load(accountID: accountID) }
+                        }
+                        .disabled(store.isLoading || store.isSaving)
+                        .accessibilityIdentifier("settings.discovery.retry")
+                    }
+                }
             }
 
             Section("How suggestions work") {
                 Text("Suggestions use visible shared Mugshots, mutual friendships, recent visible interactions, and shared cafe lists. They never reveal Private sips, private lists, contact names, phone numbers, or another person’s address book.")
                 Text("Inviting a contact prepares one message on your iPhone. Mugshot never uploads their phone number, and nothing is sent until you tap Send in Messages.")
             }
-
-            if isLoading || isSaving {
-                Section { ProgressView(isLoading ? "Loading settings…" : "Saving…") }
-            }
-            if let errorMessage {
-                Section { Text(errorMessage).foregroundStyle(.red) }
-            }
         }
-        .tint(.mugshotSage)
+        .tint(.mugshotSageText)
         .scrollContentBackground(.hidden)
         .background(Color.creamWhite)
         .navigationTitle("Friends and Discoverability")
-        .task { await load() }
-        .disabled(isLoading || isSaving)
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: accountID) {
+            await store.load(accountID: accountID)
+        }
+        .onDisappear { store.invalidate() }
     }
 
     private func preferenceBinding(
@@ -170,53 +205,20 @@ struct FriendsDiscoverabilitySettingsView: View {
         name: String
     ) -> Binding<Bool> {
         Binding(
-            get: { preferences?[keyPath: keyPath] ?? false },
+            get: { store.preferences?[keyPath: keyPath] ?? false },
             set: { value in
-                guard var updated = preferences else { return }
+                guard var updated = store.preferences else { return }
                 updated[keyPath: keyPath] = value
-                preferences = updated
-                Task { await save(updated, preference: name, enabled: value) }
+                let owner = accountID
+                Task {
+                    guard let saved = await store.save(updated, accountID: owner),
+                          accountID == owner else { return }
+                    MugshotAnalytics.shared.capture(.peopleDiscoveryPreferenceChanged(
+                        preference: name, enabled: value, outcome: saved ? "success" : "failed"
+                    ))
+                }
             }
         )
-    }
-
-    @MainActor
-    private func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            preferences = try await service().preferences()
-            errorMessage = nil
-        } catch {
-            errorMessage = "Mugshot couldn’t load your discovery settings. Please try again."
-        }
-    }
-
-    @MainActor
-    private func save(
-        _ updated: PeopleDiscoveryPreferences,
-        preference: String,
-        enabled: Bool
-    ) async {
-        isSaving = true
-        defer { isSaving = false }
-        do {
-            preferences = try await service().savePreferences(updated)
-            errorMessage = nil
-            MugshotAnalytics.shared.capture(.peopleDiscoveryPreferenceChanged(
-                preference: preference, enabled: enabled, outcome: "success"
-            ))
-        } catch {
-            MugshotAnalytics.shared.capture(.peopleDiscoveryPreferenceChanged(
-                preference: preference, enabled: enabled, outcome: "failed"
-            ))
-            errorMessage = "That setting wasn’t saved. Your previous preference is still in effect."
-            await load()
-        }
-    }
-
-    private func service() throws -> PeopleDiscoveryService {
-        PeopleDiscoveryService(client: try SupabaseClientProvider.shared.client())
     }
 }
 
@@ -522,14 +524,14 @@ struct SyncHealthSnapshot: Equatable {
     var systemImage: String {
         if hasLocalReadIssues { return "exclamationmark.triangle.fill" }
         return pendingItemCount == 0
-            ? "checkmark.icloud.fill"
+            ? "checkmark.circle.fill"
             : "arrow.triangle.2.circlepath.icloud.fill"
     }
     var title: String {
         if hasLocalReadIssues { return "Local journal data needs attention" }
         return pendingItemCount == 0
-            ? "Cloud journal is up to date"
-            : "Your journal has safe retry work"
+            ? "No pending uploads on this device"
+            : "Your journal has items to retry"
     }
     var detail: String {
         let draftText = draftCount == 1 ? "1 local draft" : "\(draftCount) local drafts"
@@ -540,7 +542,7 @@ struct SyncHealthSnapshot: Equatable {
         guard pendingItemCount > 0 else {
             let verb = draftCount == 1 ? "stays" : "stay"
             let pronoun = draftCount == 1 ? "it" : "them"
-            return "Cloud-backed journal data is current. \(draftText) \(verb) on this device until you publish or discard \(pronoun)."
+            return "This checks local queues; it doesn’t verify a cloud backup. \(draftText) \(verb) on this device until you publish or discard \(pronoun)."
         }
         let verb = draftCount == 1 ? "remains" : "remain"
         return "\(pendingItemCount) cloud items will retry without discarding your sip. \(draftText) \(verb) available locally."

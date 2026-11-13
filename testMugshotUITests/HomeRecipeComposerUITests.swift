@@ -68,7 +68,11 @@ final class HomeRecipeComposerUITests: XCTestCase {
         let use = app.buttons["home.recipe.useInDrink"]
         XCTAssertTrue(use.waitForExistence(timeout: 5)); use.tap()
         let drinkName = app.textFields["home.drink.name"]
-        XCTAssertTrue(drinkName.waitForExistence(timeout: 5)); drinkName.tap(); drinkName.typeText("Berry latte")
+        XCTAssertTrue(drinkName.waitForExistence(timeout: 5))
+        drinkName.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        drinkName.typeText("Berry latte")
+        XCTAssertEqual(drinkName.value as? String, "Berry latte")
         app.buttons["home.drink.keyboardDone"].tap()
         let amount = app.textFields["Amount of Berry syrup"]
         reveal(amount, app); amount.tap()
@@ -162,12 +166,14 @@ final class HomeRecipeComposerUITests: XCTestCase {
         app.buttons["home.drink.keyboardDone"].tap()
         app.buttons["home.drink.save"].tap()
         let edit = app.buttons["Edit recipe"]
-        XCTAssertTrue(edit.waitForExistence(timeout: 6)); reveal(edit, app); edit.tap()
+        XCTAssertTrue(app.buttons["home.recipe.make"].waitForExistence(timeout: 6)); reveal(edit, app); edit.tap()
         let remove = app.buttons["Remove Milk from this drink"]
         reveal(remove, app); remove.tap()
         let copy = app.buttons["home.drink.saveCopy"]
         let version = app.buttons["home.drink.save"]
-        XCTAssertTrue(copy.isHittable && version.isHittable)
+        XCTAssertTrue(copy.waitForExistence(timeout: 5))
+        let actionsReady = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in copy.isHittable && version.isHittable }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [actionsReady], timeout: 5), .completed)
         XCTAssertEqual(version.label, "Save changes to recipe")
         capture("07-copy-and-version-actions", app)
         copy.tap()
@@ -205,7 +211,11 @@ final class HomeRecipeComposerUITests: XCTestCase {
         }
         clearBanner(); save.tap()
         let use = app.buttons["home.recipe.useInDrink"]; reveal(use, app); use.tap()
-        let drinkName = app.textFields["home.drink.name"]; reveal(drinkName, app); drinkName.tap(); drinkName.typeText("Large drink")
+        let drinkName = app.textFields["home.drink.name"]
+        reveal(drinkName, app); drinkName.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        drinkName.typeText("Large drink")
+        XCTAssertEqual(drinkName.value as? String, "Large drink")
         app.buttons["home.drink.keyboardDone"].tap()
         let quantityContext = app.staticTexts["In this drink"]
         reveal(quantityContext, app)
@@ -214,8 +224,11 @@ final class HomeRecipeComposerUITests: XCTestCase {
         app.buttons["home.drink.keyboardDone"].tap()
         XCTAssertEqual(amount.value as? String, "125")
         capture("06-largest-text-builder", app)
-        clearBanner(); app.buttons["home.drink.save"].tap()
-        XCTAssertTrue(app.buttons["home.recipe.make"].waitForExistence(timeout: 6))
+        clearBanner()
+        XCTAssertTrue(app.buttons["home.drink.save"].isEnabled)
+        app.buttons["home.drink.save"].tap()
+        XCTAssertTrue(app.buttons["home.drink.save"].waitForNonExistence(timeout: 6))
+        reveal(app.buttons["home.recipe.make"], app)
     }
 
     @MainActor private func openEmptyBuilder(_ app: XCUIApplication) {
@@ -225,15 +238,16 @@ final class HomeRecipeComposerUITests: XCTestCase {
     }
 
     @MainActor private func reveal(_ element: XCUIElement, _ app: XCUIApplication) {
-        let captureScroll = app.scrollViews["home.recipe.captureScroll"].firstMatch
         for _ in 0..<14 {
-            let scroll = captureScroll.exists ? captureScroll : app.scrollViews.firstMatch
-            let top = captureScroll.exists ? captureScroll.frame.minY
+            let visibleScrolls = app.scrollViews.allElementsBoundByIndex.filter { $0.frame.height > 180 }
+            let scroll = visibleScrolls.last ?? app.collectionViews.allElementsBoundByIndex.last ?? app.scrollViews.firstMatch
+            let isCapture = scroll.identifier == "home.recipe.captureScroll"
+            let top = isCapture ? scroll.frame.minY
                 : (app.navigationBars.allElementsBoundByIndex.last.map { $0.frame.maxY + 2 } ?? app.frame.minY + 80)
             let save = app.buttons["home.drink.save"].firstMatch
-            let bottom = captureScroll.exists ? captureScroll.frame.maxY : (save.isHittable ? save.frame.minY : app.frame.maxY - 38)
+            let bottom = isCapture ? scroll.frame.maxY : (save.isHittable ? save.frame.minY : app.frame.maxY - 38)
             guard element.exists else {
-                if scroll.exists { scroll.swipeUp(velocity: .slow) } else { app.swipeUp(velocity: .slow) }
+                if scroll.exists { scroll.swipeUp() } else { app.swipeUp() }
                 continue
             }
             let frame = element.frame
@@ -241,8 +255,8 @@ final class HomeRecipeComposerUITests: XCTestCase {
             let area = scroll.exists ? scroll : app
             let upper = area.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.33))
             let lower = area.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.68))
-            if frame.minY < top && frame != .zero { upper.press(forDuration: 0.08, thenDragTo: lower) }
-            else { lower.press(forDuration: 0.08, thenDragTo: upper) }
+            if frame.minY < top && frame != .zero { upper.press(forDuration: 0.01, thenDragTo: lower, withVelocity: .slow, thenHoldForDuration: 0) }
+            else { lower.press(forDuration: 0.01, thenDragTo: upper, withVelocity: .slow, thenHoldForDuration: 0) }
         }
         XCTFail("\(element.identifier) must scroll into the visible area above the action bar.")
     }

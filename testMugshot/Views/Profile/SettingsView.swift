@@ -766,42 +766,62 @@ private struct AboutMugshotView: View {
 private struct SupportView: View {
     let supportEmail: String
     @Binding var didCopy: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.mugshotReduceMotionOverride) private var reduceMotionOverride
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Need a hand?")
-                .mugshotDisplay(size: 30)
-                .foregroundColor(.espressoBrown)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                Image(systemName: "envelope.open")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(Color.mugshotSageText)
+                    .padding(18)
+                    .background(Color.mugshotMint.opacity(0.25), in: RoundedRectangle(cornerRadius: 22))
+                    .accessibilityHidden(true)
 
-            Text("Email us for account, privacy, or beta support. If Mail is not set up on this device, copy the address and use the email app you prefer.")
-                .font(.system(size: 15))
-                .foregroundColor(.secondaryText)
+                Text("Need a hand?")
+                    .font(.system(.largeTitle, design: .serif).weight(.semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text(supportEmail)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.espressoBrown)
-                .textSelection(.enabled)
+                Text("Email us for account, privacy, or beta support. If Mail is not set up on this device, copy the address and use the email app you prefer.")
+                    .font(.body)
+                    .foregroundStyle(Color.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Link(destination: URL(string: "mailto:\(supportEmail)")!) {
-                Label("Email Support", systemImage: "envelope.fill")
-                    .frame(maxWidth: .infinity)
+                Text(supportEmail)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.espressoBrown)
+                    .textSelection(.enabled)
+
+                Link(destination: URL(string: "mailto:\(supportEmail)")!) {
+                    Label("Email Support", systemImage: "envelope.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+
+                Button {
+                    UIPasteboard.general.string = supportEmail
+                    didCopy = true
+                    MugshotHaptic.success.play()
+                    UIAccessibility.post(notification: .announcement, argument: "Email address copied")
+                } label: {
+                    Label(didCopy ? "Email address copied" : "Copy Email Address",
+                          systemImage: didCopy ? "checkmark" : "doc.on.doc")
+                        .contentTransition(.opacity)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .animation((reduceMotionOverride ?? reduceMotion) ? nil : MugshotMotion.response, value: didCopy)
+                .accessibilityHint(didCopy ? "Copies the support address again" : "Copies the address to your clipboard")
             }
-            .buttonStyle(PrimaryButtonStyle())
-
-            Button {
-                UIPasteboard.general.string = supportEmail
-                didCopy = true
-            } label: {
-                Label("Copy Email Address", systemImage: "doc.on.doc")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(SecondaryButtonStyle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(Color.creamWhite)
+        .background(Color.creamWhite.ignoresSafeArea())
         .navigationTitle("Support")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { didCopy = false }
     }
 }
 

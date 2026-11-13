@@ -17,10 +17,10 @@ final class HomeLibraryBrowseUITests: XCTestCase {
     @MainActor func testEmptyShelfOffersLocalStartersAndNameOnlyBagRetainsUnknownDate() {
         let app = openLibrary()
         XCTAssertFalse(app.textFields["home.library.recipeSearch"].exists)
-        XCTAssertFalse(app.buttons["home.drafts.open"].exists)
+        XCTAssertTrue(app.buttons["home.drafts.open"].exists, "Guest photo drafts remain available from an empty shelf.")
         XCTAssertTrue(app.buttons["home.library.addRecipe"].exists)
         let starter = app.buttons["home.library.starter"]
-        XCTAssertTrue(starter.waitForExistence(timeout: 5))
+        reveal(starter, in: app)
         starter.tap()
         XCTAssertTrue(app.buttons["home.starter.coffee"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["home.starter.tea"].exists)

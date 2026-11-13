@@ -6,7 +6,7 @@ final class MugshotOnboardingUITests: XCTestCase {
     }
 
     @MainActor
-    func testFirstLaunchMarketingOnboardingShowsAllNineApprovedScreens() throws {
+    func testFirstLaunchMarketingOnboardingShowsAllEightImplementedScreens() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
@@ -19,10 +19,10 @@ final class MugshotOnboardingUITests: XCTestCase {
         let continueButton = app.buttons["mugshot.firstLaunch.continue"]
         let skipButton = app.buttons["mugshot.firstLaunch.accountSetup"]
 
-        for step in 1...8 {
+        for step in 1...7 {
             XCTAssertTrue(continueButton.waitForExistence(timeout: 5))
             XCTAssertTrue(skipButton.exists)
-            attachScreenshot(named: "First Launch \(step) of 9")
+            attachScreenshot(named: "First Launch \(step) of 8")
             continueButton.tap()
         }
 
@@ -30,7 +30,7 @@ final class MugshotOnboardingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["mugshot.firstLaunch.signIn"].exists)
         XCTAssertTrue(app.buttons["mugshot.firstLaunch.exploreWithoutAccount"].exists)
         XCTAssertFalse(continueButton.exists)
-        attachScreenshot(named: "First Launch 9 of 9")
+        attachScreenshot(named: "First Launch 8 of 8")
     }
 
     @MainActor
@@ -86,33 +86,19 @@ final class MugshotOnboardingUITests: XCTestCase {
         attachScreenshot(named: "Onboarding 3 - Make Mugshot yours")
 
         app.buttons["mugshot.onboarding.primary"].tap()
-        XCTAssertTrue(app.staticTexts["Read your coffee world at a glance"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["MAP · PINS + RANKINGS"].exists)
-        attachScreenshot(named: "Onboarding 4 - Live Map tour")
-
-        app.buttons["mugshot.productTour.next"].tap()
-        XCTAssertTrue(app.staticTexts["See the sips worth noticing"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.buttons["mugshot.tab.feed"].value as? String, "Selected")
-        attachScreenshot(named: "Onboarding 5 - Live Feed tour")
-
-        app.buttons["mugshot.productTour.next"].tap()
-        XCTAssertTrue(app.staticTexts["Turn curiosity into a plan"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.buttons["mugshot.tab.saved"].value as? String, "Selected")
-        attachScreenshot(named: "Onboarding 6 - Live Saved and Lists tour")
-
-        app.buttons["mugshot.productTour.next"].tap()
-        XCTAssertTrue(app.staticTexts["Everything you log comes home here"].waitForExistence(timeout: 3))
-        XCTAssertEqual(app.buttons["mugshot.tab.journal"].value as? String, "Selected")
-        attachScreenshot(named: "Onboarding 7 - Live Journal tour")
-
-        app.buttons["mugshot.productTour.next"].tap()
-        XCTAssertTrue(app.staticTexts["Ready to capture your first sip?"].waitForExistence(timeout: 3))
+        let tourLabels = ["YOUR COFFEE MAP", "THE FEED", "YOUR CAFE LIBRARY", "YOUR JOURNAL", "A SHORTCUT YOU’LL LOVE"]
+        for (index, label) in tourLabels.enumerated() {
+            let heading = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch
+            XCTAssertTrue(heading.waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["mugshot.onboarding.primary"].exists, "Introduction must dismiss before the tour can receive input.")
+            attachScreenshot(named: "Onboarding tour \(index + 1)")
+            if index < tourLabels.count - 1 { app.buttons["mugshot.productTour.next"].tap() }
+        }
         XCTAssertTrue(app.buttons["mugshot.productTour.startFirstSip"].exists)
         XCTAssertTrue(app.buttons["mugshot.productTour.later"].exists)
-        attachScreenshot(named: "Onboarding 8 - First sip choice")
 
         app.buttons["mugshot.productTour.startFirstSip"].tap()
-        XCTAssertTrue(app.staticTexts["Start with the scene"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["logASipV3.context.cafe"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Ready to capture your first sip?"].exists)
         attachScreenshot(named: "First Sip 1 - Mugsy guided setup")
     }
