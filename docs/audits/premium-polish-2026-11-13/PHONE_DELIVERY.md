@@ -6,6 +6,10 @@ date: 2026-11-13
 
 # Premium polish — iPhone development delivery
 
+**Superseded delivery status:** the connection was restored and build 18 was
+[installed and launched with data preservation verified](PHONE_INSTALLED.md).
+The preparation and initial blocker below are retained as historical evidence.
+
 Current delivery status: [product status](../../CURRENT_PRODUCT_STATUS.md).
 The owner requested an in-place iPhone installation with existing data preserved
 and no TestFlight upload. This follow-up affects signing/build delivery evidence

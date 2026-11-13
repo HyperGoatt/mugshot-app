@@ -17,14 +17,16 @@ First launch has eight accurate steps and a native, scrollable presentation for
 accessibility text sizes and VoiceOver, using canonical Mugsy. The Map legend has
 one semantic description and an expandable key at accessibility text sizes.
 Support uses the shared cream canvas, semantic type, and immediate copied-address feedback. Password-reset
-errors describe the requested action. No schema, production configuration,
-marketing version, physical-device, or TestFlight change is included.
+errors describe the requested action. The Simulator sprint included no schema,
+production configuration, marketing-version, or TestFlight change. Subsequent
+owner-requested development delivery is recorded below.
 
-The owner-requested [iPhone delivery](audits/premium-polish-2026-11-13/PHONE_DELIVERY.md)
-has a verified, signed development **0.5.3 (18)** package ready. The paired phone
-is unavailable to Xcode; fresh backup, installation, and launch remain blocked.
-The phone's existing app and data are untouched. This does not establish physical
-acceptance or change the dependency holds.
+The owner-requested [iPhone delivery](audits/premium-polish-2026-11-13/PHONE_INSTALLED.md)
+is installed and launch-verified as development **0.5.3 (18)**, replacing build 16
+in place after private backups. All 45 content files remain byte-identical after
+launch; app and shared preference values are preserved. The app opened on Feed.
+This establishes development delivery only; hands-on acceptance of changed flows,
+dependency holds, and TestFlight acceptance remain separate.
 
 ## Journal and Home composer crash repair — November 11 candidate
 

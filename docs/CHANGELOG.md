@@ -4,6 +4,10 @@ status: current
 last_verified: 2026-11-13
 ---
 
+## 2026-11-13 — Premium polish installed on iPhone
+
+- Install and launch development **0.5.3 (18)** over build 16 after private app/shared-data backups. All 45 content files remain byte-identical after launch; app and shared preference values are preserved. [Installation and preservation receipt](audits/premium-polish-2026-11-13/PHONE_INSTALLED.md). Hands-on acceptance remains separate; no TestFlight action occurred.
+
 ## 2026-11-13 — Premium polish iPhone candidate prepared
 
 - Build and verify signed development **0.5.3 (18)** with the existing app, keychain, and shared-container identities. The paired iPhone is unavailable, so backup, in-place installation, and launch remain blocked; phone data is untouched. [Delivery receipt](audits/premium-polish-2026-11-13/PHONE_DELIVERY.md). No TestFlight action occurred.
