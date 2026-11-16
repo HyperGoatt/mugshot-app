@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-11-16
 ---
 
 # Documentation policy
@@ -58,3 +58,10 @@ when the correction is labeled.
 local links, known stale claims, and branch documentation impact. Documentation-
 only changes also require diff inspection and `git diff --check`; they do not
 require an app build.
+
+GitHub runs **Repository checks / Static checks** on pull requests and pushes to
+`main`. It checks committed whitespace and runs `./scripts/verify-no-simulator.sh fast`,
+which includes documentation validation. It evaluates documentation impact
+against the PR's target commit, or the previous `main` commit for a push.
+A passing job records static evidence. Link separate runtime and device evidence
+in the PR and name the exact source commit for every build cited.

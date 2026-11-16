@@ -88,7 +88,12 @@ if failures:
 PY
 
 base_ref=""
-if git -C "${REPO_ROOT}" show-ref --verify --quiet refs/remotes/origin/main; then
+if [ -n "${MUGSHOT_DOCS_BASE:-}" ]; then
+  if ! base_ref="$(git -C "${REPO_ROOT}" rev-parse --verify --end-of-options "${MUGSHOT_DOCS_BASE}^{commit}")"; then
+    printf 'Invalid documentation comparison base: %s\n' "${MUGSHOT_DOCS_BASE}" >&2
+    exit 2
+  fi
+elif git -C "${REPO_ROOT}" show-ref --verify --quiet refs/remotes/origin/main; then
   base_ref="$(git -C "${REPO_ROOT}" merge-base origin/main HEAD)"
 elif git -C "${REPO_ROOT}" rev-parse --verify HEAD~1 >/dev/null 2>&1; then
   base_ref="HEAD~1"

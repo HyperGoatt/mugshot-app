@@ -1,0 +1,32 @@
+name: Repository checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-checks:
+    name: Static checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify committed diff and repository files
+        env:
+          MUGSHOT_DOCS_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          git diff --check "$MUGSHOT_DOCS_BASE" HEAD --
+          ./scripts/verify-no-simulator.sh fast
