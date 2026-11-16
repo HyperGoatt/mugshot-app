@@ -1,8 +1,15 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-16
 ---
+
+## 2026-11-16 — GitHub repository checks
+
+- Run committed diff and repository checks in GitHub Actions on pull requests
+  and pushes to `main`. Check documentation impact against the actual PR base
+  so changes from a parent draft cannot satisfy a child PR's documentation requirement.
+  [Documentation policy](DOCUMENTATION_POLICY.md#verification).
 
 ## 2026-10-30 — Cafe verification 503 diagnosis and recovery
 
