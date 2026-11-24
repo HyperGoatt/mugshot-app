@@ -13,7 +13,11 @@ The practical commands and final acceptance matrix live in [`IOS_QA_EFFICIENCY_F
 Brand changes also follow the [brand authority](brand/README.md). The fast
 repository check runs `python3 scripts/brand-kit.py --check` to verify native
 source/export equality, exact assets and copy, approved contrast pairs, local
-links, and the absence of independent colors or remote UI resources. A brand
+links, and the absence of independent colors or remote UI resources. It also
+runs `python3 scripts/mugsy-catalog.py --check` for the immutable master, seven
+core shapes, pose mappings, reviewed PNGs, alpha registration, and native preview
+freshness. New character generation requires optical review alongside these
+deterministic checks; hashes cannot establish likeness. A brand
 documentation/static-artifact change requires those checks and relevant visual
 review, not an app build. A downstream app or website implementation still needs
 the verification appropriate to its actual behavior and risk.

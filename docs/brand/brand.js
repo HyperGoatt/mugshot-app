@@ -78,18 +78,44 @@
     row.append(node('span', role.role), description);
     byId('type-scale').append(row);
   });
-  assets.filter(asset => asset.kind === 'character-reference').forEach(asset => {
+  const poseStages = [];
+  data.mugsy.poses.forEach(pose => {
+    const asset = assets.find(item => item.id === 'mugsy-' + pose.id);
     const figure = node('figure');
+    const stage = node('div', undefined, 'character-stage');
     const picture = node('img');
-    picture.src = asset.path;
-    picture.alt = asset.use;
-    picture.width = asset.width;
-    picture.height = asset.height;
+    picture.alt = pose.title + ', same Mugsy identity';
     picture.loading = 'lazy';
-    const caption = node('figcaption', asset.id.replace('mugsy-', '').replace(/^./, s => s.toUpperCase()));
-    figure.append(picture, caption);
+    const caption = node('figcaption');
+    caption.append(node('strong', pose.title), node('code', '.' + pose.native_case));
+    const link = node('a', 'Download artwork PNG');
+    link.href = asset.path;
+    link.download = pose.export_name;
+    caption.append(link);
+    stage.append(picture);
+    figure.append(stage, caption);
     byId('mugsy-library').append(figure);
+    poseStages.push({pose, asset, picture, stage});
   });
+  function updateMugsyGallery() {
+    const native = byId('mugsy-rendering').value === 'native';
+    const background = tokens.color[byId('mugsy-surface').value];
+    poseStages.forEach(({pose, asset, picture, stage}) => {
+      stage.style.backgroundColor = background;
+      picture.src = native ? 'native-renders/' + pose.id + '.png' : asset.path;
+      picture.width = native ? 500 : asset.width;
+      picture.height = native ? 500 : asset.height;
+      const bounds = native ? [0, 0, 1, 1] : pose.artwork_bounds;
+      const scale = native ? 1 : .84 / Math.max(bounds[2], bounds[3]);
+      picture.style.width = (scale * 100) + '%';
+      picture.style.left = ((.5 - (bounds[0] + bounds[2] / 2) * scale) * 100) + '%';
+      picture.style.top = ((.5 - (bounds[1] + bounds[3] / 2) * scale) * 100) + '%';
+    });
+    byId('mugsy-count').textContent = poseStages.length + ' named poses · ' + (native ? 'native rig' : 'generated artwork');
+  }
+  byId('mugsy-rendering').addEventListener('change', updateMugsyGallery);
+  byId('mugsy-surface').addEventListener('change', updateMugsyGallery);
+  updateMugsyGallery();
   Object.entries(tokens.characterColor).forEach(([name, value]) => {
     const token = node('span', undefined, 'character-token');
     const swatch = node('i');

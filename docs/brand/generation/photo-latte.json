@@ -1,0 +1,15 @@
+{
+  "id": "latte",
+  "tool": "OpenAI built-in image_gen",
+  "engine_version": "not exposed by tool",
+  "prompt": "Use case: photorealistic-natural. Asset: square 1:1 editorial beverage photograph for Mugshot's Texture and warmth imagery. Photograph a real-looking flat white in a small off-white handmade ceramic cup on its simple matching saucer on a lightly worn oak table. A modest asymmetric heart of latte art in fine microfoam, tiny natural bubbles near the rim, slight coffee staining at the inside lip, believable glaze and subtle ceramic speckles. Take a close three-quarter overhead view showing the full cup and a little table, with the handle on the right. Diffuse morning window daylight, neutral-warm white balance, true-to-life coffee colors, realistic focus falloff, restrained sharpening, subtle photographic grain. The milk texture and ceramic should feel tactile and ordinary, not perfectly airbrushed. No giant foam mound, exaggerated steam, fake orange filters, HDR, decorative flowers, hands, people, text, logos, frames, UI, borders or watermarks. High-end contemporary editorial photography that looks candid rather than rendered. This is a new illustrative brand scene, not a named cafe.",
+  "generated_source_file": "exec-e87d9ac1-aabb-456a-acab-781391b37d08.png",
+  "native_asset_paths": [
+    "testMugshot/Assets.xcassets/V3CreamyLatte.imageset/v3-creamy-latte.png"
+  ],
+  "provenance": "OpenAI-generated synthetic brand scene; photographic style, not a real cafe or captured customer drink.",
+  "native_output_sha256": {
+    "testMugshot/Assets.xcassets/V3CreamyLatte.imageset/v3-creamy-latte.png": "c3b4a322b4a578eea13cc9b42e1f5f50786fc788a29a350cc8b06f47187d7e0d"
+  },
+  "review": "Codex visual review: realistic drink and material detail, coherent scene, no labels or named venue claims."
+}

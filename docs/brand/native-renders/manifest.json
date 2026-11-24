@@ -1,0 +1,32 @@
+{
+  "kind": "production SwiftUI offscreen render",
+  "platform": "macOS reference; not an iOS runtime acceptance",
+  "source_sha256": {
+    "testMugshot/Design/BrandColors.swift": "a8a780285baecd7670e10783915948a835a3781a056be60f7602ca6022983c31",
+    "testMugshot/Design/MugsyDesignSystem.swift": "f087ffac42aac935e7792b6d067003dec65dc94a20ca704c879c1ecd63dd1bb5",
+    "testMugshot/Design/MugsyPoseCatalog.swift": "efffae7ebe3de301c925098169dc2aa9115078ca9129881b24eed02ac753f592",
+    "testMugshot/Views/Components/MugsyModelView.swift": "3a35ef0b7c9616841797355fce65192700f34cb448172204d3dfab88c146f3aa",
+    "testMugshot/Views/Components/MugsyExpandedAccessoryView.swift": "c91720600980a10199623744b561fcdc5394d1f18783cf46a84494cd6037ba47",
+    "productionMotionSubset": "8e9e6e7c959433046d201aae8cb6311198ead01f0968c57aae5b3deac74d151f"
+  },
+  "renders": {
+    "beans.png": "816816a94bab0fbdfa616bd9e9e350708a48c475744abf63b0f802b1cc75d619",
+    "builder.png": "9724fd69fb5736a7bb8234e85dfd127faf103d6ea093eed4b1b12a34e895d5c6",
+    "camera.png": "35cba26005bbd23398c5c40eb271549afb1272e346cbacb1b01eeb91166fed04",
+    "celebrate.png": "6d5119f2f7fcc1f2d28dc987eaefb7c71cff51133ea5b59aeb842fc61624863b",
+    "cozy.png": "003081b20ed9e2238e83deb02ce7426af1498bc91aa61af0053601f708657963",
+    "favorites.png": "b1fcf9b445107ae192eb9a727bf42a3411dcc36cfe58875d11f6a0721ccd08e0",
+    "friends.png": "cc5e7ebd1bfa3a2c63626031a3ce7496e561ccb83fa1c94d26a1b93f27757076",
+    "guide.png": "5e491af826d574f97619b6ba05312d5de64098fbaa4de9f5e1eeeecef97acd3a",
+    "journal.png": "af62c3e0b907cfe452de9d1405c0870e864b4da99460d65d948f70cdfcb0f785",
+    "map.png": "5035c61f28e19053df25f8969d4367a37571c91aba3f4c2e9beb36a7e548f5f3",
+    "matcha.png": "bb930abb184ecd2dcb3c8bcaa65ec50ea09b8c46ecf32ce21a7a75994f8a9bf4",
+    "pause.png": "64c91dc6261d897911df7026643a145ace527ee1257092d642c8337ed133e41d",
+    "pourover.png": "b3d874f09f39bacaa4e4b03a15d5dd77eb190599ae54dd7c025ac4684ec36266",
+    "scout.png": "b50ffe9b887b823ba48b9a41db0e3f42daecda23c2079291371310e17401e9bb",
+    "takeaway.png": "e4387fb8b09ac12c1994e92b104c2f0f94528fe1ea05aa5d042bfa93760ba1bf",
+    "tasting.png": "ca9844734441b32ba8df5fa11a4d28578128f58b49022662ad7e91f018ff2fb2",
+    "wave.png": "db88660abe4408e416814bc524bf5cd80f8dc1def3db422b0c3f7995f98358e6",
+    "wishlist.png": "de586eb22a94ea0941f7e765354f68b7f0035b8b8e717ae70fe1c5b674589f42"
+  }
+}

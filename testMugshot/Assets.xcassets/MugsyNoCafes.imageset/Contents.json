@@ -1,12 +1,13 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "MugsyNoCafes.png",
-      "idiom" : "universal"
+      "filename": "MugsyNoCafes.png",
+      "idiom": "universal",
+      "scale": "1x"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }

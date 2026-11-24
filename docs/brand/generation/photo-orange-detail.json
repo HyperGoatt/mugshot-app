@@ -1,0 +1,15 @@
+{
+  "id": "orange-detail",
+  "tool": "OpenAI built-in image_gen",
+  "engine_version": "not exposed by tool",
+  "prompt": "Use case: precise-object-edit. Image 1 is the new Mugshot signature photograph and drink continuity reference. Make a square 1:1 realistic close-detail editorial photograph of the SAME lowball glass of iced espresso with oat milk and ONE short fresh orange-peel twist. Focus on the upper half of the glass, rim, peel pores, irregular ice, delicate crema ring and a few sparse condensation droplets; show genuine milk marbling below. Use the same natural side-window daylight, neutral-warm color and worn oak table, with the muted sage cafe background softly out of focus. Camera close enough for texture but no extreme surreal macro. Keep believable translucency and optics, no plastic-looking ice, saturated orange juice, excessive foam, glow, fake steam, additional garnish, hands, text, branding, UI, borders or watermark. Same drink identity; change only framing and viewpoint.",
+  "generated_source_file": "exec-74ad87cd-f036-4322-84fc-601f0494652b.png",
+  "native_asset_paths": [
+    "testMugshot/Assets.xcassets/V3OrangeCitrusDetail.imageset/v3-orange-citrus-detail.png"
+  ],
+  "provenance": "OpenAI-generated synthetic brand scene; photographic style, not a real cafe or captured customer drink.",
+  "native_output_sha256": {
+    "testMugshot/Assets.xcassets/V3OrangeCitrusDetail.imageset/v3-orange-citrus-detail.png": "3676b6688245d4f83ee6ee621e02b3e96b84560c22cb41ff52661e7e799eb1fd"
+  },
+  "review": "Codex visual review: realistic drink and material detail, coherent scene, no labels or named venue claims."
+}

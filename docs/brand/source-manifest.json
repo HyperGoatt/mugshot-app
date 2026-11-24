@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "native_baseline": "0bece7e83a96a3f8e0167bc74ec87588e83ad1a1",
+  "version": "1.1.0",
+  "native_baseline": "1ffba7b074da7b1230942e394a477dc8a5db2911",
   "sources": [
     {
       "role": "palette",
@@ -20,7 +20,7 @@
     {
       "role": "character",
       "path": "testMugshot/Design/MugsyDesignSystem.swift",
-      "sha256": "b8203038044ed65abb406d4954b0daa533c9019dc543b4b4fc3ab8705707e180"
+      "sha256": "f087ffac42aac935e7792b6d067003dec65dc94a20ca704c879c1ecd63dd1bb5"
     },
     {
       "role": "onboarding",
@@ -35,12 +35,27 @@
     {
       "role": "character_rules",
       "path": "docs/MUGSY_DESIGN_SYSTEM.md",
-      "sha256": "99250d3b9bdcab4b56b8ad4566180baadd663d377db0184d8754172f1d9a331d"
+      "sha256": "e7c3eb2f9910e5017780dd5493b563065c2ed60d537aba4e133f8c9e041a615c"
     },
     {
       "role": "artwork_authority",
       "path": "docs/MUGSY_ASSET_STATUS.md",
-      "sha256": "3138b42cc8318649dce1f899e5d60a1b73b919313ee69104b31256fdef978113"
+      "sha256": "5b4c39255b5ea42ec142d51ca27d4f0deb20b13000622740601629dd93514f78"
+    },
+    {
+      "role": "character_rig",
+      "path": "testMugshot/Views/Components/MugsyModelView.swift",
+      "sha256": "3a35ef0b7c9616841797355fce65192700f34cb448172204d3dfab88c146f3aa"
+    },
+    {
+      "role": "pose_catalog",
+      "path": "testMugshot/Design/MugsyPoseCatalog.swift",
+      "sha256": "efffae7ebe3de301c925098169dc2aa9115078ca9129881b24eed02ac753f592"
+    },
+    {
+      "role": "identity_contract",
+      "path": "docs/brand/identity/mugsy-spec.json",
+      "sha256": "9faefc3de1a0ad1e52ea470b5bc66afbd30907920a6d02becccc6dce7b7a836a"
     }
   ]
 }

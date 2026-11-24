@@ -27,14 +27,16 @@ No site palette, font, image, or copy was imported into the brand kit as authori
 
 ## Integration order
 
-1. Pin kit **1.0.0**, its source commit, and asset hashes in the marketing repo.
+1. Pin kit **1.1.0**, its source commit, and asset hashes in the marketing repo.
    Consume the reviewed source directory or its verified package. Do not create
    another hand-maintained brand spec. A downstream DESIGN.md should point here.
 2. Import tokens.css once and replace global and campaign color aliases. Delete
    duplicate palette definitions instead of leaving a later override.
 3. Restore the serif/sans hierarchy, readable line heights, and cream page canvas.
-   Use the existing drink photos and original icon from assets.json. Preserve
-   source artwork; do not trace or generate a new Mugsy.
+   Use the five new photographic-style scenes and unchanged icon from assets.json.
+   Use the 18 reviewed Mugsy cutouts as supplied. Future poses must follow the
+   [immutable identity contract](identity/README.md); never use a generated pose
+   as the next identity reference or redraw Mugsy downstream.
 4. Recompose each page using the app's hierarchy. Use the
    [website reference](templates/landing.html) for visual alignment, then adapt
    the actual site content and navigation to each page's purpose.
@@ -82,6 +84,8 @@ CSS px for primitive spacing; web layout remains responsive.
   remains in brand surfaces.
 - Headings use regular serif. Body, controls, and metadata use system sans.
 - Hero imagery and character use can be traced to assets.json and exact hashes.
+- Synthetic brand scenes are not represented as a named real venue, customer
+  photograph, or app screenshot. Retired baked onboarding panels are not reused.
 - Original icon padding, character proportions, glasses, and source orientation
   remain intact. No invented mono, inverse, or vector mark is introduced.
 - Mobile and desktop layouts preserve the photo-first hierarchy without clipping,
@@ -101,9 +105,11 @@ CSS px for primitive spacing; web layout remains responsive.
 
 | Surface | State | Evidence |
 | --- | --- | --- |
-| Native palette, spacing, artwork, and source language | Extracted | source-manifest.json and assets.json |
+| Native palette, spacing, icon, identity, and source language | Extracted and preserved | source-manifest.json and immutable identity contract |
+| New photographic-style imagery and Mugsy poses | Integrated as native resources and kit exports | Five scenes, 18 reviewed poses, retained OpenAI generation receipts |
+| Native Mugsy catalog | Implemented in source | Typed native/artwork view, production rig, and macOS offscreen previews; see VERIFICATION.md for compile evidence |
 | Brand contract and local reference applications | Implemented | This versioned directory |
-| Native controls | Existing implementations remain | No native app code changed; some older controls use softer sage |
+| Native controls | Existing styles remain | This update changes imagery and Mugsy's pose subsystem; some older controls use softer sage |
 | Marketing production site | Not migrated by this change | This handoff defines the required work |
 | Social / email publication | Reference only | Templates are local artifacts; no message or campaign was sent |
-| Physical device / TestFlight | No new gate claimed | Brand documentation does not change release state |
+| Physical device / TestFlight | No new gate claimed | Source integration does not establish install or release acceptance |

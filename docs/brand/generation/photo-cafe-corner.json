@@ -1,0 +1,15 @@
+{
+  "id": "cafe-corner",
+  "tool": "OpenAI built-in image_gen",
+  "engine_version": "not exposed by tool",
+  "prompt": "Use case: photorealistic-natural. Asset: square 1:1 realistic editorial cafe interior photograph for Mugshot's Sense of place imagery. A genuinely believable small neighborhood cafe corner in soft late-morning window light: one slightly worn oak two-person table, two simple mismatched wooden chairs, warm cream plaster wall, a small muted sage upholstered bench farther back, a naturally imperfect houseplant near the window. In the near foreground a small ordinary coffee cup on a saucer, quietly suggesting a person just stepped away. Lived-in details, real construction, imperfect wood grain, soft daylight reflections and mild natural shadows; coherent geometry, photographed with a 35mm lens, gentle depth of field, neutral-warm colors and subtle grain. The room must look like a real modest cafe rather than a showroom, luxurious hotel, AI architecture render or fantasy greenhouse. No large central spherical pendant, repeated lamps, impossible furniture, glowing surfaces, hyper-saturated green, staged excess greenery, text, identifiable venue branding, signage, people, UI, frames or watermark. This is a fictional brand illustration with photographic realism.",
+  "generated_source_file": "exec-6118cd6c-4a53-4b63-95a4-bea56da383a6.png",
+  "native_asset_paths": [
+    "testMugshot/Assets.xcassets/V3QuietCafeCorner.imageset/v3-quiet-cafe-corner.png"
+  ],
+  "provenance": "OpenAI-generated synthetic brand scene; photographic style, not a real cafe or captured customer drink.",
+  "native_output_sha256": {
+    "testMugshot/Assets.xcassets/V3QuietCafeCorner.imageset/v3-quiet-cafe-corner.png": "d7fe5438a4d13c43b5710dd388bc1bb542fa528a10a7a4f0214fb5855c587fcf"
+  },
+  "review": "Codex visual review: realistic drink and material detail, coherent scene, no labels or named venue claims."
+}

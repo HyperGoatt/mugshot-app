@@ -4,6 +4,25 @@ status: current
 last_verified: 2026-11-24
 ---
 
+## 2026-11-24 — Realistic imagery and controlled Mugsy pose library
+
+- Replace the current drink, latte, cafe, orange hero, and citrus detail imagery
+  with five photographic-style scenes created using OpenAI's built-in image
+  engine. Preserve existing native asset references, including both hero aliases.
+- Add 18 generated Mugsy poses and matching typed SwiftUI configurations, six
+  code-native accessory types, a barista apron, and two arm articulations. Existing
+  scene families consume the same catalog. Mugsy Studio exposes artwork/native views.
+- Freeze the original identity master, preserve historical pose sources, and
+  lock seven native core shapes. Check reviewed hashes, true alpha, clear margins,
+  native mappings, and source-bound preview renders under the
+  [Mugsy identity contract](brand/identity/README.md).
+- Advance the brand kit to 1.1.0, show generated artwork and native previews,
+  record complete prompts/provenance, and retire outdated baked onboarding panels
+  from the current kit. Native baked onboarding resources remain historical
+  resources; this change does not rewrite authentication or tour navigation.
+- [Verification and boundaries](brand/VERIFICATION.md) distinguish source and
+  local evidence from device, TestFlight, and marketing-production acceptance.
+
 ## 2026-11-24 — App-derived Mugshot brand authority
 
 - Establish the [Mugshot brand kit](brand/README.md) as the single identity

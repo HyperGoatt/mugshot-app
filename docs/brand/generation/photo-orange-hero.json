@@ -1,0 +1,17 @@
+{
+  "id": "orange-hero",
+  "tool": "OpenAI built-in image_gen",
+  "engine_version": "not exposed by tool",
+  "prompt": "Use case: photorealistic-natural. Asset: Mugshot's replacement signature drink hero, a realistic editorial food photograph, landscape 3:2 composition. Photograph one ordinary clear lowball glass of iced espresso with oat milk and a single short fresh orange-peel twist resting naturally on the rim. The drink must look like a real drink a barista just set down: pale caramel milk with slight espresso marbling, irregular partly melted ice, sparse condensation with believable gravity, a thin crema ring, no excessive foam, no solid orange-colored juice. The orange garnish has real citrus pores and a little white pith, no decorative pile of ribbons. Glass sits on a lightly worn oak cafe table by a window; background softly out of focus with a muted sage wall and subtle cream upholstery. Natural side daylight, neutral-warm white balance, restrained contrast, fine grain, honest surface imperfections. Eye-level three-quarter view, whole glass and its base visible, generous breathing room around it for responsive cropping. Make this indistinguishable in texture and optics from a high-quality real cafe photograph, never a glossy 3D render or illustration. No text, logos, watermarks, mascots, frames, rounded corners, collage, or UI. This is an illustrative brand scene, not a depiction of a named real venue.",
+  "generated_source_file": "exec-24b1e548-4c27-49ff-b9be-4da5f62c1116.png",
+  "native_asset_paths": [
+    "testMugshot/Assets.xcassets/V3OrangeCreamsicleHeroV2.imageset/v3-orange-creamsicle-hero-v2.png",
+    "testMugshot/Assets.xcassets/V3OrangeCreamsicleHero.imageset/v3-orange-creamsicle-hero.png"
+  ],
+  "provenance": "OpenAI-generated synthetic brand scene; photographic style, not a real cafe or captured customer drink.",
+  "native_output_sha256": {
+    "testMugshot/Assets.xcassets/V3OrangeCreamsicleHeroV2.imageset/v3-orange-creamsicle-hero-v2.png": "0d30cb424a6fa5230fc18a04541cfa871eb6c8c81c6ea5bc2353ca22344d5a08",
+    "testMugshot/Assets.xcassets/V3OrangeCreamsicleHero.imageset/v3-orange-creamsicle-hero.png": "0d30cb424a6fa5230fc18a04541cfa871eb6c8c81c6ea5bc2353ca22344d5a08"
+  },
+  "review": "Codex visual review: realistic drink and material detail, coherent scene, no labels or named venue claims."
+}

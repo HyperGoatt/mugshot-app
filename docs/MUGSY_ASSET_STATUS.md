@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-24
+last_verified: 2026-11-24
 ---
 
 # Mugsy asset status
@@ -12,7 +12,27 @@ last_verified: 2026-08-24
 > checkpoints remain evidence of the previous candidate, not this repair's acceptance.
 
 
-## Current authority and vector handoff
+## Current identity and pose authority — 2026-11-24
+
+The [brand kit](brand/README.md) is the entry point. The
+[immutable identity contract](brand/identity/README.md) freezes the original
+Mugsy master and seven native core shapes. The owner requested a pose/accessory
+refresh while keeping Mugsy the same; 18 generated PNG poses and matching typed
+SwiftUI configurations now expand the original rig. The five legacy asset names
+remain compatible and hold updated positive poses. Original raster versions are
+preserved under the identity archive.
+
+Native geometry remains authoritative for code-rendered product motion. Generated
+artwork is a separate static rendering with source prompts, exact output hashes,
+true alpha, margins, and recorded optical review. It cannot redefine the body,
+handle, glasses, proportions, palette, or master. Native reference renders use
+production SwiftUI source offscreen on macOS and do not establish an iPhone or
+TestFlight gate. [Current verification](brand/VERIFICATION.md) records the checks.
+
+## Historical vector handoff — 2026-08-24
+
+The following paragraph records the earlier vector handoff. Current pose and
+asset authority is defined above; the PDF remains a review-only geometry reference.
 
 The shipping PNG image sets and the production code-native
 `MugsyModelView` remain authoritative. This remediation adds

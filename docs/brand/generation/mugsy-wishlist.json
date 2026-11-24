@@ -1,0 +1,13 @@
+{
+  "id": "wishlist",
+  "tool": "OpenAI built-in image_gen",
+  "engine_version": "not exposed by tool",
+  "prompt": "Use case: identity-preserve. Asset: ONE square transparent PNG pose for the existing Mugshot character Mugsy. Image 1 is the IMMUTABLE identity master; reproduce the SAME individual character, not a redesign. Lock the original softly asymmetric white ceramic body silhouette and its width-to-height ratio, open elliptical rim, full double-contour handle on the IMAGE RIGHT, exact rounded-rectangular black glasses/bridge/temples, eye placement, little pink cheeks, thin black arms and legs, black mitten hands and compact feet. Keep the same clean hand-drawn contours and quiet gray ceramic shading, not a photorealistic mug, 3D toy, glossy render, new cartoon style or chibi. Palette: ink #0C0C0C, ceramic #F3F3F3/#F7F7F7, shade #D7D6D6, blush #E8B8B0, accessory mint #B8E0C0. All props stay below the face and cannot replace anatomy. Front view with the SAME camera angle and body perspective as the reference. Only the following pose, expression and accessory changes are allowed: Hold a small white bookmark badge under the same crossed arms as the identity reference, with a calm delighted smile instead of sadness. No letters on the bookmark. Keep the full body, handle, props, hands and feet visible with generous clear margins, character centered around 75% of canvas height. Never mirror the handle, resize or restyle the glasses, cover the face, recolor the ceramic, add clothing not requested, or add fingers, limbs or a second character. No text, words, letters, logos, watermark, collage, grid, base, floor shadow, background scene, or painted checkerboard. Genuine transparent alpha background. Identity consistency is the primary requirement.",
+  "transparent_background": true,
+  "reference_path": "testMugshot/Assets.xcassets/MugsyIdentityMaster.imageset/mugsy-identity-master.png",
+  "reference_sha256": "f7f3cfa7658d51d0aba7e32992832abae436ea3a7a87dc736dc593500edb797f",
+  "native_asset_path": "testMugshot/Assets.xcassets/MugsyNoWishlist.imageset/MugsyNoWishlist.png",
+  "generated_source_file": "exec-c70268b1-f41c-4302-a23f-aa1eb7a3a778.png",
+  "review": "Optical identity reviewed under the immutable master; native geometry remains authoritative, with no pixel-identical cross-medium claim.",
+  "output_sha256": "5a44009bc9b5319eff38f0981252ef57cd3d544289a5ffcd34d53bdae4f88d41"
+}

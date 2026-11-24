@@ -34,6 +34,12 @@ enum MugsyProp: String, CaseIterable, Identifiable, Equatable {
     case camera
     case journalNotebook
     case builderTools
+    case mapAndCompass
+    case coffeeBeans
+    case matchaKit
+    case pourOverKit
+    case takeawayCup
+    case tastingSpoon
 
     var id: String { rawValue }
 
@@ -47,6 +53,12 @@ enum MugsyProp: String, CaseIterable, Identifiable, Equatable {
         case .camera: return "Camera"
         case .journalNotebook: return "Journal notebook"
         case .builderTools: return "Builder tools"
+        case .mapAndCompass: return "Map and compass"
+        case .coffeeBeans: return "Coffee bean bag"
+        case .matchaKit: return "Matcha bowl and whisk"
+        case .pourOverKit: return "Pour-over kit"
+        case .takeawayCup: return "Takeaway cup"
+        case .tastingSpoon: return "Tasting spoon"
         }
     }
 
@@ -60,6 +72,12 @@ enum MugsyProp: String, CaseIterable, Identifiable, Equatable {
         case .camera: return "holding a camera"
         case .journalNotebook: return "holding a journal notebook"
         case .builderTools: return "holding builder tools"
+        case .mapAndCompass: return "holding a folded map and compass"
+        case .coffeeBeans: return "holding a coffee bean bag"
+        case .matchaKit: return "holding a matcha bowl and whisk"
+        case .pourOverKit: return "holding a pour-over dripper and kettle"
+        case .takeawayCup: return "holding a takeaway cup"
+        case .tastingSpoon: return "holding a tasting spoon"
         }
     }
 
@@ -73,6 +91,8 @@ enum MugsyProp: String, CaseIterable, Identifiable, Equatable {
         case .camera: return .holdingCamera
         case .journalNotebook: return .writing
         case .builderTools: return .presenting
+        case .mapAndCompass, .matchaKit, .pourOverKit, .tastingSpoon: return .presenting
+        case .coffeeBeans, .takeawayCup: return .holdingCenter
         }
     }
 }
@@ -84,6 +104,7 @@ enum MugsyOutfit: String, CaseIterable, Identifiable, Equatable {
     case cafeScout
     case cameraCompanion
     case cozyRitual
+    case baristaApron
 
     var id: String { rawValue }
 
@@ -94,6 +115,7 @@ enum MugsyOutfit: String, CaseIterable, Identifiable, Equatable {
         case .cafeScout: return "Cafe scout"
         case .cameraCompanion: return "Camera companion"
         case .cozyRitual: return "Cozy ritual"
+        case .baristaApron: return "Barista apron"
         }
     }
 
@@ -104,6 +126,7 @@ enum MugsyOutfit: String, CaseIterable, Identifiable, Equatable {
         case .cafeScout: return "wearing a cafe scout hat"
         case .cameraCompanion: return "wearing a camera strap"
         case .cozyRitual: return "wrapped in a knitted ritual blanket"
+        case .baristaApron: return "wearing a mint barista apron"
         }
     }
 }
@@ -111,6 +134,8 @@ enum MugsyOutfit: String, CaseIterable, Identifiable, Equatable {
 enum MugsyArmPose: String, CaseIterable, Identifiable, Equatable {
     case relaxed
     case waving
+    case wavingLeft
+    case handsRaised
     case crossedOverProp
     case cradling
     case reading
@@ -125,6 +150,8 @@ enum MugsyArmPose: String, CaseIterable, Identifiable, Equatable {
         switch self {
         case .relaxed: return "Relaxed"
         case .waving: return "Waving"
+        case .wavingLeft: return "Waving left"
+        case .handsRaised: return "Hands raised"
         case .crossedOverProp: return "Crossed over prop"
         case .cradling: return "Cradling"
         case .reading: return "Reading"
@@ -424,81 +451,16 @@ enum MugsySceneFamily: String, CaseIterable, Identifiable, Equatable {
 
     var configuration: MugsyModelConfiguration {
         switch self {
-        case .cheerfulCafeScout:
-            return .init(
-                expression: .delighted,
-                prop: .guidebookAndPen,
-                outfit: .cafeScout,
-                pose: .leaningRight
-            )
-        case .delightedWishlistHolder:
-            return .init(
-                expression: .delighted,
-                prop: .wishlistBadge,
-                pose: .leaningLeft
-            )
-        case .happyHeartKeeper:
-            return .init(
-                expression: .delighted,
-                prop: .favoriteHeart,
-                pose: .leaningRight
-            )
-        case .proudCameraCompanion:
-            return .init(
-                expression: .delighted,
-                prop: .camera,
-                outfit: .cameraCompanion,
-                pose: .leaningLeft
-            )
-        case .joyfulJournalKeeper:
-            return .init(
-                expression: .delighted,
-                prop: .journalNotebook,
-                pose: .leaningRight,
-                liquid: .coffee(fillProgress: 0.48, steamIntensity: 0.28)
-            )
-        case .welcomingFriendsPhone:
-            return .init(
-                expression: .delighted,
-                prop: .friendsPhone,
-                pose: .leaningLeft
-            )
-        case .cozyCoffeeRitual:
-            return .init(
-                expression: .delighted,
-                prop: .journalNotebook,
-                outfit: .cozyRitual,
-                liquid: MugsyLiquidState(
-                    appearance: .chai,
-                    fillProgress: 0.74,
-                    steamIntensity: 0.68
-                )
-            )
-        case .excitedFirstSipCelebration:
-            return .init(
-                expression: .delighted,
-                armPose: .presenting,
-                pose: .leaningRight,
-                legArticulation: MugsyLegArticulation(
-                    bendProgress: 0.42,
-                    weightShift: 0.34
-                ),
-                liquid: .coffee(fillProgress: 0.94, steamIntensity: 0.82)
-            )
-        case .happyBuilder:
-            return .init(
-                expression: .delighted,
-                prop: .builderTools,
-                outfit: .builder,
-                pose: .leaningLeft
-            )
-        case .playfulWavingMugsy:
-            return .init(
-                expression: .delighted,
-                armPose: .waving,
-                pose: .leaningRight,
-                liquid: .coffee(fillProgress: 0.34, steamIntensity: 0.34)
-            )
+        case .cheerfulCafeScout: return MugsyCatalogPose.cafeScout.configuration
+        case .delightedWishlistHolder: return MugsyCatalogPose.wishlistKeeper.configuration
+        case .happyHeartKeeper: return MugsyCatalogPose.heartKeeper.configuration
+        case .proudCameraCompanion: return MugsyCatalogPose.cameraCompanion.configuration
+        case .joyfulJournalKeeper: return MugsyCatalogPose.journalKeeper.configuration
+        case .welcomingFriendsPhone: return MugsyCatalogPose.friendsHello.configuration
+        case .cozyCoffeeRitual: return MugsyCatalogPose.cozyRitual.configuration
+        case .excitedFirstSipCelebration: return MugsyCatalogPose.firstSipCelebration.configuration
+        case .happyBuilder: return MugsyCatalogPose.carefulBuilder.configuration
+        case .playfulWavingMugsy: return MugsyCatalogPose.welcomeWave.configuration
         }
     }
 
@@ -781,7 +743,7 @@ enum MugsyModelAnchor: String, CaseIterable, Identifiable {
     }
 }
 
-/// Normalized against the alpha bounds of MugsyNoWishlist, the primary master.
+/// Normalized against MugsyIdentityMaster, the immutable original Wishlist master.
 enum MugsyReferenceGeometry {
     static let designCanvas = CGSize(width: 500, height: 500)
     static let sourceAlphaBounds = CGRect(x: 145, y: 154, width: 271, height: 274)

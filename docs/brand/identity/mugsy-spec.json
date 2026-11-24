@@ -1,0 +1,440 @@
+{
+  "schema": "mugshot-mugsy-identity/v1",
+  "version": "1.0.0",
+  "identity_source_commit": "1ffba7b074da7b1230942e394a477dc8a5db2911",
+  "native_master": "MugsyIdentityMaster",
+  "reference_path": "testMugshot/Assets.xcassets/MugsyIdentityMaster.imageset/mugsy-identity-master.png",
+  "reference_sha256": "f7f3cfa7658d51d0aba7e32992832abae436ea3a7a87dc736dc593500edb797f",
+  "canvas": {
+    "native_units": [
+      500,
+      500
+    ],
+    "raster_rule": "Square RGBA PNG, complete body and accessories, genuine alpha and clear margins; no generated checkerboard."
+  },
+  "invariants": [
+    "Same asymmetrical white ceramic body and elliptical open rim",
+    "Same rounded rectangular black glasses, bridge, temple, eye placement and cheek locations",
+    "Handle stays on the image right; never mirror",
+    "Same thin black arms/legs and compact mitten hands/feet",
+    "Locked native palette and core geometry; accessories cannot recolor ceramic or obscure glasses",
+    "Only expression, gaze, articulated limbs, liquid and accessories may change",
+    "Every generation uses the immutable master; never chain identities from one generated pose to the next",
+    "Generated art needs visual identity review; hashes and alpha checks alone cannot prove identity"
+  ],
+  "core_geometry_sha256": {
+    "MugsyBodyShape": "9be142b158acd02da235c76cef759177d62b9c0323d776887bd8a0dde5ac43a4",
+    "MugsyRimShape": "444901f48525318db48d0a12c012ece0cfe172bd1d8da3ef763d7244747e9f2e",
+    "MugsyRimInteriorShape": "f5adfc7f9f9ceb51b58dbed213237aa8d46b602962644c8e1eb0fa11f97ffe3e",
+    "MugsyHandleShape": "c86dfb6fe6d9d0ae36841ac916be72f0ffebe6a9effcfc27dfcc456660c06d29",
+    "MugsyGlassesShape": "215424816cf3f8d6e46e33dedd17222fe867c05eae0008b776c10922e7b0758d",
+    "MugsyCheeksShape": "40ffcd1a7c50fe99701c815135d83a10fd6db32f186d8e553b158da8e1c8a4b9",
+    "MugsyFootShape": "971f325a787801958db72eb3540a30ab689dbcee11b8e4d032d3f2d9b1810854"
+  },
+  "palette": {
+    "ink": "#0C0C0C",
+    "ceramic": "#F3F3F3",
+    "highlight": "#F7F7F7",
+    "shadow": "#D7D6D6",
+    "blush": "#E8B8B0",
+    "accessoryMint": "#B8E0C0"
+  },
+  "poses": [
+    {
+      "id": "wave",
+      "native_case": "welcomeWave",
+      "asset_name": "MugsyPoseWave",
+      "export_name": "mugsy-wave.png",
+      "title": "Welcome wave",
+      "expression": "delighted",
+      "prop": "none",
+      "outfit": "none",
+      "arm_pose": "wavingLeft",
+      "pose": "neutral",
+      "brief": "Raise the arm on the image LEFT in a small welcoming wave, other arm relaxed. Gentle happy smile, feet planted.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.212121,
+        0.300638,
+        0.597289,
+        0.535885
+      ],
+      "artwork_sha256": "c3fae797355142ba59885f3dfd1e0673be1f3426a0f3eb5baf17ac7542ef62f5",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "wishlist",
+      "native_case": "wishlistKeeper",
+      "asset_name": "MugsyNoWishlist",
+      "export_name": "mugsy-wishlist.png",
+      "title": "Want to Try",
+      "expression": "delighted",
+      "prop": "wishlistBadge",
+      "outfit": "none",
+      "arm_pose": "crossedOverProp",
+      "pose": "neutral",
+      "brief": "Hold a small white bookmark badge under the same crossed arms as the identity reference, with a calm delighted smile instead of sadness. No letters on the bookmark.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.284689,
+        0.300638,
+        0.527113,
+        0.533493
+      ],
+      "artwork_sha256": "5a44009bc9b5319eff38f0981252ef57cd3d544289a5ffcd34d53bdae4f88d41",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "favorites",
+      "native_case": "heartKeeper",
+      "asset_name": "MugsyNoFavorites",
+      "export_name": "mugsy-favorites.png",
+      "title": "Favorites",
+      "expression": "delighted",
+      "prop": "favoriteHeart",
+      "outfit": "none",
+      "arm_pose": "cradling",
+      "pose": "neutral",
+      "brief": "Cradle a small blush-pink heart at lower belly level with both hands. Warm delighted smile and gently raised brows.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.285486,
+        0.302233,
+        0.527911,
+        0.531898
+      ],
+      "artwork_sha256": "995b0bc92b8d63c6b76ca4c15a162b28cf18d1cea3c8ea6fc2259cbe418c2cc3",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "scout",
+      "native_case": "cafeScout",
+      "asset_name": "MugsyNoCafes",
+      "export_name": "mugsy-scout.png",
+      "title": "Cafe scout",
+      "expression": "delighted",
+      "prop": "guidebookAndPen",
+      "outfit": "cafeScout",
+      "arm_pose": "reading",
+      "pose": "neutral",
+      "brief": "Wear a small muted-mint soft scouting hat above the rim; hold an open plain cream guidebook and a small pen at belly level, looking interested. No desk, background, text, or lettering.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.283094,
+        0.176236,
+        0.529506,
+        0.658692
+      ],
+      "artwork_sha256": "23fec32c1700e25dec6cdfb435a04aebd9f5a517ec1fa8d61c8806281fd2bad6",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "friends",
+      "native_case": "friendsHello",
+      "asset_name": "MugsyNoFriends",
+      "export_name": "mugsy-friends.png",
+      "title": "Friends hello",
+      "expression": "delighted",
+      "prop": "friendsPhone",
+      "outfit": "none",
+      "arm_pose": "holdingCenter",
+      "pose": "neutral",
+      "brief": "Hold a small black phone with a mint screen showing two tiny simple person silhouettes, at lower belly level. Welcoming happy smile. No screen text.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.283094,
+        0.301435,
+        0.528708,
+        0.535088
+      ],
+      "artwork_sha256": "4d1017627ee4704c53766e3b07fd8c60ecc4e98830611fa1bccfd0ed5316a11a",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "builder",
+      "native_case": "carefulBuilder",
+      "asset_name": "MugsyComingSoon",
+      "export_name": "mugsy-builder.png",
+      "title": "Careful builder",
+      "expression": "delighted",
+      "prop": "builderTools",
+      "outfit": "builder",
+      "arm_pose": "presenting",
+      "pose": "neutral",
+      "brief": "Wear a small mint hard hat above the rim and a simple mint apron below the face. Hold a tiny hammer and wrench at belly level. Cheerful, competent, no construction site or extra objects.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.283892,
+        0.200159,
+        0.527113,
+        0.637161
+      ],
+      "artwork_sha256": "09b83950765cad22884fcfbf56a37501c23be964445c00b7d462e2b0ad82c4d0",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "camera",
+      "native_case": "cameraCompanion",
+      "asset_name": "MugsyPoseCamera",
+      "export_name": "mugsy-camera.png",
+      "title": "Camera companion",
+      "expression": "delighted",
+      "prop": "camera",
+      "outfit": "cameraCompanion",
+      "arm_pose": "holdingCamera",
+      "pose": "neutral",
+      "brief": "Hold a small black camera with one round white lens and subtle mint inset, a thin camera strap below the face. Delighted gentle smile, camera at lower belly level without hiding the glasses.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.282297,
+        0.299841,
+        0.530303,
+        0.535088
+      ],
+      "artwork_sha256": "44105e478ae1c5c913f0e7e3db5656038925dc660ae5450636fca6e6cc677fb2",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "journal",
+      "native_case": "journalKeeper",
+      "asset_name": "MugsyPoseJournal",
+      "export_name": "mugsy-journal.png",
+      "title": "Journal keeper",
+      "expression": "focused",
+      "prop": "journalNotebook",
+      "outfit": "none",
+      "arm_pose": "writing",
+      "pose": "neutral",
+      "brief": "Hold a small cream notebook at belly level and write with a small black pen. Calm focused eyes looking slightly down, soft happy closed smile. No desk, no writing or lettering.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.284689,
+        0.301435,
+        0.527911,
+        0.533493
+      ],
+      "artwork_sha256": "5b3bd4e90bb996b7a08a271ff0fecf0fda9629c878a74e5574e132dd0ed60825",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "cozy",
+      "native_case": "cozyRitual",
+      "asset_name": "MugsyPoseCozy",
+      "export_name": "mugsy-cozy.png",
+      "title": "Cozy ritual",
+      "expression": "delighted",
+      "prop": "journalNotebook",
+      "outfit": "cozyRitual",
+      "arm_pose": "reading",
+      "pose": "neutral",
+      "brief": "Wear a small pale-mint knitted wrap around only the lower half of the mug body, keeping face and handle completely exposed. Hold a small cream notebook at belly level. Quiet contented smile, a little coffee visible inside the open rim, two fine restrained steam curls.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.278309,
+        0.169059,
+        0.53429,
+        0.665869
+      ],
+      "artwork_sha256": "92c7b56b76e22dd4c6afe100591f291e224d17a30b3752eca334475148aad074",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "celebrate",
+      "native_case": "firstSipCelebration",
+      "asset_name": "MugsyPoseCelebrate",
+      "export_name": "mugsy-celebrate.png",
+      "title": "First-sip celebration",
+      "expression": "delighted",
+      "prop": "none",
+      "outfit": "none",
+      "arm_pose": "handsRaised",
+      "pose": "neutral",
+      "brief": "Lift BOTH small mitten hands in a happy celebratory pose. Knees slightly bent with feet planted, tiny body lowering but no stretching or change of body proportions. Delighted smile. No confetti, ribbons, stars, background or extra objects.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.246411,
+        0.302233,
+        0.566188,
+        0.524721
+      ],
+      "artwork_sha256": "4b89f0bd496721c7aca62a3812776009afc2cdf6ba614d7b89f7bda39504abb4",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "map",
+      "native_case": "mapExplorer",
+      "asset_name": "MugsyPoseMap",
+      "export_name": "mugsy-map.png",
+      "title": "Map explorer",
+      "expression": "curious",
+      "prop": "mapAndCompass",
+      "outfit": "none",
+      "arm_pose": "presenting",
+      "pose": "neutral",
+      "brief": "Hold a small folded muted-mint paper map at belly level and a tiny simple round compass. Curious, inviting eyes, soft smile. Use simple abstract map lines, no text, no location labels, no hat.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.283892,
+        0.300638,
+        0.529506,
+        0.535088
+      ],
+      "artwork_sha256": "7bdfac454869a5318f8d886158ea1924b397f66cd5cd83db1d18d998dfb160c0",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "beans",
+      "native_case": "beanKeeper",
+      "asset_name": "MugsyPoseBeans",
+      "export_name": "mugsy-beans.png",
+      "title": "Bean keeper",
+      "expression": "delighted",
+      "prop": "coffeeBeans",
+      "outfit": "none",
+      "arm_pose": "holdingCenter",
+      "pose": "neutral",
+      "brief": "Hold a small cream paper coffee-bean bag at belly level, a muted-mint band and a single black coffee-bean outline as the only label. Happy attentive smile. No lettering, loose beans or background.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.283094,
+        0.300638,
+        0.522329,
+        0.535885
+      ],
+      "artwork_sha256": "c8258c7575628807e55cfc32a16b0863875f8bb836a367698d5aee9b6f11bdb6",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "matcha",
+      "native_case": "matchaMaker",
+      "asset_name": "MugsyPoseMatcha",
+      "export_name": "mugsy-matcha.png",
+      "title": "Matcha maker",
+      "expression": "focused",
+      "prop": "matchaKit",
+      "outfit": "none",
+      "arm_pose": "presenting",
+      "pose": "neutral",
+      "brief": "Hold a small white matcha bowl with a muted-mint green drink and a simple bamboo whisk at lower belly level. Focused cheerful face. Whisk and bowl must be small accessories, not additional characters. No table, no background.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.284689,
+        0.301435,
+        0.527911,
+        0.533493
+      ],
+      "artwork_sha256": "53403ee7190221dba595fef6b3d165e7fc64a3e302ff8cf751f3e795bea95857",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "pourover",
+      "native_case": "pourOverBarista",
+      "asset_name": "MugsyPosePourOver",
+      "export_name": "mugsy-pourover.png",
+      "title": "Pour-over barista",
+      "expression": "focused",
+      "prop": "pourOverKit",
+      "outfit": "baristaApron",
+      "arm_pose": "presenting",
+      "pose": "neutral",
+      "brief": "Wear a small muted-mint apron BELOW the glasses. Hold a small white conical pour-over dripper on a little glass server and a miniature simple gooseneck kettle at lower belly level. Focused soft smile, no table or scene. Keep all accessories separated from his ceramic anatomy.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.271132,
+        0.300638,
+        0.541467,
+        0.535088
+      ],
+      "artwork_sha256": "efcb2d8dabb05818c1ea70dc8a29baa6ff2a6e25b67ed2e9cd73f4f9013f2d8d",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "takeaway",
+      "native_case": "takeawayCompanion",
+      "asset_name": "MugsyPoseTakeaway",
+      "export_name": "mugsy-takeaway.png",
+      "title": "Takeaway companion",
+      "expression": "delighted",
+      "prop": "takeawayCup",
+      "outfit": "none",
+      "arm_pose": "holdingCenter",
+      "pose": "neutral",
+      "brief": "Hold a small unbranded white takeaway cup with a black lid and mint sleeve at belly level. The little takeaway cup has no face or limbs. Friendly soft smile. No logos or lettering.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.284689,
+        0.302233,
+        0.527113,
+        0.532695
+      ],
+      "artwork_sha256": "48a7286dfc2c13267ce5732c2e99e3a46a79d34de80ab552887ac09bc0a4de5c",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "tasting",
+      "native_case": "tasteExplorer",
+      "asset_name": "MugsyPoseTasting",
+      "export_name": "mugsy-tasting.png",
+      "title": "Taste explorer",
+      "expression": "curious",
+      "prop": "tastingSpoon",
+      "outfit": "none",
+      "arm_pose": "presenting",
+      "pose": "neutral",
+      "brief": "Hold a small simple tasting spoon, raised only to lower-belly height and clearly below the mouth. Curious engaged gaze and a warm closed smile. Keep the same glasses, handle and mug silhouette. No other objects.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.283892,
+        0.301435,
+        0.528708,
+        0.53429
+      ],
+      "artwork_sha256": "a13a8034ed7fb2e7e3029ed765685d4c04b2ed31d424e7bef5b55ff6b6919aca",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "guide",
+      "native_case": "helpfulGuide",
+      "asset_name": "MugsyPoseGuide",
+      "export_name": "mugsy-guide.png",
+      "title": "Helpful guide",
+      "expression": "curious",
+      "prop": "none",
+      "outfit": "none",
+      "arm_pose": "presenting",
+      "pose": "neutral",
+      "brief": "Present both empty palms outward gently at belly level as if offering helpful guidance. Curious eyes and a calm little smile. No sign, book, accessories, clothing or text.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.282297,
+        0.299841,
+        0.527911,
+        0.535088
+      ],
+      "artwork_sha256": "3d8da1baa5db7fc5418a0223bf75bd26e4e3baf133aa8db76320a61ab7594fd2",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    },
+    {
+      "id": "pause",
+      "native_case": "quietPause",
+      "asset_name": "MugsyPosePause",
+      "export_name": "mugsy-pause.png",
+      "title": "Quiet pause",
+      "expression": "neutral",
+      "prop": "none",
+      "outfit": "none",
+      "arm_pose": "relaxed",
+      "pose": "neutral",
+      "brief": "Both arms rest naturally at his sides, feet planted, calm bright eyes and a small relaxed closed smile. A small amount of coffee visible ONLY inside his open rim, no steam, no clothing or extra objects.",
+      "generation_status": "identity-reviewed",
+      "artwork_bounds": [
+        0.282297,
+        0.301435,
+        0.530303,
+        0.531898
+      ],
+      "artwork_sha256": "77a2cefa4fb03d342d1ac8a48b12c5ed281a41735837a08c956af90c90f2861d",
+      "optical_review": "Codex visual review: same ceramic silhouette family, glasses, right-side handle and palette; complete pose and correct accessory. Native rig stays geometrically exact; generated artwork is not asserted pixel-identical."
+    }
+  ]
+}

@@ -16,6 +16,7 @@ with it.
 | Document | Authority |
 | --- | --- |
 | [Mugshot brand kit](brand/README.md) | Single brand authority: native assets, tokens, typography, voice, templates, and governance |
+| [Mugsy identity and pose contract](brand/identity/README.md) | Frozen master, protected native shapes, generated poses, code mappings, and optical review |
 | [Marketing-site brand handoff](brand/WEBSITE_HANDOFF.md) | Source audit, adoption plan, and website acceptance checklist |
 | [Current product status](CURRENT_PRODUCT_STATUS.md) | Shipped behavior, validation state, and release gates |
 | [Home and Recipes implementation](HOME_RECIPES_IMPLEMENTATION.md) | Native product, data ownership, production evidence, and rollout state |
