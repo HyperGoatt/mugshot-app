@@ -1,0 +1,46 @@
+{
+  "version": "1.0.0",
+  "native_baseline": "0bece7e83a96a3f8e0167bc74ec87588e83ad1a1",
+  "sources": [
+    {
+      "role": "palette",
+      "path": "testMugshot/Design/BrandColors.swift",
+      "sha256": "a8a780285baecd7670e10783915948a835a3781a056be60f7602ca6022983c31"
+    },
+    {
+      "role": "system",
+      "path": "testMugshot/Design/DesignSystem.swift",
+      "sha256": "72f51433a12af7b47065540af124b9fcdeba828d7804e6c9629141bd86239d82"
+    },
+    {
+      "role": "motion",
+      "path": "testMugshot/Design/MugshotMotionSystem.swift",
+      "sha256": "c91875bddf3797ac2dad2c6fccac2c15a50b1a8ff5e2e396bf76ca834c9be6ae"
+    },
+    {
+      "role": "character",
+      "path": "testMugshot/Design/MugsyDesignSystem.swift",
+      "sha256": "b8203038044ed65abb406d4954b0daa533c9019dc543b4b4fc3ab8705707e180"
+    },
+    {
+      "role": "onboarding",
+      "path": "testMugshot/Views/Onboarding/MugshotOnboardingView.swift",
+      "sha256": "1d2180d02487c52058cf5b05dd8b488fa8acf1310648f244a5c46db9b39ab542"
+    },
+    {
+      "role": "authentication",
+      "path": "testMugshot/Views/Auth/AuthEntryView.swift",
+      "sha256": "2297abfe46ff99ad817b8ccceee568632f23ed9f165d1614b633a8a9c8c21604"
+    },
+    {
+      "role": "character_rules",
+      "path": "docs/MUGSY_DESIGN_SYSTEM.md",
+      "sha256": "99250d3b9bdcab4b56b8ad4566180baadd663d377db0184d8754172f1d9a331d"
+    },
+    {
+      "role": "artwork_authority",
+      "path": "docs/MUGSY_ASSET_STATUS.md",
+      "sha256": "3138b42cc8318649dce1f899e5d60a1b73b919313ee69104b31256fdef978113"
+    }
+  ]
+}

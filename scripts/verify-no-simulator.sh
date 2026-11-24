@@ -432,6 +432,7 @@ run_check "Untracked text whitespace" check_untracked_whitespace
 run_check "No unresolved conflict markers" check_conflict_markers
 run_check "ASCII cafe spelling" check_ascii_cafe_spelling
 run_check "Living documentation integrity" check_documentation
+run_check "App-derived brand contract integrity" python3 scripts/brand-kit.py --check
 run_check "Migration filename and timestamp integrity" check_migration_names
 
 if [ "${MODE}" = "backend" ] || [ "${MODE}" = "full-static" ]; then

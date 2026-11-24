@@ -1,8 +1,22 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-16
+last_verified: 2026-11-24
 ---
+
+## 2026-11-24 — App-derived Mugshot brand authority
+
+- Establish the [Mugshot brand kit](brand/README.md) as the single identity
+  reference for app, web, email, and social work. Preserve original native
+  artwork and source copy; extract exact colors, spacing, radii, shadows, and
+  base motion into checked CSS/JSON exports and Adobe/RGB swatches.
+- Add a local visual brand book, asset/source provenance manifests, accessible
+  color-pair guidance, typography and voice rules, editable reference templates,
+  and version/change governance. Add deterministic source/export drift checks.
+- Record the [marketing-source drift and adoption handoff](brand/WEBSITE_HANDOFF.md).
+  This change publishes the kit; it does not migrate the production website,
+  change native behavior, deploy backend infrastructure, or alter release state.
+
 
 ## 2026-11-16 — GitHub repository checks
 

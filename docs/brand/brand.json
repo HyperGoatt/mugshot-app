@@ -1,0 +1,166 @@
+{
+  "name": "Mugshot",
+  "version": "1.0.0",
+  "last_verified": "2026-11-24",
+  "source_revision": "0bece7e83a96a3f8e0167bc74ec87588e83ad1a1",
+  "authority": "This directory is Mugshot's brand authority. Native app resources supply the identity; the marketing site consumes this kit. Change the kit and its affected consumers together.",
+  "scope": "Brand specification and reference applications. This is not an app release, a marketing-site deployment, or evidence of feature availability in a distributed build.",
+  "positioning": {
+    "description": "A personal sip journal for the drink, the place, and the little moment around it.",
+    "status": "Source-derived synthesis of native onboarding, not a new product claim.",
+    "audience": "People who want to remember their drinks, return to favorite cafes, and choose what they share with friends.",
+    "promise": "Help people remember what they enjoyed and what they want to try next.",
+    "personality": ["Warm", "Observant", "Personal", "Calm", "Quietly playful"],
+    "principles": [
+      {"title": "The moment comes first.", "body": "Lead with the drink and its memory. Ratings and interface details support the story."},
+      {"title": "A journal at your pace.", "body": "Use inviting, specific language. Keep social sharing a choice and preserve audience meaning."},
+      {"title": "Warmth, with room to breathe.", "body": "Use cream surfaces, espresso typography, gentle green accents, and generous space."},
+      {"title": "Mugsy is a companion.", "body": "Use the existing character to guide and acknowledge. Keep his permanent identity intact."}
+    ]
+  },
+  "sources": {
+    "palette": "testMugshot/Design/BrandColors.swift",
+    "system": "testMugshot/Design/DesignSystem.swift",
+    "motion": "testMugshot/Design/MugshotMotionSystem.swift",
+    "character": "testMugshot/Design/MugsyDesignSystem.swift",
+    "onboarding": "testMugshot/Views/Onboarding/MugshotOnboardingView.swift",
+    "authentication": "testMugshot/Views/Auth/AuthEntryView.swift",
+    "character_rules": "docs/MUGSY_DESIGN_SYSTEM.md",
+    "artwork_authority": "docs/MUGSY_ASSET_STATUS.md"
+  },
+  "color_roles": {
+    "canvas": "creamWhite",
+    "surface": "foamWhite",
+    "surfaceQuiet": "sandBeige",
+    "text": "espressoBrown",
+    "textSecondary": "roastBrown",
+    "action": "mugshotSageText",
+    "actionText": "foamWhite",
+    "accent": "mugshotMint",
+    "accentText": "espressoBrown",
+    "border": "mugshotLine",
+    "focus": "mugshotSageText"
+  },
+  "color_usage": {
+    "creamWhite": "Primary page canvas. The warm surface that connects app and marketing.",
+    "foamWhite": "Cards, fields, and text on the accessible dark sage action color.",
+    "espressoBrown": "Primary type, editorial headings, and high-contrast marks.",
+    "roastBrown": "Body copy, supporting text, and readable secondary information.",
+    "mugshotMint": "Accent panels and selected context. Pair with espresso text.",
+    "mugshotSage": "Decorative sage and large graphic elements. Do not use with white for small text.",
+    "mugshotSageText": "Accessible action fill and green text on cream, foam, and sand.",
+    "sandBeige": "Quiet panels, secondary surfaces, and grouped controls.",
+    "mugshotLine": "Quiet separators. Insufficient by itself to identify an essential input boundary.",
+    "mugshotMatcha": "Supporting drink-context accent, not a replacement primary green.",
+    "mugshotLatte": "Supporting warm accent for drink context.",
+    "darkRoast": "Deep brown supporting ink.",
+    "mapPinHigh": "High-rating map meaning. Always accompany with a number or label.",
+    "mapPinMiddle": "Middle-rating map meaning. Always accompany with a number or label.",
+    "mapPinLow": "Low-rating map meaning. Always accompany with a number or label.",
+    "sageGray": "Legacy alias of mugshotMint; do not create a separate color."
+  },
+  "typography": {
+    "native_display": ".system(size: size, weight: .regular, design: .serif), tracking -0.2 pt",
+    "native_body": "System sans; semantic text styles where implemented. Respect Dynamic Type.",
+    "web_display": "ui-serif, Georgia, 'Times New Roman', serif",
+    "web_body": "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+    "web_tracking": "-0.2px",
+    "font_files": "No font binaries are bundled with the native app. No external fonts are part of this kit.",
+    "portability": "System faces vary by platform. Georgia and Times are fallbacks, not an assertion of exact SF Serif parity. PDF reference exports use built-in Times and Helvetica.",
+    "native_roles": [
+      {"role": "Brand name", "size": 42, "weight": 400, "source": "authentication", "evidence": ".mugshotDisplay(size: 42)"},
+      {"role": "Welcome heading", "size": 40, "weight": 400, "source": "onboarding", "evidence": ".mugshotDisplay(size: 40)"},
+      {"role": "Screen heading", "size": 30, "weight": 400, "source": "system", "evidence": ".mugshotDisplay(size: 30)"},
+      {"role": "Body / controls", "size": 16, "weight": 500, "source": "authentication", "evidence": ".system(size: 16, weight: .medium)"}
+    ],
+    "web_roles": [
+      {"role": "Hero", "value": "clamp(2.5rem, 5.5vw, 5rem)", "purpose": "One main marketing statement; regular serif."},
+      {"role": "Section", "value": "clamp(2rem, 3vw, 3rem)", "purpose": "Serif section headings with natural wrapping."},
+      {"role": "Body", "value": "1rem / 1.6", "purpose": "System sans, 60-70 characters per line."},
+      {"role": "Label", "value": "0.875rem / 1.4", "purpose": "System sans; clear sentence case."}
+    ]
+  },
+  "logo": {
+    "asset": "app-icon",
+    "wordmark": "Mugshot",
+    "wordmark_rule": "Use live text in the native regular serif role. There is no separately approved vector wordmark in the app.",
+    "clear_space": "Web application rule: leave at least one quarter of the displayed icon width around an icon/name lockup; retain all padding inside the source PNG.",
+    "minimum": "Web application rule: use the full icon at least 48 CSS px wide; use a text-only name if the embedded mug loses clarity.",
+    "lockup_gap": "Web application rule: use the app's 12 px spacing step between the displayed icon and name.",
+    "backgrounds": "Prefer cream or white. The original icon includes its own white canvas; do not fake transparency on dark backgrounds.",
+    "prohibited": ["Redrawing or tracing the mark", "Recoloring the icon", "Mirroring or stretching", "Removing its source padding", "Inventing inverse or monochrome variants", "Adding a new badge or tagline inside the mark"],
+    "gap": "No approved standalone vector logo, inverse logo, monochrome master, CMYK master, or favicon-size redraw exists in the audited app. Keep these as explicit gaps rather than inventing replacements."
+  },
+  "character": {
+    "master": "mugsy-wishlist",
+    "rules": [
+      "White ceramic, permanent glasses, compact limbs, and the approved silhouette remain unchanged.",
+      "Do not mirror, stretch, recolor, crop the handle, or draw new anatomy.",
+      "The canonical normalized model keeps the handle on Mugsy's right; preserve the orientation of every source PNG exactly as supplied.",
+      "Props remain context layers. The bookmark held in MugsyNoWishlist is a prop.",
+      "The code-native model supports positive, context-aware product scenes. Legacy raster poses remain identity references and must not become guilt-based promotional messages.",
+      "Use the builder pose only for coming-soon or maintenance contexts.",
+      "Keep artwork's own colors separate from the UI palette. Character mint is not the UI mint token.",
+      "The existing code-native vector PDF is review-only, not a production replacement for the PNG masters."
+    ],
+    "motion": "Quiet at rest, responsive to interaction, briefly expressive on completion. No ambient mascot loop in marketing. Honor reduced motion with a still pose.",
+    "production_detail": "docs/MUGSY_DESIGN_SYSTEM.md"
+  },
+  "imagery": {
+    "rules": [
+      "Use the app-bundled drink imagery and onboarding artwork supplied in the asset manifest.",
+      "Show drink texture, natural light, and the surrounding moment. Keep warm, believable color.",
+      "Place headlines on a solid cream panel whenever image contrast would be uncertain.",
+      "Preserve the drink's focal point when cropping photography. Never distort or crop original character masters.",
+      "Keep baked-in onboarding labels intact when showing the complete artwork. It is a reference image, not an editable app screen.",
+      "Use bundled reference artwork as illustration, never as proof of a current live account or exact build UI.",
+      "Show no personal journal entries, private notes, real user accounts, or live service data in marketing templates.",
+      "An app-bundled resource is source provenance; it is not independent verification of third-party licensing or a new redistribution license."
+    ]
+  },
+  "voice": {
+    "profile": "Warm, concrete, observant, and unhurried. Short serif-worthy headlines; plain explanatory body copy; verbs that describe what happens next.",
+    "perspective": "Speak to the person as you. Use we only for a real Mugshot action or responsibility. Mugsy is a named companion, not the narrator of every sentence.",
+    "rhythm": "Favor short statements and natural fragments in headlines. Follow with one useful sentence. Keep UI labels literal.",
+    "capitalization": "Mugshot, Mugsy, Map, Feed, Saved, Journal, Friends, Favorites, Want to Try, Lists. Sentence case in new copy; preserve the sourced Capture Every Sip headline.",
+    "spelling": "Always cafe and cafes, using ASCII e.",
+    "avoid": ["Hype or status competition", "Expert-only coffee language", "Guilt, streak pressure, or forced social sharing", "Invented user counts, rankings, reviews, awards, availability, or pricing", "Promises that every sip is automatically public", "Claims that all app content is private regardless of selected audience"],
+    "tones": [
+      {"context": "Invitation", "rule": "Warm and specific. Lead with the memory and let the person choose."},
+      {"context": "Instruction", "rule": "Literal action, useful object, clear outcome."},
+      {"context": "Success", "rule": "Calm acknowledgement. Celebrate the completed action, not a promised future save."},
+      {"context": "Error", "rule": "Say what is known, what remains safe, and the next available action. Use no blame."},
+      {"context": "Privacy", "rule": "Use exact audience semantics. Separate private notes from a post's chosen audience."}
+    ],
+    "privacy": "Private means owner-only. Friends means confirmed mutual friends. Everyone means public. Private notes stay private. Describe the selected audience rather than promising blanket privacy."
+  },
+  "copy": [
+    {"id": "hero", "role": "Primary brand headline", "text": "Capture Every Sip", "source": "onboarding"},
+    {"id": "intro", "role": "Short introduction", "text": "The drink. The place. The little moment around it. Mugshot helps you remember it all.", "source": "onboarding"},
+    {"id": "range", "role": "Drink range", "text": "Coffee, matcha, tea, and everything between. Mugsy keeps the little moments that would otherwise disappear.", "source": "onboarding"},
+    {"id": "map", "role": "Map headline", "text": "Watch your world take shape.", "source": "onboarding"},
+    {"id": "saved", "role": "Saved headline", "text": "Never forget the cafe you meant to try.", "source": "onboarding"},
+    {"id": "saved-body", "role": "Saved explanation", "text": "Favorites, Want to Try, and Lists keep the next plan one tap away.", "source": "onboarding"},
+    {"id": "journal", "role": "Journal headline", "text": "A memory, not just a rating.", "source": "onboarding"},
+    {"id": "journal-body", "role": "Journal explanation", "text": "Keep the photo, the feeling, the recipe, and the details you would otherwise forget.", "source": "onboarding"},
+    {"id": "friends", "role": "Friends headline", "text": "Your people. Your pace. Your privacy.", "source": "onboarding"},
+    {"id": "privacy", "role": "Private notes", "text": "Private notes stay private. Choose who can see each post you share.", "source": "onboarding"},
+    {"id": "score", "role": "Tasting principle", "text": "Your reaction is the score", "source": "onboarding"},
+    {"id": "signup", "role": "Account invitation", "text": "Start your sip journal.", "source": "authentication"}
+  ],
+  "applications": [
+    {"name": "Website reference", "path": "templates/landing.html", "format": "Responsive HTML", "purpose": "Cream-led landing page with source imagery, serif hierarchy, and sage actions."},
+    {"name": "Square social", "path": "templates/social-square.html", "format": "1080 x 1080 composition", "purpose": "Photo and journal headline; editable HTML with print styling."},
+    {"name": "Portrait social", "path": "templates/social-portrait.html", "format": "1080 x 1350 composition", "purpose": "Drink photo, Capture Every Sip, and a quiet brand signature."},
+    {"name": "Email reference", "path": "templates/email.html", "format": "Responsive table HTML", "purpose": "Original app icon, cream surface, source copy, and an explicit CTA integration slot."}
+  ],
+  "governance": {
+    "owner": "Mugshot product owner",
+    "change_rule": "Any identity change updates this kit, its source mapping, the changelog, and affected consumers in the same reviewed change. Do not create a competing palette or voice guide in a downstream repository.",
+    "versioning": "Patch: clarification or export repair. Minor: compatible addition. Major: changed identity, semantics, or a breaking token contract.",
+    "acceptance": ["Only app-source assets and copy", "Exact source hashes", "Accessible text pairs", "Responsive and keyboard review", "No fabricated product or release claims", "Marketing reference checked against the kit", "Documentation and repository checks"],
+    "consumer_rule": "Pin the kit version and source commit. Import tokens.css; use the manifest assets and copy library. Record adoption before claiming the marketing site conforms.",
+    "drift_command": "python3 scripts/brand-kit.py --check",
+    "build_command": "python3 scripts/brand-kit.py --build"
+  }
+}

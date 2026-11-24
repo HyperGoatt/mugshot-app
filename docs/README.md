@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-11-24
 ---
 
 # Mugshot documentation
@@ -15,6 +15,8 @@ with it.
 
 | Document | Authority |
 | --- | --- |
+| [Mugshot brand kit](brand/README.md) | Single brand authority: native assets, tokens, typography, voice, templates, and governance |
+| [Marketing-site brand handoff](brand/WEBSITE_HANDOFF.md) | Source audit, adoption plan, and website acceptance checklist |
 | [Current product status](CURRENT_PRODUCT_STATUS.md) | Shipped behavior, validation state, and release gates |
 | [Home and Recipes implementation](HOME_RECIPES_IMPLEMENTATION.md) | Native product, data ownership, production evidence, and rollout state |
 | [Feature status matrix](FEATURE_STATUS_MATRIX.md) | Feature-by-feature implementation and risk status |

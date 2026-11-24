@@ -7,6 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 LIVING_DOCS=(
+  DESIGN.md
+  docs/brand/README.md
+  docs/brand/WEBSITE_HANDOFF.md
+  docs/brand/VERIFICATION.md
   docs/HOME_RECIPES_IMPLEMENTATION.md
   docs/REPAIR_SHARING_STATUS.md
   docs/README.md
