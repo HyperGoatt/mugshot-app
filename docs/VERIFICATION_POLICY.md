@@ -1,7 +1,7 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-08-25
+last_verified: 2026-11-24
 ---
 
 # Mugshot Development Verification Policy
@@ -9,6 +9,14 @@ last_verified: 2026-08-25
 This policy keeps verification proportional to risk while avoiding repeated Simulator loops. The default is the lightest local check that can credibly catch a regression. Static analysis, pure tests, hermetic backend tests, and compile-only builds are the discovery tools; Simulator or physical-device work is a batched acceptance gate after those checks are green.
 
 The practical commands and final acceptance matrix live in [`IOS_QA_EFFICIENCY_FRAMEWORK.md`](IOS_QA_EFFICIENCY_FRAMEWORK.md).
+
+Brand changes also follow the [brand authority](brand/README.md). The fast
+repository check runs `python3 scripts/brand-kit.py --check` to verify native
+source/export equality, exact assets and copy, approved contrast pairs, local
+links, and the absence of independent colors or remote UI resources. A brand
+documentation/static-artifact change requires those checks and relevant visual
+review, not an app build. A downstream app or website implementation still needs
+the verification appropriate to its actual behavior and risk.
 
 ## Operating rules
 

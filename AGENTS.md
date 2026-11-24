@@ -3,6 +3,15 @@
 - In every user-facing string and product document, use the ASCII spellings `cafe` and `cafes`.
 - Never use an accented e in those words.
 
+## Brand Authority
+
+- Use [the Mugshot brand kit](docs/brand/README.md) as the single source of truth
+  for all app, marketing, web, email, and social brand work.
+- Reuse the kit's exact app-derived assets, generated tokens, and voice rules.
+  Do not introduce a second palette, new font family, or redrawn identity asset.
+- Update the kit and affected consumers together when identity changes, and run
+  `python3 scripts/brand-kit.py --check` for brand changes.
+
 ## Documentation Freshness
 
 - Follow [`docs/DOCUMENTATION_POLICY.md`](docs/DOCUMENTATION_POLICY.md) for every change.

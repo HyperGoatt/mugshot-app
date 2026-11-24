@@ -1,0 +1,20 @@
+GIMP Palette
+Name: Mugshot 1.0.0
+Columns: 4
+# Exact app-source sRGB values; no CMYK conversion.
+168 205 184	mugshotMint
+110 143 124	mugshotSage
+ 77 111  93	mugshotSageText
+143 175 106	mugshotMatcha
+220 200 166	mugshotLatte
+ 79 138 104	mapPinHigh
+212 173  85	mapPinMiddle
+194  99  85	mapPinLow
+250 246 240	creamWhite
+255 255 255	foamWhite
+ 31  23  18	espressoBrown
+ 91  70  54	roastBrown
+ 43  31  23	darkRoast
+238 230 216	sandBeige
+227 222 212	mugshotLine
+168 205 184	sageGray

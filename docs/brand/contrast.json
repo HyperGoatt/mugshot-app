@@ -1,0 +1,66 @@
+[
+  {
+    "foreground": "espressoBrown",
+    "background": "creamWhite",
+    "ratio": 16.3972,
+    "normal_text": true,
+    "large_text": true,
+    "use": "Primary text"
+  },
+  {
+    "foreground": "roastBrown",
+    "background": "creamWhite",
+    "ratio": 8.2157,
+    "normal_text": true,
+    "large_text": true,
+    "use": "Supporting text"
+  },
+  {
+    "foreground": "espressoBrown",
+    "background": "mugshotMint",
+    "ratio": 10.1632,
+    "normal_text": true,
+    "large_text": true,
+    "use": "Mint panels"
+  },
+  {
+    "foreground": "foamWhite",
+    "background": "mugshotSageText",
+    "ratio": 5.6039,
+    "normal_text": true,
+    "large_text": true,
+    "use": "Primary actions"
+  },
+  {
+    "foreground": "mugshotSageText",
+    "background": "creamWhite",
+    "ratio": 5.205,
+    "normal_text": true,
+    "large_text": true,
+    "use": "Green links"
+  },
+  {
+    "foreground": "mugshotSageText",
+    "background": "sandBeige",
+    "ratio": 4.522,
+    "normal_text": true,
+    "large_text": true,
+    "use": "Green text on sand"
+  },
+  {
+    "foreground": "foamWhite",
+    "background": "mugshotSage",
+    "ratio": 3.5696,
+    "normal_text": false,
+    "large_text": true,
+    "use": "Avoid for normal text"
+  },
+  {
+    "foreground": "mugshotMint",
+    "background": "creamWhite",
+    "ratio": 1.6134,
+    "normal_text": false,
+    "large_text": false,
+    "use": "Avoid as body text"
+  }
+]

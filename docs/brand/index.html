@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="The Mugshot brand book. Identity, assets, color, typography, voice, and reference applications derived from the native app.">
+  <title>Mugshot — Brand book</title>
+  <link rel="icon" href="assets/mugshot-app-icon.png">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="brand.css">
+  <script src="brand-data.js" defer></script>
+  <script src="brand.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to brand book</a>
+  <header class="masthead">
+    <a class="brand-name" href="#main" aria-label="Mugshot brand book home">Mugshot</a>
+    <span class="book-name">Brand book <span data-version>1.0.0</span></span>
+    <a class="quiet-link" href="#downloads">Get the resources <span aria-hidden="true">↗</span></a>
+  </header>
+  <div class="book-shell">
+    <aside class="contents">
+      <details open id="contents-menu">
+        <summary>Contents</summary>
+        <nav aria-label="Brand book contents">
+          <a href="#foundation">Brand foundation</a>
+          <a href="#identity">Name &amp; identity</a>
+          <a href="#color">Color palette</a>
+          <a href="#typography">Typography</a>
+          <a href="#mugsy">Meet Mugsy</a>
+          <a href="#imagery">Photography &amp; imagery</a>
+          <a href="#components">Components &amp; motion</a>
+          <a href="#voice">Voice &amp; language</a>
+          <a href="#applications">Brand in use</a>
+          <a href="#handoff">Website alignment</a>
+          <a href="#downloads">Resources &amp; governance</a>
+        </nav>
+      </details>
+      <p class="contents-note">One source of truth.<br>Everything starts in the app.</p>
+      <a class="text-link small" href="README.md">Read the complete standard</a>
+    </aside>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title" data-copy="hero">Capture Every Sip</h1>
+          <p class="hero-intro" data-copy="intro">The drink. The place. The little moment around it. Mugshot helps you remember it all.</p>
+          <p class="hero-note">The Mugshot brand, gathered in one place. Built from the colors, type, artwork, and language already inside the app.</p>
+          <div class="actions"><a class="button primary" href="#identity">Explore the brand</a><a class="button secondary" href="templates/landing.html">See it in use</a></div>
+          <p class="edition">Native app sources · November 24, 2026</p>
+        </div>
+        <figure class="hero-image"><img src="assets/orange-hero.png" alt="An iced orange drink in warm natural light, from Mugshot's bundled imagery" width="1024" height="1536"><figcaption>The drink. The place. The little moment.</figcaption></figure>
+      </section>
+
+      <section id="foundation" class="chapter">
+        <div class="section-intro"><h2>A little moment, remembered.</h2><p>Mugshot is a personal sip journal. Its identity makes room for the drink, the place, and the person remembering it.</p></div>
+        <p class="personality">Warm. Observant. Personal. Calm. Quietly playful.</p>
+        <div class="principles" id="principles"></div>
+        <p class="annotation">Foundation is a synthesis of the app's onboarding and account experience. App-source headlines are quoted throughout this book; new application rules are labeled.</p>
+      </section>
+
+      <section id="identity" class="chapter">
+        <div class="section-intro"><h2>Always Mugshot.</h2><p>The original app icon and a simple serif name carry the identity. Preserve the mark. Let the surrounding space do the work.</p></div>
+        <div class="identity-stage"><div class="lockup"><img src="assets/mugshot-app-icon.png" alt="Original Mugshot app icon" width="112" height="112"><span>Mugshot</span></div><p>Original icon + live serif text</p></div>
+        <div class="two-columns identity-rules">
+          <div><h3>A familiar name</h3><p>Write <strong>Mugshot</strong> and <strong>Mugsy</strong>. Use the regular serif role for the name. There is no separate approved vector wordmark in the app.</p><a class="text-link" href="assets/mugshot-app-icon.png" download>Download original app icon</a></div>
+          <div><h3>Give it space</h3><p>For web use, keep a quarter of the displayed icon width clear around a lockup. Retain the PNG's own padding, use a 12 px gap, and display the complete icon at 48 px or larger.</p><p class="annotation">These are web application rules, derived from the existing mark and spacing system.</p></div>
+        </div>
+        <div class="rule-pair"><div><h3>Use</h3><p>Cream or white surfaces. Original proportions. The complete icon. A readable text signature.</p></div><div><h3>Avoid</h3><p>Recoloring, tracing, mirroring, stretching, cropping source padding, or inventing inverse and monochrome versions.</p></div></div>
+        <details class="note"><summary>What the app does not supply</summary><p>No approved standalone vector logo, inverse mark, monochrome master, CMYK master, or favicon-size redraw was found. Those are review gaps, not invitations to invent new brand assets. The original PNG remains the supplied master.</p></details>
+      </section>
+
+      <section id="color" class="chapter">
+        <div class="section-intro"><h2>Cream, espresso,<br>and a little green.</h2><p>Warm neutrals hold the page. Muted green gives it Mugshot's quiet character. Every swatch comes directly from the app.</p></div>
+        <div class="core-palette" id="core-palette"></div>
+        <details class="palette-details"><summary>See every app color and its role</summary><div class="table-scroll"><table><caption>Complete native UI palette</caption><thead><tr><th scope="col">Token</th><th scope="col">Hex</th><th scope="col">Application</th></tr></thead><tbody id="all-colors"></tbody></table></div></details>
+        <div class="contrast-lab">
+          <div><h3>Make it readable.</h3><p>Use espresso on cream or mint. Use white on the darker sage-text token for actions. The softer sage is a decorative color.</p><div class="contrast-controls"><label>Text color<select id="foreground"></select></label><label>Background<select id="background"></select></label></div><output id="contrast-output" class="contrast-result" aria-live="polite"></output></div>
+          <div class="contrast-preview" id="contrast-preview"><span class="contrast-heading">A memory worth keeping.</span><span>Readable words are part of the brand.</span></div>
+        </div>
+        <div class="table-scroll"><table><caption>Checked color combinations</caption><thead><tr><th scope="col">Pair</th><th scope="col">Ratio</th><th scope="col">Normal text</th></tr></thead><tbody id="contrast-pairs"></tbody></table></div>
+        <p class="annotation">Normal text: at least 4.5:1. Large text: at least 3:1. Essential control boundaries: at least 3:1 against adjacent colors. A token-pair check is not a complete accessibility audit.</p>
+      </section>
+
+      <section id="typography" class="chapter">
+        <div class="section-intro"><h2>A journal's warmth.<br>An app's clarity.</h2><p>Regular system serif for the expressive moments. System sans for the everyday details. No added font files.</p></div>
+        <div class="type-stage"><span class="type-display">Aa Bb Cc</span><p class="type-sentence" id="type-preview">The little moment around it.</p><div class="type-alphabet">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz<br>0123456789 &amp; ? !</div></div>
+        <label class="try-type">Try the display voice<input id="type-input" type="text" maxlength="120" value="The little moment around it." autocomplete="off"></label>
+        <div class="two-columns"><div><h3>Display serif</h3><p>Native: regular system serif with −0.2 pt tracking. Observed source sizes include 42 pt for the name, 40 pt for welcome, and 30 pt for screen headings.</p><code class="stack">ui-serif, Georgia,<br>'Times New Roman', serif</code></div><div><h3>Everyday sans</h3><p>Native system sans for body copy, labels, and controls. On the web, begin at 16 px with comfortable line height. Preserve zoom, wrapping, and text growth.</p><code class="stack">-apple-system, BlinkMacSystemFont,<br>'Segoe UI', system-ui, sans-serif</code></div></div>
+        <p class="annotation">The web stacks translate the native roles. System fonts vary by platform; fallbacks do not guarantee exact SF Serif parity. The PDF uses built-in Times and Helvetica for portability.</p>
+        <div id="type-scale" class="type-scale"></div>
+      </section>
+
+      <section id="mugsy" class="chapter">
+        <div class="section-intro"><h2>Meet Mugsy.</h2><p>A white ceramic mug, permanent glasses, and a gentle presence. Mugsy helps you notice the moment without taking it over.</p></div>
+        <div class="mugsy-intro"><div class="mugsy-master"><img src="assets/mugsy-wishlist.png" alt="Canonical Mugsy master, holding a bookmark beneath crossed arms" width="500" height="500"><span>MugsyNoWishlist · identity master</span></div><div><h3>Keep him recognizable.</h3><ul class="plain-list"><li>Preserve the ceramic body, glasses, handle, and original proportions.</li><li>Keep the source orientation. Never mirror or recolor.</li><li>Keep props separate from anatomy.</li><li>Keep his artwork palette separate from UI colors.</li><li>Use the builder only for coming-soon or maintenance.</li></ul><p class="annotation">These original raster expressions are identity references. New marketing should not use sadness, guilt, or pressure. Current native scenes favor positive, context-aware expressions.</p><a class="text-link" href="assets/mugsy-wishlist.png" download>Download original master</a></div></div>
+        <div id="mugsy-library" class="mugsy-library"></div>
+        <div class="character-palette" id="character-palette"></div>
+        <p class="annotation">White ceramic stays white. Artwork mint is a separate locked character color. The code-native vector reference remains review-only under the existing Mugsy artwork authority.</p>
+      </section>
+
+      <section id="imagery" class="chapter">
+        <div class="section-intro"><h2>Make the drink<br>the main character.</h2><p>Natural light. Warm surroundings. Texture you can almost taste. Use the existing app imagery, with room for the memory around it.</p></div>
+        <div class="photo-strip"><figure><img src="assets/orange-square.png" alt="Iced orange drink on a wooden table" width="1024" height="1024" loading="lazy"><figcaption>Drink first</figcaption></figure><figure><img src="assets/creamy-latte.png" alt="Creamy latte from the app's bundled imagery" width="1024" height="1024" loading="lazy"><figcaption>Texture and warmth</figcaption></figure><figure><img src="assets/cafe-corner.png" alt="A quiet cafe corner from the app's bundled imagery" width="1024" height="1024" loading="lazy"><figcaption>A sense of place</figcaption></figure></div>
+        <div class="two-columns"><div><h3>Compose around the moment</h3><p>Keep the drink's focal point visible. Use solid cream behind copy when image contrast is uncertain. Let photography carry the color; interface accents stay quiet.</p></div><div><h3>Show the app honestly</h3><p>Bundled onboarding artwork is a visual reference. It is not an editable screen, a current live account, or proof of an exact release. Keep its baked-in text intact.</p></div></div>
+        <div class="product-references"><figure><img src="assets/onboarding-capture.png" alt="Complete Capture Every Sip onboarding reference artwork" width="853" height="1844" loading="lazy"><figcaption>Capture reference</figcaption></figure><figure><img src="assets/onboarding-map.png" alt="Complete Map onboarding reference artwork" width="853" height="1844" loading="lazy"><figcaption>Map reference</figcaption></figure><figure><img src="assets/onboarding-journal.png" alt="Complete Journal onboarding reference artwork" width="853" height="1844" loading="lazy"><figcaption>Journal reference</figcaption></figure></div>
+      </section>
+
+      <section id="components" class="chapter">
+        <div class="section-intro"><h2>Familiar in every detail.</h2><p>Soft surfaces, pill actions, and clear hierarchy connect the app to every other Mugshot surface.</p></div>
+        <div class="component-workbench"><div><h3>Actions &amp; fields</h3><div class="actions"><button class="button primary" id="motion-button" type="button">Try press feedback</button><button class="button secondary" type="button" disabled>Disabled</button></div><label class="sample-field">Private note<input type="text" placeholder="A detail to remember" aria-describedby="field-note"></label><p class="small" id="field-note">Local specimen only. Nothing is saved or sent.</p><div class="sample-filters" role="group" aria-label="Sample cafe filters"><button type="button" class="button secondary" aria-pressed="true">Favorites</button><button type="button" class="button secondary" aria-pressed="false">Want to Try</button><button type="button" class="button secondary" aria-pressed="false">Lists</button></div><output id="component-status" class="small" aria-live="polite">Select a filter to preview its state.</output></div><figure class="sample-card"><img src="assets/orange-square.png" alt="Bundled orange drink illustration in a sample content card" width="1024" height="1024" loading="lazy"><figcaption><h3>A memory, not just a rating.</h3><p>The photo leads. The details follow.</p><span class="rating">4.5 out of 5 · illustrative score</span></figcaption></figure></div>
+        <div class="two-columns"><div><h3>A little space goes a long way.</h3><div id="spacing-scale" class="spacing-scale"></div><p class="annotation">Native point values become CSS px tokens. Responsive section spacing composes these steps.</p></div><div><h3>Soft, with structure.</h3><div id="radius-scale" class="radius-scale"></div><p class="annotation">Native cards combine a quiet line with a soft offset shadow. Web fields use a stronger outline for an accessible boundary.</p></div></div>
+        <div class="motion-rule"><h3>Quiet at rest. Responsive in use.</h3><p>150 / 200 / 250 ms base transitions. A 0.98 press scale. A brief acknowledgement of a real completed action. Marketing does not need an ambient animation loop.</p><p class="annotation">The press specimen respects the operating system's reduced-motion setting. Native spring motion stays in the app; CSS ease-out is a web approximation.</p></div>
+      </section>
+
+      <section id="voice" class="chapter">
+        <div class="section-intro"><h2>Sound like a good memory.</h2><p>Warm, specific, and unhurried. Notice the little thing. Say what happens next. Give people room to choose.</p></div>
+        <blockquote class="voice-quote"><p data-copy="intro">The drink. The place. The little moment around it. Mugshot helps you remember it all.</p><footer>From native onboarding</footer></blockquote>
+        <div class="two-columns"><div><h3>Words we return to</h3><p>Sip. Remember. Keep. Notice. Try. Your people. Your pace. A little moment.</p><p>Use plain action labels and short, concrete sentences. Write <strong>cafe</strong> and <strong>cafes</strong> with an ASCII e.</p></div><div><h3>Keep the promise precise</h3><p>Private means owner-only. Friends means confirmed mutual friends. Everyone means public. Private notes stay private.</p><p>Let the chosen audience determine the claim. Keep availability, pricing, and release promises tied to current evidence.</p></div></div>
+        <div id="copy-library" class="copy-library"></div>
+        <div class="rule-pair"><div><h3>Keep</h3><p>Personal memories. Specific invitations. Useful guidance. Calm success and recovery language.</p></div><div><h3>Leave out</h3><p>Hype, score competition, invented testimonials, expert-only language, guilt, and pressure to share.</p></div></div>
+      </section>
+
+      <section id="applications" class="chapter">
+        <div class="section-intro"><h2>One brand.<br>Every place it appears.</h2><p>Editable HTML reference applications carry the app's identity into web, social, and email. Every image and headline comes from the app.</p></div>
+        <div class="application-preview"><div class="mini-site"><div class="mini-nav">Mugshot <span>A personal sip journal</span></div><div class="mini-hero"><div><h3>Capture<br>Every Sip</h3><p>The drink. The place. The little moment around it.</p><a class="button primary" href="templates/landing.html">Open website reference</a></div><img src="assets/orange-hero.png" alt="Bundled orange drink in the website reference layout" width="1024" height="1536" loading="lazy"></div></div></div>
+        <div class="application-links" id="application-links"></div>
+        <p class="annotation">Reference applications are local design artifacts. The email has a named integration slot for its eventual CTA. No template claims an App Store release, current price, live account, or completed deployment.</p>
+      </section>
+
+      <section id="handoff" class="chapter">
+        <div class="section-intro"><h2>Bring the website home.</h2><p>The marketing source currently introduces its own lime, cyan, forest palette, and heavy campaign type. The app gives us a clear standard for replacing that drift.</p></div>
+        <div class="table-scroll"><table><caption>Marketing source audit · November 24, 2026</caption><thead><tr><th scope="col">Observed drift</th><th scope="col">Mugshot standard</th></tr></thead><tbody><tr><td>Neon lime and cyan campaign surfaces</td><td>Cream canvas, quiet mint accents, natural drink color</td></tr><tr><td>Heavy sans campaign headlines</td><td>Regular serif display, system sans details</td></tr><tr><td>Separate forest / mint / cream values</td><td>Import the exact generated color tokens</td></tr><tr><td>Separate timing and depth systems</td><td>Native base timings and soft offset shadows</td></tr><tr><td>Product-looking reference UI</td><td>Traceable app artwork with truthful reference labels</td></tr></tbody></table></div>
+        <p class="annotation">Audit of local mugshot-marketing source at commit 924cbc2. This kit does not claim a live-site visual inspection or completed website migration.</p>
+        <a class="button secondary" href="WEBSITE_HANDOFF.md">Read the implementation handoff</a>
+      </section>
+
+      <section id="downloads" class="chapter resources">
+        <div class="section-intro"><h2>Keep it Mugshot.</h2><p>Use these resources together. Pin the kit version, import the tokens, preserve the originals, and keep new work tied to the same source.</p></div>
+        <div class="download-links"><a href="README.md" download><span>Complete brand standard</span><small>Markdown</small></a><a href="brand.json" download><span>Identity, voice &amp; governance</span><small>JSON</small></a><a href="tokens.css" download><span>Web design tokens</span><small>CSS</small></a><a href="tokens.json" download><span>Design tokens</span><small>JSON</small></a><a href="palette.ase" download><span>Adobe color swatches</span><small>ASE</small></a><a href="palette.gpl" download><span>RGB palette</span><small>GPL</small></a><a href="assets.json" download><span>Asset provenance &amp; uses</span><small>JSON</small></a><a href="source-manifest.json" download><span>Native source manifest</span><small>SHA-256</small></a></div>
+        <h3>Original assets</h3><div id="asset-downloads" class="asset-downloads"></div>
+        <div class="governance"><h3>A standard that stays current.</h3><p>The product owner owns identity decisions. A brand change updates this kit and affected consumers in the same reviewed change. Generated exports and assets are checked against app sources; downstream surfaces do not create a second palette or voice guide.</p><div class="code-line"><code>python3 scripts/brand-kit.py --check</code><button class="copy-button" data-copy-value="python3 scripts/brand-kit.py --check" type="button">Copy command</button></div><p class="annotation">Patch: clarification. Minor: compatible addition. Major: identity or breaking token change. Production adoption is recorded separately from publication of the kit.</p><a class="text-link" href="VERIFICATION.md">Verification and limits</a></div>
+      </section>
+      <footer class="book-footer"><span class="brand-name">Mugshot</span><p>A brand built from the app.<br>Version <span data-version>1.0.0</span> · November 24, 2026</p><a href="#main">Back to the beginning</a></footer>
+    </main>
+  </div>
+  <div class="toast" role="status" aria-live="polite" id="toast"></div>
+</body>
+</html>
