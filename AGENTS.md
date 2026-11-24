@@ -11,6 +11,9 @@
   Do not introduce a second palette, new font family, or redrawn identity asset.
 - Update the kit and affected consumers together when identity changes, and run
   `python3 scripts/brand-kit.py --check` for brand changes.
+- Mugsy changes also follow [the immutable identity contract](docs/brand/identity/README.md)
+  and pass `python3 scripts/mugsy-catalog.py --check`. Poses and accessories may
+  vary; the identity master and protected native shapes stay fixed.
 
 ## Documentation Freshness
 

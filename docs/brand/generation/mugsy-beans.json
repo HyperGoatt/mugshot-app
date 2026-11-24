@@ -1,0 +1,20 @@
+{
+  "id": "beans",
+  "tool": "OpenAI built-in image_gen",
+  "engine_version": "not exposed by tool",
+  "prompt": "Use case: identity-preserve. Asset: ONE square transparent PNG pose for the existing Mugshot character Mugsy. Image 1 is the IMMUTABLE identity master; reproduce the SAME individual character, not a redesign. Lock the original softly asymmetric white ceramic body silhouette and its width-to-height ratio, open elliptical rim, full double-contour handle on the IMAGE RIGHT, exact rounded-rectangular black glasses/bridge/temples, eye placement, little pink cheeks, thin black arms and legs, black mitten hands and compact feet. Keep the same clean hand-drawn contours and quiet gray ceramic shading, not a photorealistic mug, 3D toy, glossy render, new cartoon style or chibi. Palette: ink #0C0C0C, ceramic #F3F3F3/#F7F7F7, shade #D7D6D6, blush #E8B8B0, accessory mint #B8E0C0. All props stay below the face and cannot replace anatomy. Front view with the SAME camera angle and body perspective as the reference. Only the following pose, expression and accessory changes are allowed: Hold a small cream paper coffee-bean bag at belly level, a muted-mint band and a single black coffee-bean outline as the only label. Happy attentive smile. No lettering, loose beans or background. Keep the full body, handle, props, hands and feet visible with generous clear margins, character centered around 75% of canvas height. Never mirror the handle, resize or restyle the glasses, cover the face, recolor the ceramic, add clothing not requested, or add fingers, limbs or a second character. No text, words, letters, logos, watermark, collage, grid, base, floor shadow, background scene, or painted checkerboard. Genuine transparent alpha background. Identity consistency is the primary requirement.",
+  "transparent_background": true,
+  "reference_path": "testMugshot/Assets.xcassets/MugsyIdentityMaster.imageset/mugsy-identity-master.png",
+  "reference_sha256": "f7f3cfa7658d51d0aba7e32992832abae436ea3a7a87dc736dc593500edb797f",
+  "native_asset_path": "testMugshot/Assets.xcassets/MugsyPoseBeans.imageset/MugsyPoseBeans.png",
+  "generated_source_file": "exec-31486340-d79a-4844-9366-f65da7165bc1.png",
+  "review": "Optical identity reviewed under the immutable master; native geometry remains authoritative, with no pixel-identical cross-medium claim.",
+  "alpha_cleanup": {
+    "tool": "OpenAI built-in image_gen",
+    "prompt": "Use case: background-extraction. Image 1 is the edit target, Mugsy holding a bean bag. Remove ONLY the unwanted gray/white smoky matte and all background/ground haze, including the space inside the handle and around his feet. Produce genuinely transparent alpha outside the character and held bag. Preserve every character pixel, silhouette, face, glasses, handle, expression, body shading, ink line, bean bag, pose and scale; do not redraw, restyle or change the identity. Image 2 is the immutable original Mugsy identity reference for boundary verification only; do not transfer its sad expression or bookmark. Keep the complete existing character and the full bag. No floor shadow, halo, backdrop, glow, checkerboard or added objects. Same square framing and resolution as Image 1.",
+    "generated_source_file": "exec-31486340-d79a-4844-9366-f65da7165bc1.png",
+    "reason": "Original generated alpha matte reached the canvas edge and failed the cutout gate; background-only correction."
+  },
+  "first_generation_source_file": "exec-5f7bb4ba-9555-41a8-a366-928f527408f0.png",
+  "output_sha256": "c8258c7575628807e55cfc32a16b0863875f8bb836a367698d5aee9b6f11bdb6"
+}

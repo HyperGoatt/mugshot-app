@@ -21,21 +21,17 @@ ROOT = Path(__file__).resolve().parents[1]
 KIT = ROOT / "docs/brand"
 CONFIG = KIT / "brand.json"
 
+MUGSY_SPEC = KIT / "identity/mugsy-spec.json"
+POSES = json.loads(MUGSY_SPEC.read_text())["poses"]
 ASSETS = [
-    ("app-icon", "AppIcon.appiconset/mugshot-app-icon.png", "mugshot-app-icon.png", "identity", "Original app icon; retain the complete white canvas and source padding."),
-    ("mugsy-wishlist", "MugsyNoWishlist.imageset/MugsyNoWishlist.png", "mugsy-wishlist.png", "character-master", "Canonical front-facing identity master; preserve the original pose and orientation."),
-    ("mugsy-favorites", "MugsyNoFavorites.imageset/MugsyNoFavorites.png", "mugsy-favorites.png", "character-reference", "Favorite-heart pose; original raster expression reference."),
-    ("mugsy-cafes", "MugsyNoCafes.imageset/MugsyNoCafes.png", "mugsy-cafes.png", "character-reference", "Cafe-guide pose; original raster expression reference."),
-    ("mugsy-friends", "MugsyNoFriends.imageset/MugsyNoFriends.png", "mugsy-friends.png", "character-reference", "Friends-phone pose; original raster expression reference."),
-    ("mugsy-builder", "MugsyComingSoon.imageset/MugsyComingSoon.png", "mugsy-builder.png", "character-reference", "Coming-soon or maintenance only; do not use as a missing-photo state."),
-    ("orange-hero", "V3OrangeCreamsicleHeroV2.imageset/v3-orange-creamsicle-hero-v2.png", "orange-hero.png", "photography", "App-bundled drink illustration; no live-account or venue claim."),
-    ("orange-square", "V3OrangeCreamsicleSquare.imageset/v3-orange-creamsicle-square.png", "orange-square.png", "photography", "App-bundled square drink illustration."),
-    ("orange-detail", "V3OrangeCitrusDetail.imageset/v3-orange-citrus-detail.png", "orange-detail.png", "photography", "App-bundled drink detail illustration."),
-    ("latte", "V3CreamyLatte.imageset/v3-creamy-latte.png", "creamy-latte.png", "photography", "App-bundled latte illustration."),
-    ("cafe-corner", "V3QuietCafeCorner.imageset/v3-quiet-cafe-corner.png", "cafe-corner.png", "photography", "App-bundled cafe atmosphere illustration; no named venue claim."),
-    ("onboarding-capture", "OnboardingMarketing01Capture.imageset/onboarding-marketing-01-capture.png", "onboarding-capture.png", "onboarding-reference", "Complete baked-in app artwork; retain all labels. Not an editable screen or exact build screenshot."),
-    ("onboarding-map", "OnboardingMarketing02Map.imageset/onboarding-marketing-02-map.png", "onboarding-map.png", "onboarding-reference", "Complete baked-in Map artwork. Not proof of current navigation, data, or release availability."),
-    ("onboarding-journal", "OnboardingMarketing06Journal.imageset/onboarding-marketing-06-journal.png", "onboarding-journal.png", "onboarding-reference", "Complete baked-in Journal artwork. Not a current live account."),
+    ("app-icon", "AppIcon.appiconset/mugshot-app-icon.png", "mugshot-app-icon.png", "identity", "Unchanged original app icon; retain its full source canvas."),
+    ("mugsy-identity-master", "MugsyIdentityMaster.imageset/mugsy-identity-master.png", "mugsy-identity-master.png", "character-master", "Immutable original identity reference; do not replace it with a generated variant."),
+    *[("mugsy-" + pose["id"], pose["asset_name"] + ".imageset/" + pose["asset_name"] + ".png", pose["export_name"], "character-pose", pose["title"] + "; reviewed OpenAI-generated pose, paired with MugsyCatalogPose." ) for pose in POSES],
+    ("orange-hero", "V3OrangeCreamsicleHeroV2.imageset/v3-orange-creamsicle-hero-v2.png", "orange-hero.png", "photography", "OpenAI-generated signature iced coffee and orange-peel scene; not a real venue claim."),
+    ("orange-square", "V3OrangeCreamsicleSquare.imageset/v3-orange-creamsicle-square.png", "orange-square.png", "photography", "OpenAI-generated square signature drink scene."),
+    ("orange-detail", "V3OrangeCitrusDetail.imageset/v3-orange-citrus-detail.png", "orange-detail.png", "photography", "OpenAI-generated close view of ice, milk, glass, and orange peel."),
+    ("latte", "V3CreamyLatte.imageset/v3-creamy-latte.png", "creamy-latte.png", "photography", "OpenAI-generated flat white and ceramic texture scene."),
+    ("cafe-corner", "V3QuietCafeCorner.imageset/v3-quiet-cafe-corner.png", "cafe-corner.png", "photography", "OpenAI-generated fictional neighborhood cafe; no named venue claim."),
 ]
 
 
@@ -120,11 +116,13 @@ generated from the app's existing primitive values. [assets.json](assets.json)
 records exact source paths, dimensions, allowed uses, and SHA-256 hashes.
 [source-manifest.json](source-manifest.json) records the audited source files.
 
-Native baseline: `{brand['source_revision']}`. Audited November 24, 2026.
-All supplied raster assets are byte-for-byte copies of tracked native resources.
-There are no stock imports, new AI artwork, external fonts, live accounts, or
-backend dependencies in this kit. Native behavior and release readiness retain
-their existing product acceptance gates.
+Native source base: `{brand['source_revision']}` plus this reviewed kit change. Current per-file hashes are in source-manifest.json.
+The original app icon and immutable Mugsy identity master remain byte-identical.
+Five photographic-style scenes and 18 pose PNGs were created with OpenAI's built-in image engine at the owner's request, then integrated as native resources.
+The engine version is not exposed by the tool; no more specific model is claimed.
+Every kit export is a byte-identical copy of its named native resource. Prompts
+and provenance are in generation/. No stock imports, external fonts, live accounts,
+or backend data are used. App distribution retains its existing acceptance gates.
 
 Web adaptations are labeled rules, not historical native measurements. New
 identity artwork still needs the product owner's explicit review under the
@@ -257,9 +255,10 @@ binaries are exported into this web kit.
 
 {character}
 
-The legacy raster masters contain their original expressions. Their inclusion
-preserves identity evidence; it does not authorize sadness or guilt as a new
-brand direction. Production scene details remain in the
+The original identity is frozen in [the identity contract](identity/README.md).
+The 18 current positive poses include generated cutouts and separate native
+render previews. Original supporting poses are archived as historical references.
+Production scene details remain in the
 [canonical Mugsy subsystem](../MUGSY_DESIGN_SYSTEM.md).
 
 ## Photography and product imagery
@@ -300,7 +299,7 @@ proof that every pictured feature is available in a current distributed build.
 | --- | --- | --- |
 {apps}
 
-Templates are editable, local HTML references. They make no App Store, beta,
+Templates use the current imagery and remain editable local HTML references. They make no App Store, beta,
 pricing, or live-account claim. Email has an explicit link-integration slot;
 social templates have fixed composition ratios and print CSS. Check the real
 audience, destination, and release state before publishing any downstream work.
@@ -340,6 +339,12 @@ Owner: **{brand['governance']['owner']}**.
 approved pairs, local links, asset hashes, and generated token outputs. It fails
 when exports drift. Rebuilding is an intentional change to review, not a way to
 silently accept a changed identity.
+
+Run `python3 scripts/mugsy-catalog.py --check` to verify the immutable master,
+seven core shapes, typed catalog, reviewed image hashes, alpha, margins, and
+native preview freshness. Generation still requires optical identity review.
+`python3 scripts/render-mugsy-catalog.py` renders native references on macOS
+from production SwiftUI source without launching a Simulator.
 
 To package a handoff, run `python3 scripts/brand-kit.py --package`. The ZIP
 contains the standalone brand book, templates, assets, tokens, swatches, and
@@ -395,8 +400,15 @@ def outputs() -> dict[Path, bytes]:
         data = (ROOT / source).read_bytes()
         if not data.startswith(b"\x89PNG\r\n\x1a\n"):
             raise ValueError(f"Expected original PNG: {source}")
+        if kind == "photography":
+            receipt = json.loads((KIT / "generation" / ("photo-" + asset_id + ".json")).read_text())
+            if not receipt.get("review") or source not in receipt["native_asset_paths"]:
+                raise ValueError("Photography receipt or review is missing: " + asset_id)
+            for native_path, expected in receipt["native_output_sha256"].items():
+                if digest((ROOT / native_path).read_bytes()) != expected:
+                    raise ValueError("Photographic scene changed since review: " + native_path)
         width, height = struct.unpack(">II", data[16:24])
-        assets.append({"id": asset_id, "path": "assets/" + filename, "source": source, "sha256": digest(data), "bytes": len(data), "width": width, "height": height, "kind": kind, "use": use, "transformation": "none; byte-for-byte source copy"})
+        assets.append({"id": asset_id, "path": "assets/" + filename, "source": source, "sha256": digest(data), "bytes": len(data), "width": width, "height": height, "kind": kind, "use": use, "transformation": "none; byte-for-byte native resource copy", "origin": "immutable app identity" if kind in ("identity", "character-master") else "OpenAI-generated source artwork", "native_pose": next((p["native_case"] for p in POSES if asset_id == "mugsy-" + p["id"]), None)})
         result[KIT / "assets" / filename] = data
     checks = [
         ("espressoBrown", "creamWhite", "Primary text", True),
@@ -430,7 +442,7 @@ def outputs() -> dict[Path, bytes]:
     result[KIT / "assets.json"] = encoded({"version": brand["version"], "assets": assets})
     result[KIT / "source-manifest.json"] = encoded(source_manifest)
     result[KIT / "contrast.json"] = encoded(contrast)
-    result[KIT / "brand-data.js"] = b"/* Generated app-source contract. Works offline without fetch. */\nwindow.MUGSHOT_BRAND = " + encoded({"brand": brand, "tokens": tokens, "assets": assets, "contrast": contrast}).rstrip() + b";\n"
+    result[KIT / "brand-data.js"] = b"/* Generated app-source contract. Works offline without fetch. */\nwindow.MUGSHOT_BRAND = " + encoded({"brand": brand, "tokens": tokens, "assets": assets, "contrast": contrast, "mugsy": json.loads(MUGSY_SPEC.read_text())}).rstrip() + b";\n"
     result[KIT / "README.md"] = render_readme(brand, tokens, assets, contrast).encode()
     result[KIT / "palette.ase"] = palette_ase(colors)
     gpl = ["GIMP Palette", "Name: Mugshot " + brand["version"], "Columns: 4", "# Exact app-source sRGB values; no CMYK conversion."]
@@ -490,7 +502,7 @@ def package() -> None:
     if pdf.exists():
         metadata_path = pdf.parent / "brand-book-manifest.json"
         metadata = json.loads(metadata_path.read_text())
-        contract = b"".join((KIT / name).read_bytes() for name in ("brand.json", "tokens.json", "assets.json"))
+        contract = b"".join((KIT / name).read_bytes() for name in ("brand.json", "tokens.json", "assets.json", "identity/mugsy-spec.json", "native-renders/manifest.json"))
         if metadata["contract_sha256"] != digest(contract) or metadata["pdf_sha256"] != digest(pdf.read_bytes()):
             raise ValueError("PDF export is stale or modified; regenerate before packaging")
         files.append(pdf)
@@ -507,13 +519,13 @@ def package() -> None:
                     source_path, separator, anchor = target.partition("#")
                     resolved = (path.parent / source_path).resolve()
                     if resolved.is_relative_to(ROOT) and not resolved.is_relative_to(KIT):
-                        url = "https://github.com/HyperGoatt/mugshot-app/blob/" + brand["source_revision"] + "/" + resolved.relative_to(ROOT).as_posix()
+                        url = "https://github.com/HyperGoatt/mugshot-app/blob/" + kit_commit + "/" + resolved.relative_to(ROOT).as_posix()
                         return match[1] + url + (separator + anchor if separator else "") + ")"
                     return match[0]
                 data = re.sub(r"(\[[^\]]+\]\()([^)]+)\)", permalink, data.decode()).encode()
             out.writestr(name, data)
             entries.append({"path": name, "sha256": digest(data), "bytes": len(data)})
-        out.writestr("PACKAGE.json", encoded({"version": brand["version"], "kit_source_commit": kit_commit, "working_copy_changes": dirty, "native_source_revision": brand["source_revision"], "files": entries, "entry": "index.html", "note": "Open index.html locally. Native evidence links in Markdown point to the audited repository revision; native source code is not included."}))
+        out.writestr("PACKAGE.json", encoded({"version": brand["version"], "kit_source_commit": kit_commit, "working_copy_changes": dirty, "native_source_revision": brand["source_revision"], "files": entries, "entry": "index.html", "note": "Open index.html locally. Native evidence links in Markdown point to kit_source_commit; native source code is not included. A dirty package is a draft."}))
     with zipfile.ZipFile(archive) as out:
         assert out.testzip() is None
         for item in entries:

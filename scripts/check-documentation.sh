@@ -11,6 +11,8 @@ LIVING_DOCS=(
   docs/brand/README.md
   docs/brand/WEBSITE_HANDOFF.md
   docs/brand/VERIFICATION.md
+  docs/brand/identity/README.md
+  docs/MUGSY_DESIGN_SYSTEM.md
   docs/HOME_RECIPES_IMPLEMENTATION.md
   docs/REPAIR_SHARING_STATUS.md
   docs/README.md

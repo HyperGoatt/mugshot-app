@@ -6,7 +6,7 @@ last_verified: 2026-11-24
 
 # Mugshot brand kit
 
-Version **1.0.0**. This directory is Mugshot's brand authority. Native app resources supply the identity; the marketing site consumes this kit. Change the kit and its affected consumers together.
+Version **1.1.0**. This directory is Mugshot's brand authority. The app's immutable identity and tokens remain fixed; user-authorized OpenAI imagery and controlled poses are versioned here and supplied to the app. Marketing consumes the same kit.
 
 Open the [visual brand book](index.html), use the [machine-readable policy](brand.json),
 or start with the [marketing-site handoff](WEBSITE_HANDOFF.md).
@@ -15,7 +15,7 @@ then run the build command. Do not maintain a competing guide elsewhere.
 
 ## Authority and status
 
-Brand specification and reference applications. This is not an app release, a marketing-site deployment, or evidence of feature availability in a distributed build.
+Brand imagery refresh and native pose catalog, implemented in source. This is not an app distribution, a marketing-site deployment, or evidence of physical-device or TestFlight acceptance.
 
 The kit is the canonical brand contract for app, web, email, social, and future
 collateral. [brand.json](brand.json) owns identity, voice, source mappings, and web
@@ -24,11 +24,13 @@ generated from the app's existing primitive values. [assets.json](assets.json)
 records exact source paths, dimensions, allowed uses, and SHA-256 hashes.
 [source-manifest.json](source-manifest.json) records the audited source files.
 
-Native baseline: `0bece7e83a96a3f8e0167bc74ec87588e83ad1a1`. Audited November 24, 2026.
-All supplied raster assets are byte-for-byte copies of tracked native resources.
-There are no stock imports, new AI artwork, external fonts, live accounts, or
-backend dependencies in this kit. Native behavior and release readiness retain
-their existing product acceptance gates.
+Native source base: `1ffba7b074da7b1230942e394a477dc8a5db2911` plus this reviewed kit change. Current per-file hashes are in source-manifest.json.
+The original app icon and immutable Mugsy identity master remain byte-identical.
+Five photographic-style scenes and 18 pose PNGs were created with OpenAI's built-in image engine at the owner's request, then integrated as native resources.
+The engine version is not exposed by the tool; no more specific model is claimed.
+Every kit export is a byte-identical copy of its named native resource. Prompts
+and provenance are in generation/. No stock imports, external fonts, live accounts,
+or backend data are used. App distribution retains its existing acceptance gates.
 
 Web adaptations are labeled rules, not historical native measurements. New
 identity artwork still needs the product owner's explicit review under the
@@ -193,30 +195,35 @@ binaries are exported into this web kit.
 
 ## Mugsy
 
-- White ceramic, permanent glasses, compact limbs, and the approved silhouette remain unchanged.
-- Do not mirror, stretch, recolor, crop the handle, or draw new anatomy.
-- The canonical normalized model keeps the handle on Mugsy's right; preserve the orientation of every source PNG exactly as supplied.
-- Props remain context layers. The bookmark held in MugsyNoWishlist is a prop.
-- The code-native model supports positive, context-aware product scenes. Legacy raster poses remain identity references and must not become guilt-based promotional messages.
-- Use the builder pose only for coming-soon or maintenance contexts.
-- Keep artwork's own colors separate from the UI palette. Character mint is not the UI mint token.
-- The existing code-native vector PDF is review-only, not a production replacement for the PNG masters.
+- MugsyIdentityMaster freezes the original front-facing Mugsy artwork byte-for-byte. It is the reference for every new pose, not a pose to redraw.
+- White ceramic, the same asymmetric body, rim, right-side handle, glasses, cheek placement, thin limbs, and compact feet stay fixed.
+- Seven native identity shapes are locked by SHA-256. The renderer shares them across all 18 configurations.
+- Only expression, gaze, articulated limbs, liquid, outfits, and named accessories vary. Props never replace anatomy or hide the glasses.
+- Every generation references the immutable master. Full prompts and generation provenance are saved. No identity is recursively re-created from another generated pose.
+- Each PNG must have true alpha, complete clear margins, a square canvas, an exact reviewed hash, and a recorded optical identity review.
+- Alpha-derived display registration makes poses fit consistently without altering or cropping the PNG source.
+- Generated artwork and code-native renders share semantic pose mappings. They are distinct renderings, not a claim of pixel-identical output.
+- Use native geometry for dynamic product states and generated PNGs for static illustration. Native core construction stays authoritative.
+- Use the builder only for coming-soon or maintenance. Keep accessories context-specific and expressions positive.
+- Artwork colors remain separate from UI tokens. Never recolor the ceramic body.
+- Original legacy rasters are archived under identity/legacy-originals; outdated baked onboarding panels are excluded from the current kit.
 
-The legacy raster masters contain their original expressions. Their inclusion
-preserves identity evidence; it does not authorize sadness or guilt as a new
-brand direction. Production scene details remain in the
+The original identity is frozen in [the identity contract](identity/README.md).
+The 18 current positive poses include generated cutouts and separate native
+render previews. Original supporting poses are archived as historical references.
+Production scene details remain in the
 [canonical Mugsy subsystem](../MUGSY_DESIGN_SYSTEM.md).
 
 ## Photography and product imagery
 
-- Use the app-bundled drink imagery and onboarding artwork supplied in the asset manifest.
-- Show drink texture, natural light, and the surrounding moment. Keep warm, believable color.
-- Place headlines on a solid cream panel whenever image contrast would be uncertain.
-- Preserve the drink's focal point when cropping photography. Never distort or crop original character masters.
-- Keep baked-in onboarding labels intact when showing the complete artwork. It is a reference image, not an editable app screen.
-- Use bundled reference artwork as illustration, never as proof of a current live account or exact build UI.
-- Show no personal journal entries, private notes, real user accounts, or live service data in marketing templates.
-- An app-bundled resource is source provenance; it is not independent verification of third-party licensing or a new redistribution license.
+- Use the five current OpenAI-generated photographic-style brand scenes supplied in assets.json. They replace the old drink, latte, cafe, and orange-peel imagery.
+- Photographic realism means plausible ice and condensation, fine milk texture, natural light, real material detail, and restrained color. Avoid glossy synthetic rendering and excessive garnish.
+- These are fictional illustrative brand scenes, not captured customer drinks, named real cafes, testimonials, or release evidence.
+- Keep source PNGs intact. Responsive display crops may preserve the drink focal point; do not distort images.
+- Use solid cream behind text when image contrast would be uncertain.
+- Use current named Mugsy poses with the immutable identity contract; do not generate a new Mugsy identity.
+- Legacy baked onboarding composites remain historical native resources and are not the current brand imagery or screenshots of a new build.
+- No personal journal, private note, live account, or production service data enters the imagery.
 
 ## Voice and writing
 
@@ -270,7 +277,7 @@ proof that every pictured feature is available in a current distributed build.
 | [Portrait social](templates/social-portrait.html) | 1080 x 1350 composition | Drink photo, Capture Every Sip, and a quiet brand signature. |
 | [Email reference](templates/email.html) | Responsive table HTML | Original app icon, cream surface, source copy, and an explicit CTA integration slot. |
 
-Templates are editable, local HTML references. They make no App Store, beta,
+Templates use the current imagery and remain editable local HTML references. They make no App Store, beta,
 pricing, or live-account claim. Email has an explicit link-integration slot;
 social templates have fixed composition ratios and print CSS. Check the real
 audience, destination, and release state before publishing any downstream work.
@@ -279,20 +286,31 @@ audience, destination, and release state before publishing any downstream work.
 
 | Asset | Original pixels | Use |
 | --- | --- | --- |
-| [app-icon](assets/mugshot-app-icon.png) | 1024 x 1024 | Original app icon; retain the complete white canvas and source padding. |
-| [mugsy-wishlist](assets/mugsy-wishlist.png) | 500 x 500 | Canonical front-facing identity master; preserve the original pose and orientation. |
-| [mugsy-favorites](assets/mugsy-favorites.png) | 500 x 500 | Favorite-heart pose; original raster expression reference. |
-| [mugsy-cafes](assets/mugsy-cafes.png) | 500 x 500 | Cafe-guide pose; original raster expression reference. |
-| [mugsy-friends](assets/mugsy-friends.png) | 500 x 500 | Friends-phone pose; original raster expression reference. |
-| [mugsy-builder](assets/mugsy-builder.png) | 437 x 374 | Coming-soon or maintenance only; do not use as a missing-photo state. |
-| [orange-hero](assets/orange-hero.png) | 1566 x 1005 | App-bundled drink illustration; no live-account or venue claim. |
-| [orange-square](assets/orange-square.png) | 654 x 654 | App-bundled square drink illustration. |
-| [orange-detail](assets/orange-detail.png) | 624 x 624 | App-bundled drink detail illustration. |
-| [latte](assets/creamy-latte.png) | 570 x 570 | App-bundled latte illustration. |
-| [cafe-corner](assets/cafe-corner.png) | 750 x 750 | App-bundled cafe atmosphere illustration; no named venue claim. |
-| [onboarding-capture](assets/onboarding-capture.png) | 852 x 1846 | Complete baked-in app artwork; retain all labels. Not an editable screen or exact build screenshot. |
-| [onboarding-map](assets/onboarding-map.png) | 853 x 1844 | Complete baked-in Map artwork. Not proof of current navigation, data, or release availability. |
-| [onboarding-journal](assets/onboarding-journal.png) | 853 x 1844 | Complete baked-in Journal artwork. Not a current live account. |
+| [app-icon](assets/mugshot-app-icon.png) | 1024 x 1024 | Unchanged original app icon; retain its full source canvas. |
+| [mugsy-identity-master](assets/mugsy-identity-master.png) | 500 x 500 | Immutable original identity reference; do not replace it with a generated variant. |
+| [mugsy-wave](assets/mugsy-wave.png) | 1254 x 1254 | Welcome wave; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-wishlist](assets/mugsy-wishlist.png) | 1254 x 1254 | Want to Try; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-favorites](assets/mugsy-favorites.png) | 1254 x 1254 | Favorites; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-scout](assets/mugsy-scout.png) | 1254 x 1254 | Cafe scout; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-friends](assets/mugsy-friends.png) | 1254 x 1254 | Friends hello; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-builder](assets/mugsy-builder.png) | 1254 x 1254 | Careful builder; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-camera](assets/mugsy-camera.png) | 1254 x 1254 | Camera companion; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-journal](assets/mugsy-journal.png) | 1254 x 1254 | Journal keeper; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-cozy](assets/mugsy-cozy.png) | 1254 x 1254 | Cozy ritual; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-celebrate](assets/mugsy-celebrate.png) | 1254 x 1254 | First-sip celebration; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-map](assets/mugsy-map.png) | 1254 x 1254 | Map explorer; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-beans](assets/mugsy-beans.png) | 1254 x 1254 | Bean keeper; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-matcha](assets/mugsy-matcha.png) | 1254 x 1254 | Matcha maker; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-pourover](assets/mugsy-pourover.png) | 1254 x 1254 | Pour-over barista; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-takeaway](assets/mugsy-takeaway.png) | 1254 x 1254 | Takeaway companion; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-tasting](assets/mugsy-tasting.png) | 1254 x 1254 | Taste explorer; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-guide](assets/mugsy-guide.png) | 1254 x 1254 | Helpful guide; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [mugsy-pause](assets/mugsy-pause.png) | 1254 x 1254 | Quiet pause; reviewed OpenAI-generated pose, paired with MugsyCatalogPose. |
+| [orange-hero](assets/orange-hero.png) | 1536 x 1024 | OpenAI-generated signature iced coffee and orange-peel scene; not a real venue claim. |
+| [orange-square](assets/orange-square.png) | 1254 x 1254 | OpenAI-generated square signature drink scene. |
+| [orange-detail](assets/orange-detail.png) | 1254 x 1254 | OpenAI-generated close view of ice, milk, glass, and orange peel. |
+| [latte](assets/creamy-latte.png) | 1254 x 1254 | OpenAI-generated flat white and ceramic texture scene. |
+| [cafe-corner](assets/cafe-corner.png) | 1254 x 1254 | OpenAI-generated fictional neighborhood cafe; no named venue claim. |
 
 Additional exported resources: [Adobe swatches](palette.ase), [plain RGB palette](palette.gpl),
 [CSS tokens](tokens.css), and [JSON tokens](tokens.json).
@@ -324,6 +342,12 @@ approved pairs, local links, asset hashes, and generated token outputs. It fails
 when exports drift. Rebuilding is an intentional change to review, not a way to
 silently accept a changed identity.
 
+Run `python3 scripts/mugsy-catalog.py --check` to verify the immutable master,
+seven core shapes, typed catalog, reviewed image hashes, alpha, margins, and
+native preview freshness. Generation still requires optical identity review.
+`python3 scripts/render-mugsy-catalog.py` renders native references on macOS
+from production SwiftUI source without launching a Simulator.
+
 To package a handoff, run `python3 scripts/brand-kit.py --package`. The ZIP
 contains the standalone brand book, templates, assets, tokens, swatches, and
 provenance manifests. Its PACKAGE.json pins version and file hashes. PDF export
@@ -339,6 +363,9 @@ is optional via `scripts/brand-kit-pdf.py` and requires ReportLab.
 - [authentication](../../testMugshot/Views/Auth/AuthEntryView.swift)
 - [character rules](../../docs/MUGSY_DESIGN_SYSTEM.md)
 - [artwork authority](../../docs/MUGSY_ASSET_STATUS.md)
+- [character rig](../../testMugshot/Views/Components/MugsyModelView.swift)
+- [pose catalog](../../testMugshot/Design/MugsyPoseCatalog.swift)
+- [identity contract](../../docs/brand/identity/mugsy-spec.json)
 
 See [verification](VERIFICATION.md) for completed checks and explicit limits.
 See [marketing-site handoff](WEBSITE_HANDOFF.md) for the observed drift and

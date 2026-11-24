@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export the Mugshot brand contract as a portable, print-ready reference PDF.
 
-Requires ReportLab; uses only original app assets and PDF built-in fonts.
+Requires ReportLab; uses the versioned native assets and PDF built-in fonts.
 Run scripts/brand-kit.py --check first. Output stays outside tracked source.
 """
 
@@ -26,6 +26,7 @@ BRAND = json.loads((KIT / "brand.json").read_text())
 TOKENS = json.loads((KIT / "tokens.json").read_text())
 ASSETS = json.loads((KIT / "assets.json").read_text())["assets"]
 CONTRAST = json.loads((KIT / "contrast.json").read_text())
+MUGSY = json.loads((KIT / "identity/mugsy-spec.json").read_text())
 COLOR = {name: colors.HexColor(value) for name, value in TOKENS["color"].items()}
 W, H, M = 612, 792, 44
 WIDTH = W - M * 2
@@ -120,10 +121,23 @@ class Book:
         table.drawOn(self.canvas, M, self.y - height)
         self.y -= height + 24
 
+    def pose(self, pose: dict, x: float, y: float, width: float, height: float) -> None:
+        """Place original PNG bytes using the same alpha registration as the app."""
+        bounds = pose["artwork_bounds"]
+        side = min(width / bounds[2], height / bounds[3]) * .84
+        image_x = x + width / 2 - (bounds[0] + bounds[2] / 2) * side
+        image_y = y + height / 2 - (1 - bounds[1] - bounds[3] / 2) * side
+        self.canvas.saveState()
+        clip = self.canvas.beginPath()
+        clip.rect(x, y, width, height)
+        self.canvas.clipPath(clip, stroke=0)
+        self.canvas.drawImage(ImageReader(str(KIT / "assets" / pose["export_name"])), image_x, image_y, side, side, mask="auto")
+        self.canvas.restoreState()
+
     def finish(self) -> None:
         self.footer()
         self.canvas.save()
-        contract = b"".join((KIT / name).read_bytes() for name in ("brand.json", "tokens.json", "assets.json"))
+        contract = b"".join((KIT / name).read_bytes() for name in ("brand.json", "tokens.json", "assets.json", "identity/mugsy-spec.json", "native-renders/manifest.json"))
         metadata = {"version": BRAND["version"], "pages": self.number, "titles": self.titles, "contract_sha256": hashlib.sha256(contract).hexdigest(), "pdf_sha256": hashlib.sha256(DESTINATION.read_bytes()).hexdigest(), "fonts": "PDF built-in Times / Helvetica; role-preserving fallback, not embedded native fonts"}
         (OUT / "brand-book-manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
         print(f"Exported {self.number} pages: {DESTINATION}")
@@ -135,7 +149,7 @@ book.image("orange-hero", M, 285, WIDTH, 310, crop=True)
 book.y = 253
 book.y = book.text("The drink. The place. The little moment around it.", font="Times-Roman", size=24, leading=28, color="espressoBrown", gap=22)
 book.y = book.text("Identity, color, typography, imagery, Mugsy, voice, components, reference applications, and brand governance.", size=11, leading=17)
-book.y = book.text("Version 1.0.0 / November 24, 2026\nNative assets and language only. No new app release or website deployment is claimed.", size=9, leading=14)
+book.y = book.text("Version " + BRAND["version"] + " / November 24, 2026\nApp-derived identity, new OpenAI imagery, and 18 controlled Mugsy poses. Distribution and website adoption remain separate gates.", size=9, leading=14)
 
 book.page("A little moment, remembered.", BRAND["positioning"]["description"])
 book.block("For the person remembering it", BRAND["positioning"]["audience"])
@@ -209,42 +223,66 @@ for title, body in [
     book.block(title, body)
 book.y = book.text("Older native controls may still use softer sage or quiet borders. This kit does not claim those instances have been migrated. SF Symbols remain native; their glyphs are not exported.", size=9, leading=14)
 
-book.page("Meet Mugsy.", "A white ceramic mug, permanent glasses, and a gentle presence. Preserve the supplied artwork exactly.")
+book.page("Meet Mugsy.", "A white ceramic mug, permanent glasses, and a gentle presence. Same character, more ways to join the moment.")
 book.canvas.setFillColor(COLOR["mugshotMint"])
 book.canvas.roundRect(M, 388, WIDTH, 220, 16, fill=1, stroke=0)
-book.image("mugsy-wishlist", 187, 396, 238, 204)
+book.image("mugsy-identity-master", 187, 396, 238, 204)
 book.y = 358
-book.block("The original master", "MugsyNoWishlist is the canonical front-facing identity master. The bookmark beneath his crossed arms is a prop, not anatomy. Preserve its original expression, orientation, proportions, and padding.")
+book.block("The immutable master", "MugsyIdentityMaster freezes the original front-facing identity from the former Wishlist asset. The source PNG and its SHA-256 never change. The bookmark is a prop, not anatomy. Every new generation starts from this master.")
 book.block("Permanent identity", "White ceramic, glasses, the approved rim and handle, compact limbs, and controlled asymmetry remain intact. Do not mirror, recolor, stretch, crop the handle, or invent new anatomy.")
-book.block("A companion, not pressure", "The legacy raster poses preserve original identity evidence. Current native scenes favor positive, context-aware expressions. Do not turn sad poses into guilt-based marketing. Builder is for coming-soon and maintenance only.")
-book.y = book.text("The code-native vector reference is review-only. It does not replace shipping PNGs or grant authority to new derived artwork.", size=9, leading=14)
+book.block("Change the moment, keep the character", "Eighteen positive poses change expression, arms, accessories, and clothing within a single contract. The native body, rim, interior, handle, glasses, cheeks, and feet are protected by seven geometry hashes. Builder belongs to coming-soon and maintenance states.")
+book.y = book.text("Generated artwork and native SwiftUI rendering are separate media. They share a character and pose contract; they do not promise pixel-for-pixel parity.", size=9, leading=14)
 
 book.page("A character with a clear identity.", "Artwork colors belong to Mugsy. They do not replace the UI palette.")
-for index, key in enumerate(["mugsy-favorites", "mugsy-cafes", "mugsy-friends", "mugsy-builder"]):
+for index, key in enumerate(["mugsy-favorites", "mugsy-scout", "mugsy-friends", "mugsy-builder"]):
     x = M + index * 134
     book.image(key, x, 460, 122, 122)
     book.text(key.replace("mugsy-", "").capitalize(), x=x, y=447, width=122, size=9, leading=13)
 book.y = 401
 book.table(["Character token", "Locked hex"], [[key, value] for key, value in TOKENS["characterColor"].items()], [310, WIDTH - 310])
-book.block("Source orientation and motion", "The normalized native model keeps the handle on Mugsy's right. Original raster references can differ; preserve each file exactly as supplied. Do not mirror a source to force visual uniformity.")
-book.y = book.text("Construction, anchor, prop, placement, and animation rules remain in docs/MUGSY_DESIGN_SYSTEM.md. The kit is the entry point; that document is its character subsystem.", size=9, leading=14)
+book.block("Source orientation and motion", "The master and current catalog keep the handle on Mugsy's right. Do not mirror. No generation may become the next identity reference. Approved changes use the same native rig and accessory layers.")
+book.y = book.text("identity/mugsy-spec.json owns poses, native cases, asset names, alpha registration, and identity hashes. identity/README.md describes generation and review. docs/MUGSY_DESIGN_SYSTEM.md owns the native subsystem.", size=9, leading=14)
 
-book.page("Make the drink the main character.", "Natural light, warm surroundings, and texture. Use the app's existing imagery.")
+for start in range(0, len(MUGSY["poses"]), 6):
+    book.page("Mugsy, in the moment. " + str(start // 6 + 1), "Reviewed OpenAI-generated cutouts. Transparent PNGs pair with typed native pose configurations.")
+    top = book.y
+    for index, pose in enumerate(MUGSY["poses"][start:start + 6]):
+        x = M + (index % 3) * 180
+        y = top - (index // 3) * 231
+        book.canvas.setFillColor(COLOR["foamWhite"])
+        book.canvas.roundRect(x, y - 168, 164, 168, 12, stroke=0, fill=1)
+        book.pose(pose, x + 2, y - 166, 160, 164)
+        book.text(pose["title"], x=x, y=y - 178, width=164, size=10, leading=14, font="Helvetica-Bold")
+        book.text("." + pose["native_case"], x=x, y=y - 199, width=164, size=8, leading=11)
+    book.y = top - 472
+    book.y = book.text("Use assets.json for exact PNG paths and hashes. Full prompts, master references, review notes, and the transparency correction are retained in generation/.", size=9, leading=14)
+
+book.page("A character you can code.", "These previews come from the production SwiftUI rig rendered offscreen on macOS. They are not generated artwork or iOS runtime acceptance.")
+top = book.y
+for index, key in enumerate(["wave", "map", "camera", "matcha", "pourover", "celebrate"]):
+    x = M + (index % 3) * 180
+    y = top - (index // 3) * 170
+    book.canvas.drawImage(ImageReader(str(KIT / "native-renders" / (key + ".png"))), x + 12, y - 132, 140, 140, mask="auto")
+    book.text(key.capitalize() + " / native SwiftUI", x=x, y=y - 140, width=164, size=8, leading=12)
+book.y = top - 352
+book.block("One typed entry point", "MugsyCatalogView(pose: .mapExplorer) uses native rendering by default. Add rendering: .artwork for the matching bundled PNG. Alpha bounds center the complete artwork without rewriting its pixels.")
+book.block("Keep the structure current", "Edit identity/mugsy-spec.json, rebuild scripts/mugsy-catalog.py, then check the immutable master, seven shapes, 18 mappings, transparency, margins, review hashes, and native preview freshness. Re-render previews when production source changes.")
+
+book.page("Make the drink the main character.", "Natural light, real-looking materials, and quiet warmth. Five new scenes replace the previous drink, latte, cafe, and orange-peel imagery.")
 for index, (key, label) in enumerate([("orange-square", "Drink first"), ("latte", "Texture and warmth"), ("cafe-corner", "A sense of place")]):
     x = M + index * 180
     book.image(key, x, 411, 164, 188, crop=True)
     book.text(label, x=x, y=397, width=164, size=9, leading=13)
 book.y = 350
 book.block("Compose around the moment", "Keep the drink's focal point visible when cropping photography. Never stretch. Use cream panels behind copy whenever image contrast would be uncertain. Let photographs supply the vivid color.")
-book.block("Use what is supplied", "All included images are exact copies of bundled app resources. No outside stock, new generated imagery, live user accounts, or private journals enter this kit.")
-book.block("Truthful context", "Bundled drink and cafe imagery is illustration, not evidence of a real venue or current account. Source provenance is not independent verification of every underlying license.")
+book.block("Use what is supplied", "The current scenes were created with OpenAI's built-in image engine at the owner's request and integrated as exact native resource copies. Glass, ice, foam, ceramic, citrus, and worn wood should feel observed, with restrained warmth and honest imperfections.")
+book.block("Truthful context", "These are synthetic photographic-style brand illustrations. They do not depict a named real venue, a customer's captured drink, a live account, or private journal content. The tool does not expose its engine version.")
 
-book.page("Show the app honestly.", "Complete onboarding artwork is a visual reference. It is not an editable screen or an exact release capture.")
-for index, key in enumerate(["onboarding-capture", "onboarding-map", "onboarding-journal"]):
-    book.image(key, M + index * 180, 246, 164, 356)
-book.y = 213
-book.block("Keep the source intact", "Retain baked-in labels and original artwork. Do not crop away text to imply a new app state. Before using real runtime screens downstream, verify their build, account safety, and current feature availability.")
-book.y = book.text("Onboarding reference images retain their original progress labels and presentation. This brand kit does not represent them as screenshots of the currently installed app.", size=9, leading=14)
+book.page("The little details feel real.", "The orange-peel drink uses one consistent scene across hero, square, and close-view compositions.")
+book.image("orange-detail", M, 266, WIDTH, 332, crop=True)
+book.y = 237
+book.block("Keep the moment believable", "One short peel with visible pith. Partly melted ice, sparse condensation, subtle espresso marbling, and ordinary worn oak. Keep the whole drink visible in hero crops; let close views explore material detail.")
+book.block("Show the product honestly", "Retired baked onboarding panels are excluded from this kit. Brand illustrations are not app screenshots. Any real runtime screenshot needs its own verified build, safe account, and current feature context.")
 
 book.page("Sound like a good memory.", BRAND["voice"]["profile"])
 book.y = book.text("The drink. The place. The little moment around it. Mugshot helps you remember it all.", font="Times-Roman", size=27, leading=32, color="espressoBrown", gap=28)
@@ -265,7 +303,7 @@ for sample in BRAND["copy"][6:]:
 book.page("One brand, every channel.", "Editable local HTML reference applications show how the app's identity translates into web, social, and email.")
 for application in BRAND["applications"]:
     book.block(application["name"] + " / " + application["format"], application["purpose"] + " File: " + application["path"])
-book.block("Website composition", "Cream-led canvas, regular serif headline, system sans details, original drink photography, and sage-text actions. Preserve working routes, legal content, and actual destinations in a real migration.")
+book.block("Website composition", "Cream-led canvas, regular serif headline, system sans details, current photographic-style imagery, and sage-text actions. Preserve working routes, legal content, and actual destinations in a real migration.")
 book.block("Publication boundary", "No template announces an App Store release or sends a message. Email has a named CTA integration slot. Verify destination, audience, and release state before publishing. Social files preserve square or portrait ratios in print.")
 
 book.page("Bring the website home.", "The local marketing source audit found a separate visual world. The kit supplies a concrete replacement contract.")
@@ -282,14 +320,14 @@ book.block("Record actual adoption", "Marketing source inspected at 924cbc2 on N
 book.page("A standard that stays current.", "The product owner owns identity decisions. Change the kit and affected consumers together.")
 book.block("One authority", "docs/brand/README.md is the human entry point. brand.json owns policy and source mappings. tokens.css and tokens.json expose generated primitives. assets.json records exact source paths, dimensions, uses, and SHA-256 hashes.")
 book.block("Change and version", BRAND["governance"]["versioning"] + " Do not hand-maintain a second palette or voice guide downstream.")
-book.block("Review the change", "Build: python3 scripts/brand-kit.py --build. Check: python3 scripts/brand-kit.py --check. Run documentation and diff checks. Inspect the complete scoped diff, source hashes, accessible pairs, and consumer UI.")
-book.block("Distribute a pinned kit", "Package: python3 scripts/brand-kit.py --package. The standalone ZIP includes this visual book's source, original assets, templates, swatches, tokens, provenance manifests, and a per-file hash manifest. The PDF is a derived reference export.")
-book.block("Respect evidence boundaries", "No native app build, device acceptance, backend mutation, TestFlight step, website deployment, or sent campaign is implied. Missing artwork masters remain explicit gaps.")
+book.block("Review the change", "Build and check with scripts/brand-kit.py. Run scripts/mugsy-catalog.py --check for identity, artwork, native mappings, and preview freshness. Run documentation and diff checks. Inspect the complete scoped diff and affected consumers.")
+book.block("Distribute a pinned kit", "Package with scripts/brand-kit.py --package. The ZIP includes assets, prompts, immutable reference, native previews, templates, tokens, and per-file hashes. PACKAGE.json pins the source commit. The PDF is a derived reference export.")
+book.block("Respect evidence boundaries", "VERIFICATION.md records the actual local compile and artifact checks. Device acceptance, backend mutation, TestFlight, website deployment, and sent campaigns are separate states. No distribution is implied by this book.")
 
-book.page("Everything starts in the app.", "The brand kit traces every primitive, asset, and source-copy sample to the native repository.")
+book.page("Everything has a source.", "Primitives and language trace to the app. New imagery traces to retained OpenAI prompts and reviewed native resources.")
 book.y = book.text("Native baseline: " + BRAND["source_revision"], size=9, leading=14, gap=24)
 for role, path in BRAND["sources"].items():
     book.y = book.text(role.replace("_", " ").capitalize(), font="Helvetica-Bold", size=9, leading=13, color="espressoBrown", gap=2)
-    book.y = book.text(path, size=8.5, leading=13, gap=16)
+    book.y = book.text(path, size=8.5, leading=12, gap=8)
 book.y = book.text("Full file hashes: source-manifest.json. Exact raster hashes and dimensions: assets.json. Completed verification and limits: VERIFICATION.md. The native sources are evidence pointers; they are not copied into the standalone kit.", size=9, leading=14)
 book.finish()

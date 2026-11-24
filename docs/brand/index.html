@@ -15,7 +15,7 @@
   <a class="skip" href="#main">Skip to brand book</a>
   <header class="masthead">
     <a class="brand-name" href="#main" aria-label="Mugshot brand book home">Mugshot</a>
-    <span class="book-name">Brand book <span data-version>1.0.0</span></span>
+    <span class="book-name">Brand book <span data-version>1.1.0</span></span>
     <a class="quiet-link" href="#downloads">Get the resources <span aria-hidden="true">↗</span></a>
   </header>
   <div class="book-shell">
@@ -45,11 +45,11 @@
         <div class="hero-copy">
           <h1 id="hero-title" data-copy="hero">Capture Every Sip</h1>
           <p class="hero-intro" data-copy="intro">The drink. The place. The little moment around it. Mugshot helps you remember it all.</p>
-          <p class="hero-note">The Mugshot brand, gathered in one place. Built from the colors, type, artwork, and language already inside the app.</p>
+          <p class="hero-note">The Mugshot brand, gathered in one place. Built around the app's colors, type, and identity, with refreshed imagery and a controlled Mugsy pose library.</p>
           <div class="actions"><a class="button primary" href="#identity">Explore the brand</a><a class="button secondary" href="templates/landing.html">See it in use</a></div>
           <p class="edition">Native app sources · November 24, 2026</p>
         </div>
-        <figure class="hero-image"><img src="assets/orange-hero.png" alt="An iced orange drink in warm natural light, from Mugshot's bundled imagery" width="1024" height="1536"><figcaption>The drink. The place. The little moment.</figcaption></figure>
+        <figure class="hero-image"><img src="assets/orange-hero.png" alt="An orange-peel iced coffee in warm natural light" width="1536" height="1024"><figcaption>The drink. The place. The little moment.</figcaption></figure>
       </section>
 
       <section id="foundation" class="chapter">
@@ -60,7 +60,7 @@
       </section>
 
       <section id="identity" class="chapter">
-        <div class="section-intro"><h2>Always Mugshot.</h2><p>The original app icon and a simple serif name carry the identity. Preserve the mark. Let the surrounding space do the work.</p></div>
+        <div class="section-intro"><h2>Always Mugshot.</h2><p>The unchanged app icon and a simple serif name carry the identity. Preserve the mark. Let the surrounding space do the work.</p></div>
         <div class="identity-stage"><div class="lockup"><img src="assets/mugshot-app-icon.png" alt="Original Mugshot app icon" width="112" height="112"><span>Mugshot</span></div><p>Original icon + live serif text</p></div>
         <div class="two-columns identity-rules">
           <div><h3>A familiar name</h3><p>Write <strong>Mugshot</strong> and <strong>Mugsy</strong>. Use the regular serif role for the name. There is no separate approved vector wordmark in the app.</p><a class="text-link" href="assets/mugshot-app-icon.png" download>Download original app icon</a></div>
@@ -92,18 +92,21 @@
       </section>
 
       <section id="mugsy" class="chapter">
-        <div class="section-intro"><h2>Meet Mugsy.</h2><p>A white ceramic mug, permanent glasses, and a gentle presence. Mugsy helps you notice the moment without taking it over.</p></div>
-        <div class="mugsy-intro"><div class="mugsy-master"><img src="assets/mugsy-wishlist.png" alt="Canonical Mugsy master, holding a bookmark beneath crossed arms" width="500" height="500"><span>MugsyNoWishlist · identity master</span></div><div><h3>Keep him recognizable.</h3><ul class="plain-list"><li>Preserve the ceramic body, glasses, handle, and original proportions.</li><li>Keep the source orientation. Never mirror or recolor.</li><li>Keep props separate from anatomy.</li><li>Keep his artwork palette separate from UI colors.</li><li>Use the builder only for coming-soon or maintenance.</li></ul><p class="annotation">These original raster expressions are identity references. New marketing should not use sadness, guilt, or pressure. Current native scenes favor positive, context-aware expressions.</p><a class="text-link" href="assets/mugsy-wishlist.png" download>Download original master</a></div></div>
+        <div class="section-intro"><h2>Meet Mugsy.</h2><p>Same white ceramic mug. Same glasses. Same identity. Eighteen controlled poses, with new accessories and native code counterparts.</p></div>
+        <div class="mugsy-intro"><div class="mugsy-master"><img src="assets/mugsy-wave.png" alt="Mugsy's new welcoming wave, preserving the original identity" width="1254" height="1254"><span>Welcome wave · current pose artwork</span></div><div><h3>One character. A shared rig.</h3><ul class="plain-list"><li>The original master is frozen, byte for byte.</li><li>Seven native body and face shapes stay locked.</li><li>Only pose, expression, gaze, liquid, and accessories vary.</li><li>Every image has a named SwiftUI configuration.</li><li>Prompts, hashes, alpha, margins, and optical review are recorded.</li></ul><p class="annotation">Generated illustrations and native previews share the same pose contract. They are different renderings; native geometry remains exact across every code pose.</p><a class="text-link" href="identity/README.md">Read the Mugsy identity contract</a></div></div>
+        <div class="mugsy-toolbar"><label>Rendering<select id="mugsy-rendering"><option value="artwork">Generated artwork</option><option value="native">Native code preview</option></select></label><label>Preview surface<select id="mugsy-surface"><option value="foamWhite">Foam</option><option value="creamWhite">Cream</option><option value="mugshotMint">Mint</option></select></label><p class="small" id="mugsy-count">18 named poses</p></div>
         <div id="mugsy-library" class="mugsy-library"></div>
+        <div class="code-line"><code>MugsyCatalogView(pose: .mapExplorer)</code><button class="copy-button" data-copy-value="MugsyCatalogView(pose: .mapExplorer)" type="button">Copy SwiftUI example</button></div>
+        <p class="annotation">Native previews are rendered from production SwiftUI source on macOS, without a Simulator. They establish reference rendering, not acceptance of a distributed iPhone build. Choose the artwork rendering for static illustration; choose the native rig for product motion.</p>
         <div class="character-palette" id="character-palette"></div>
-        <p class="annotation">White ceramic stays white. Artwork mint is a separate locked character color. The code-native vector reference remains review-only under the existing Mugsy artwork authority.</p>
+        <p class="annotation">White ceramic stays white. Artwork mint is a separate locked character color. The original identity reference remains immutable; generated poses cannot redefine its silhouette or palette.</p>
       </section>
 
       <section id="imagery" class="chapter">
-        <div class="section-intro"><h2>Make the drink<br>the main character.</h2><p>Natural light. Warm surroundings. Texture you can almost taste. Use the existing app imagery, with room for the memory around it.</p></div>
-        <div class="photo-strip"><figure><img src="assets/orange-square.png" alt="Iced orange drink on a wooden table" width="1024" height="1024" loading="lazy"><figcaption>Drink first</figcaption></figure><figure><img src="assets/creamy-latte.png" alt="Creamy latte from the app's bundled imagery" width="1024" height="1024" loading="lazy"><figcaption>Texture and warmth</figcaption></figure><figure><img src="assets/cafe-corner.png" alt="A quiet cafe corner from the app's bundled imagery" width="1024" height="1024" loading="lazy"><figcaption>A sense of place</figcaption></figure></div>
-        <div class="two-columns"><div><h3>Compose around the moment</h3><p>Keep the drink's focal point visible. Use solid cream behind copy when image contrast is uncertain. Let photography carry the color; interface accents stay quiet.</p></div><div><h3>Show the app honestly</h3><p>Bundled onboarding artwork is a visual reference. It is not an editable screen, a current live account, or proof of an exact release. Keep its baked-in text intact.</p></div></div>
-        <div class="product-references"><figure><img src="assets/onboarding-capture.png" alt="Complete Capture Every Sip onboarding reference artwork" width="853" height="1844" loading="lazy"><figcaption>Capture reference</figcaption></figure><figure><img src="assets/onboarding-map.png" alt="Complete Map onboarding reference artwork" width="853" height="1844" loading="lazy"><figcaption>Map reference</figcaption></figure><figure><img src="assets/onboarding-journal.png" alt="Complete Journal onboarding reference artwork" width="853" height="1844" loading="lazy"><figcaption>Journal reference</figcaption></figure></div>
+        <div class="section-intro"><h2>Make the drink<br>the main character.</h2><p>Natural light. Warm surroundings. Texture you can almost taste. New photographic-style imagery, with natural texture and room for the moment around it.</p></div>
+        <div class="photo-strip"><figure><img src="assets/orange-square.png" alt="Orange-peel iced coffee on a worn wooden table" width="1024" height="1024" loading="lazy"><figcaption>Drink first</figcaption></figure><figure><img src="assets/creamy-latte.png" alt="Creamy latte from the app's bundled imagery" width="1024" height="1024" loading="lazy"><figcaption>Texture and warmth</figcaption></figure><figure><img src="assets/cafe-corner.png" alt="A quiet cafe corner from the app's bundled imagery" width="1024" height="1024" loading="lazy"><figcaption>A sense of place</figcaption></figure></div>
+        <div class="two-columns"><div><h3>Compose around the moment</h3><p>Keep the drink's focal point visible. Use solid cream behind copy when image contrast is uncertain. Let photography carry the color; interface accents stay quiet.</p></div><div><h3>Show the app honestly</h3><p>These are OpenAI-generated fictional brand scenes, not real cafes, captured customer drinks, or proof of a release. The old baked onboarding panels are retired from this kit.</p></div></div>
+        <figure class="photo-detail"><img src="assets/orange-detail.png" alt="New generated close detail of ice, milk, condensation, and real-looking orange peel" width="1254" height="1254" loading="lazy"><figcaption>Ice, glass, milk, and peel. Believable details over polished effects.</figcaption></figure>
       </section>
 
       <section id="components" class="chapter">
@@ -122,8 +125,8 @@
       </section>
 
       <section id="applications" class="chapter">
-        <div class="section-intro"><h2>One brand.<br>Every place it appears.</h2><p>Editable HTML reference applications carry the app's identity into web, social, and email. Every image and headline comes from the app.</p></div>
-        <div class="application-preview"><div class="mini-site"><div class="mini-nav">Mugshot <span>A personal sip journal</span></div><div class="mini-hero"><div><h3>Capture<br>Every Sip</h3><p>The drink. The place. The little moment around it.</p><a class="button primary" href="templates/landing.html">Open website reference</a></div><img src="assets/orange-hero.png" alt="Bundled orange drink in the website reference layout" width="1024" height="1536" loading="lazy"></div></div></div>
+        <div class="section-intro"><h2>One brand.<br>Every place it appears.</h2><p>Editable HTML reference applications carry the app's identity into web, social, and email. Current imagery is integrated in the app; headlines remain checked against app copy.</p></div>
+        <div class="application-preview"><div class="mini-site"><div class="mini-nav">Mugshot <span>A personal sip journal</span></div><div class="mini-hero"><div><h3>Capture<br>Every Sip</h3><p>The drink. The place. The little moment around it.</p><a class="button primary" href="templates/landing.html">Open website reference</a></div><img src="assets/orange-hero.png" alt="Bundled orange drink in the website reference layout" width="1536" height="1024" loading="lazy"></div></div></div>
         <div class="application-links" id="application-links"></div>
         <p class="annotation">Reference applications are local design artifacts. The email has a named integration slot for its eventual CTA. No template claims an App Store release, current price, live account, or completed deployment.</p>
       </section>
@@ -138,10 +141,10 @@
       <section id="downloads" class="chapter resources">
         <div class="section-intro"><h2>Keep it Mugshot.</h2><p>Use these resources together. Pin the kit version, import the tokens, preserve the originals, and keep new work tied to the same source.</p></div>
         <div class="download-links"><a href="README.md" download><span>Complete brand standard</span><small>Markdown</small></a><a href="brand.json" download><span>Identity, voice &amp; governance</span><small>JSON</small></a><a href="tokens.css" download><span>Web design tokens</span><small>CSS</small></a><a href="tokens.json" download><span>Design tokens</span><small>JSON</small></a><a href="palette.ase" download><span>Adobe color swatches</span><small>ASE</small></a><a href="palette.gpl" download><span>RGB palette</span><small>GPL</small></a><a href="assets.json" download><span>Asset provenance &amp; uses</span><small>JSON</small></a><a href="source-manifest.json" download><span>Native source manifest</span><small>SHA-256</small></a></div>
-        <h3>Original assets</h3><div id="asset-downloads" class="asset-downloads"></div>
+        <h3>Current assets</h3><div id="asset-downloads" class="asset-downloads"></div>
         <div class="governance"><h3>A standard that stays current.</h3><p>The product owner owns identity decisions. A brand change updates this kit and affected consumers in the same reviewed change. Generated exports and assets are checked against app sources; downstream surfaces do not create a second palette or voice guide.</p><div class="code-line"><code>python3 scripts/brand-kit.py --check</code><button class="copy-button" data-copy-value="python3 scripts/brand-kit.py --check" type="button">Copy command</button></div><p class="annotation">Patch: clarification. Minor: compatible addition. Major: identity or breaking token change. Production adoption is recorded separately from publication of the kit.</p><a class="text-link" href="VERIFICATION.md">Verification and limits</a></div>
       </section>
-      <footer class="book-footer"><span class="brand-name">Mugshot</span><p>A brand built from the app.<br>Version <span data-version>1.0.0</span> · November 24, 2026</p><a href="#main">Back to the beginning</a></footer>
+      <footer class="book-footer"><span class="brand-name">Mugshot</span><p>A brand built from the app.<br>Version <span data-version>1.1.0</span> · November 24, 2026</p><a href="#main">Back to the beginning</a></footer>
     </main>
   </div>
   <div class="toast" role="status" aria-live="polite" id="toast"></div>

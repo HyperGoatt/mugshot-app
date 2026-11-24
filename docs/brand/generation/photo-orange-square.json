@@ -1,0 +1,15 @@
+{
+  "id": "orange-square",
+  "tool": "OpenAI built-in image_gen",
+  "engine_version": "not exposed by tool",
+  "prompt": "Use case: precise-object-edit. Image 1 is the new Mugshot signature photograph and the visual continuity reference. Make a square 1:1 editorial photograph of the SAME iced espresso-and-oat-milk drink, SAME clear lowball glass and single short orange-peel twist, on the SAME worn oak table beside the window with muted sage and cream surroundings. Recompose as a closer square drink portrait, showing the complete rim, glass base and a little table. Preserve physically realistic ice, milk/espresso marbling, thin crema, subtle condensation and the orange peel's real pith and pores. Natural neutral-warm daylight, honest texture and photographic optics, no illustration or glossy render. Keep the room softly blurred. Do not add peel ribbons, a second drink, hands, props, text, logo, UI, framing, rounded corners or watermark. The result should feel like a second real photograph taken a moment after Image 1.",
+  "generated_source_file": "exec-a21315a2-84df-4972-a368-097f2137f781.png",
+  "native_asset_paths": [
+    "testMugshot/Assets.xcassets/V3OrangeCreamsicleSquare.imageset/v3-orange-creamsicle-square.png"
+  ],
+  "provenance": "OpenAI-generated synthetic brand scene; photographic style, not a real cafe or captured customer drink.",
+  "native_output_sha256": {
+    "testMugshot/Assets.xcassets/V3OrangeCreamsicleSquare.imageset/v3-orange-creamsicle-square.png": "9ecedeaafbeb1945c1c72f60029d2b74b23b48eb59fd0885d2b90304998d7d78"
+  },
+  "review": "Codex visual review: realistic drink and material detail, coherent scene, no labels or named venue claims."
+}

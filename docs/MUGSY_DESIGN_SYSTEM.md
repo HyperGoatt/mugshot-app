@@ -1,14 +1,22 @@
+---
+document_type: living
+status: current
+last_verified: 2026-11-24
+---
+
 # Canonical Mugsy Design System
 
-Status: approved model, motion, and product-placement implementation
+Status: canonical identity and native model; controlled pose expansion implemented in source. Distribution and device acceptance remain separate.
 
 This document defines Mugsy's canonical construction, articulation, contextual props, occasional outfits, motion language, and product-placement rules. The system faithfully normalizes the existing character; it does not reinterpret or modernize him.
 
 ## Source of truth
 
-`MugsyNoWishlist` is the primary front-facing master because it exposes Mugsy's complete silhouette and was explicitly selected as the active design. The mark at his center is a Wishlist bookmark held beneath crossed arms. It is a prop, not clothing or anatomy.
+`MugsyIdentityMaster` freezes the original 500-by-500 `MugsyNoWishlist` artwork byte for byte. It remains the front-facing proportion reference. The bookmark under crossed arms is a prop, not anatomy. Current `MugsyNoWishlist` is an updated positive pose; it is not allowed to redefine the identity master.
 
-These immutable assets remain supporting expression, pose, and personality evidence:
+The [identity and pose contract](brand/identity/README.md) and its single specification own 18 reviewed generated poses, their named SwiftUI configurations, exact image hashes, alpha bounds, and protected native geometry. All generations use the immutable reference. Seven native core shapes remain byte-identical across this expansion.
+
+Original versions of these supporting assets are archived under `docs/brand/identity/legacy-originals/` as expression, pose, and personality evidence:
 
 - `MugsyNoWishlist`
 - `MugsyNoFavorites`
@@ -16,7 +24,7 @@ These immutable assets remain supporting expression, pose, and personality evide
 - `MugsyNoFriends`
 - `MugsyComingSoon`
 
-The code-native model is an optical normalization of the approved artwork. It does not replace or mutate the source PNGs.
+The code-native model remains the shared geometric authority. New generated PNGs are separate static renderings of named poses. Their semantic configuration is shared with the native rig; pixel-identical output is not claimed. The native asset names remain compatible while current images and accessories expand.
 
 ## Permanent identity rules
 
@@ -31,7 +39,7 @@ The code-native model is an optical normalization of the approved artwork. It do
 
 ## Coordinate and proportion system
 
-Mugsy is authored on a normalized 500 by 500 unit canvas. The primary asset's alpha bounds are `x: 145, y: 154, width: 271, height: 274`. The canonical model occupies `x: 67, y: 65, width: 366, height: 370` after reference normalization.
+Mugsy is authored on a normalized 500 by 500 unit canvas. The immutable original master's alpha bounds are `x: 145, y: 154, width: 271, height: 274`. The canonical model occupies `x: 67, y: 65, width: 366, height: 370` after reference normalization.
 
 The rim, body, handle, glasses, cheeks, and feet are acceptance anchors. Each normalized model anchor remains within 2% of the corresponding master anchor. Left and right hand attachment anchors remain stable so props can change without changing Mugsy's base anatomy.
 
@@ -135,6 +143,12 @@ Approved prop states are:
 - Camera
 - Journal notebook
 - Builder tools
+- Folded map and compass
+- Coffee bean bag
+- Matcha bowl and whisk
+- Pour-over dripper and kettle
+- Takeaway cup
+- Tasting spoon
 
 The Wishlist state always pairs the bookmark prop with `crossedOverProp`. Props use stable hand anchors, remain separate layers, do not erase permanent identity features, and are never required for recognition.
 
@@ -147,6 +161,7 @@ Approved outfit states are:
 - Cafe scout
 - Camera companion
 - Cozy ritual
+- Barista apron
 
 Outfits are exceptional rather than default. They may not cover the glasses, mirror the handle, recolor the ceramic, distort the rim, or change body proportions. The builder outfit is reserved for true coming-soon or maintenance contexts. Missing photography uses the camera treatment instead.
 

@@ -471,6 +471,8 @@ private struct MugsyPropLayer: View {
                         MugsyStyleTokens.ink.opacity(0.82),
                         style: StrokeStyle(lineWidth: metrics.detail * 1.7, lineCap: .round, lineJoin: .round)
                     )
+            case .mapAndCompass, .coffeeBeans, .matchaKit, .pourOverKit, .takeawayCup, .tastingSpoon:
+                MugsyExpandedAccessoryView(prop: configuration.prop, lineWidth: metrics.detail)
             }
         }
         .frame(width: 500, height: 500)
@@ -552,6 +554,15 @@ private struct MugsyOutfitLayer: View {
                         MugsyStyleTokens.ink.opacity(0.56),
                         style: StrokeStyle(lineWidth: metrics.micro, lineCap: .round, lineJoin: .round)
                     )
+            case .baristaApron:
+                MugsyBuilderApronShape()
+                    .fill(MugsyStyleTokens.mintAccent)
+                    .overlay {
+                        MugsyBuilderApronShape()
+                            .stroke(MugsyStyleTokens.ink, lineWidth: metrics.detail)
+                    }
+                MugsyBuilderApronDetailsShape()
+                    .stroke(MugsyStyleTokens.ink, lineWidth: metrics.micro)
             }
         }
         .frame(width: 500, height: 500)
@@ -959,6 +970,19 @@ private struct MugsyArmsShape: Shape {
                 control1: rect.mugsyPoint(359, 244),
                 control2: rect.mugsyPoint(358, 201)
             )
+        } else if pose == .wavingLeft || pose == .handsRaised {
+            path.move(to: rect.mugsyPoint(75, 251))
+            path.addCurve(
+                to: rect.mugsyPoint(endpoints.left.x, endpoints.left.y),
+                control1: rect.mugsyPoint(48, 237),
+                control2: rect.mugsyPoint(44, 202)
+            )
+            path.move(to: rect.mugsyPoint(338, 259))
+            path.addCurve(
+                to: rect.mugsyPoint(endpoints.right.x, endpoints.right.y),
+                control1: rect.mugsyPoint(359, pose == .handsRaised ? 244 : 273),
+                control2: rect.mugsyPoint(358, pose == .handsRaised ? 201 : 300)
+            )
         } else {
             path.move(to: rect.mugsyPoint(76, 257))
             path.addCurve(
@@ -1146,6 +1170,10 @@ private enum MugsyArmGeometry {
             return (CGPoint(x: 49, y: 322), CGPoint(x: 355, y: 323))
         case .waving:
             return (CGPoint(x: 49, y: 322), CGPoint(x: 333, y: 177))
+        case .wavingLeft:
+            return (CGPoint(x: 49, y: 177), CGPoint(x: 355, y: 323))
+        case .handsRaised:
+            return (CGPoint(x: 49, y: 177), CGPoint(x: 333, y: 177))
         case .crossedOverProp:
             return (CGPoint(x: 147, y: 291), CGPoint(x: 191, y: 291))
         case .cradling:

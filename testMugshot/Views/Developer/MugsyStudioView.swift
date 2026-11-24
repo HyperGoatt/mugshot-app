@@ -30,6 +30,8 @@ struct MugsyStudioView: View {
             LazyVStack(alignment: .leading, spacing: 24) {
                 introduction
 
+                MugsyPoseCatalogSheet()
+
                 MugsyLogoTransformationSheet()
 
                 MugsyPositiveSceneFamilySheet()
@@ -37,7 +39,7 @@ struct MugsyStudioView: View {
                 MugsyStudioSection(
                     eyebrow: "PRIMARY MASTER",
                     title: "Canonical neutral model",
-                    note: "The unobstructed MugsyNoWishlist asset is the proportion master. Glasses and white ceramic remain permanent."
+                    note: "MugsyIdentityMaster preserves the original proportion master. Glasses and white ceramic remain permanent."
                 ) {
                     VStack(spacing: 18) {
                         MugsyInspectionStage(
@@ -233,7 +235,7 @@ private struct MugsyInspectionStage: View {
                     .padding(12)
 
                 if referenceOpacity > 0.001 {
-                    Image("MugsyNoWishlist")
+                    Image(MugsyCatalogPose.identityMasterAsset)
                         .resizable()
                         .scaledToFit()
                         .scaleEffect(1.35045)
@@ -523,6 +525,8 @@ private struct MugsyOutfitSheet: View {
             return MugsyPlacement.camera.configuration
         case .cozyRitual:
             return MugsyPlacement.ritual.configuration
+        case .baristaApron:
+            return MugsyCatalogPose.pourOverBarista.configuration
         }
     }
 }
@@ -707,7 +711,7 @@ private struct MugsyBackgroundChecks: View {
 private struct MugsyReferenceComparison: View {
     private let references = [
         MugsyReferenceAsset(
-            asset: "MugsyNoWishlist",
+            asset: MugsyCatalogPose.identityMasterAsset,
             title: "No wishlist",
             scale: 1.35045,
             designOffset: CGSize(width: -41.25, height: -55.35),

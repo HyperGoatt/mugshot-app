@@ -1,10 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-29
+last_verified: 2026-11-24
 ---
 
 # Repository map
+
+## Brand and character ownership
+
+[Brand authority](brand/README.md) owns reusable identity, imagery, tokens, voice,
+and channel references. [Mugsy's identity contract](brand/identity/README.md)
+and `identity/mugsy-spec.json` own the frozen reference, native core hashes, pose
+definitions, asset names, optical registration, and generation/review receipts.
+`scripts/mugsy-catalog.py` generates `Design/MugsyPoseCatalog.swift` and checks
+the source contract. `Views/Components/MugsyCatalogView.swift` exposes native and
+artwork rendering; `MugsyExpandedAccessoryView.swift` adds props without defining
+new anatomy. `Views/Developer/MugsyPoseCatalogSheet.swift` exposes the catalog in
+Mugsy Studio. Native reference renders come from actual production SwiftUI source
+via `scripts/render-mugsy-catalog.py`, without launching a Simulator.
 
 ## Native Home/Recipes implementation
 

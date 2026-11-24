@@ -1,8 +1,24 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-23
+last_verified: 2026-11-24
 ---
+
+## Brand imagery and Mugsy catalog — 2026-11-24
+
+Five new photographic-style brand scenes and 18 controlled Mugsy poses are
+implemented as native resources. The typed pose catalog drives the existing
+scene families and offers both shared native geometry and static generated
+artwork; six new accessories, a barista apron, and two arm articulations expand
+the original rig. The master, palette, and seven protected native shapes remain
+fixed. [Identity and use](brand/identity/README.md) and
+[verification](brand/VERIFICATION.md) record source and local evidence.
+
+The brand kit is now 1.1.0. Existing native image names remain compatible; no
+user photos, notes, persistence contracts, permissions, or backend data changed.
+Native baked onboarding composites were not rewritten and are excluded from
+the current brand imagery. No iPhone installation, TestFlight action, or
+production marketing-site deployment is claimed by this change.
 
 ## Interrupted post repair candidate — 2026-10-23
 
