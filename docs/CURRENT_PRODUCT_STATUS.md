@@ -4,6 +4,20 @@ status: current
 last_verified: 2026-11-24
 ---
 
+## The Weekly Pour — 2026-11-24
+
+Journal now offers Week in review as an owner-only native story built from the
+latest completed Sunday-at-6-PM week. It adapts to quiet, one-sip, unrated and
+photo-free weeks and includes moments, standout sip, recorded places, repeat
+orders and a keepsake when the data supports them. Current Mugsy artwork and
+brand tokens supply the visual direction recovered from the original prototype.
+
+The archive loads its own explicit weekly interval. Sharing has a separate
+preview with dates/counts only and excludes private memories by default.
+Account changes invalidate the story and sharing. This is a client feature;
+no new push delivery, backend deployment or TestFlight build is claimed.
+[Plan, data contract and exact verification state](WEEKLY_POUR.md).
+
 ## Brand imagery and Mugsy catalog — 2026-11-24
 
 Five new photographic-style brand scenes and 18 controlled Mugsy poses are

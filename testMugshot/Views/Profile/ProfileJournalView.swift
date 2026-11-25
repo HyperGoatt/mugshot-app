@@ -29,6 +29,7 @@ struct JournalTabView: View {
     @State private var localDrafts: [SipDraft] = []
     @State private var cafeExperienceSummaries: [RemoteCafeExperienceSummary] = []
     @State private var selectedReflection: JournalReflectionSummary?
+    @State private var weeklyPourPresentation: WeeklyPourPresentation?
     @State private var peopleByReflectionPeriod: [JournalReflectionPeriod: [JournalPeopleCount]] = [:]
     @AppStorage(RoadmapFeatureFlags.phase2CanonicalJournal) private var phase2CanonicalJournal = true
     @AppStorage(RoadmapFeatureFlags.phase5Reflections) private var phase5Reflections = true
@@ -187,6 +188,13 @@ struct JournalTabView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 4)
 
+                    if phase5Reflections, let ownerID = authModel.authenticatedUser?.id {
+                        WeeklyPourInvitation {
+                            weeklyPourPresentation = WeeklyPourPresentation(ownerID: ownerID)
+                        }
+                        .padding(.horizontal, 16).padding(.top, 18)
+                    }
+
                     if phase2CanonicalJournal, !localDrafts.isEmpty {
                         draftSection
                             .padding(.top, 14)
@@ -277,6 +285,10 @@ struct JournalTabView: View {
                     entries: journalEntries,
                     milestones: JournalReflectionEngine.milestones(entries: journalEntries)
                 )
+            }
+            .fullScreenCover(item: $weeklyPourPresentation) { presentation in
+                WeeklyPourFeatureView(ownerID: presentation.ownerID)
+                    .id(presentation.ownerID)
             }
             .fullScreenCover(isPresented: $showJournalArchive) {
                 JournalArchiveView(

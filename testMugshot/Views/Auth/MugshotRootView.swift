@@ -19,7 +19,10 @@ struct MugshotRootView: View {
     var body: some View {
         Group {
 #if DEBUG
-            if MugshotLaunchEnvironment.shouldShowFirstLaunchOnboardingDesignQA {
+            if MugshotLaunchEnvironment.isUITesting,
+               ProcessInfo.processInfo.arguments.contains("--ui-testing-weekly-pour") {
+                WeeklyPourPreviewHost()
+            } else if MugshotLaunchEnvironment.shouldShowFirstLaunchOnboardingDesignQA {
                 firstLaunchEducation
             } else if MugshotLaunchEnvironment.shouldShowSignedInOnboardingDesignQA {
                 MainTabView(dataManager: dataManager)
@@ -70,7 +73,7 @@ struct MugshotRootView: View {
         .environmentObject(authModel)
         .modifier(MugshotDebugDynamicTypeModifier())
         .modifier(MugshotDebugReduceMotionModifier())
-        .preferredColorScheme(.light)
+        .preferredColorScheme(preferredRootColorScheme)
         .task {
             guard !MugshotLaunchEnvironment.isUITesting else { return }
             await PerformanceMonitor.measure("Session restore") {
@@ -106,6 +109,14 @@ struct MugshotRootView: View {
         .task(id: authModel.authenticatedUser?.id) {
             await refreshProfileSetupGate()
         }
+    }
+
+    private var preferredRootColorScheme: ColorScheme? {
+#if DEBUG
+        if MugshotLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-weekly-pour") { return nil }
+#endif
+        return .light
     }
 
     private func startAnalyticsAfterRecovery() {
