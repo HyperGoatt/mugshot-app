@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-24
 ---
 
+## 2026-11-24 — Protected repository workflow and safe cleanup
+
+- Protect `main`, including administrators, with the PR path, required current
+  `Static checks`, resolved review conversations, and blocked force pushes/deletion.
+  Enable automatic source-branch deletion after completed merges.
+- Keep new independent work on current-main feature worktrees and preserve the
+  unfinished Home/polish dependency stack. Require verified recovery copies
+  before removing old refs or checkouts; account for squash merges.
+- Reconcile the main-branch verification guidance with the current risk-based
+  policy and preserve the existing brand checks. This changes repository
+  operations and documentation, without changing app or release acceptance.
+
 ## 2026-11-24 — Realistic imagery and controlled Mugsy pose library
 
 - Replace the current drink, latte, cafe, orange hero, and citrus detail imagery
