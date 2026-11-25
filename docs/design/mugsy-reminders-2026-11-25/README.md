@@ -11,3 +11,8 @@ test is recorded in [captures.json](captures.json).
 [Open the gallery](index.html). Saving with the injected service proves native
 state handling only. Provider acceptance, physical display, production data and
 TestFlight remain separate evidence.
+
+The initial six captures exercise the isolated settings service. Captures 07–09
+were added after the physical Feed overlap was found; they exercise the real
+MainTab/Journal shell with fictional local data and prove the card scrolls inline.
+The focused integration test passes from source `cded57f`.

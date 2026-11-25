@@ -201,10 +201,10 @@ remain count-based feedback, not fabricated rate precision.
 | APNs/worker | 17 focused Deno checks (new and shared sender), plus cached-only repository worker type checking/tests. |
 | Copy/identity | 76 standalone assertions, four native registry/embedded-resource tests, brand and 18-pose immutable-identity validation. |
 | Native lifecycle/data | Final focused run: 88 tests in five suites passed; earlier Activity/device-registration and embedded-extension tests also passed. |
-| Native UI | Four journeys passed: consent/Light/pause, failure/retry, unavailable service, accessibility XXXL/Reduce Motion. |
-| App build | Generic Debug Simulator compile and signed iPhone 0.5.3 (20), including all three extensions, passed. |
-| Native visual evidence | [Six unaltered captures](design/mugsy-reminders-2026-11-25/index.html), hashes and fictional-service provenance. |
-| Phone | Development app 0.5.3 (20) installed in place and launched successfully; installed build independently re-read. Notification receipt/tap and owner acceptance remain pending. |
+| Native UI | Five journeys passed: actual Feed/Journal header, inline card and scrolling regression; consent/Light/pause, failure/retry, unavailable service, accessibility XXXL/Reduce Motion. |
+| App build | Generic Debug Simulator compile and signed iPhone 0.5.3 (21), including all three extensions, passed. |
+| Native visual evidence | [Nine unaltered captures](design/mugsy-reminders-2026-11-25/index.html), hashes and fictional-service provenance. |
+| Phone | Development app 0.5.3 (21) installed in place and launched; real Mugsy settings visually verified through iPhone Mirroring. Feed overlap corrected. Notification receipt/tap and owner acceptance remain pending. |
 | Production/TestFlight | No new schema deployment, engagement activation, send, archive, upload or testing-group assignment. |
 
 The initial Swift beta compiler assertion in a test macro was corrected by
@@ -239,3 +239,32 @@ the phone, mirroring connected and revealed a reminder card overlapping the Feed
 header. The subsequent Journal placement correction and verification supersede
 that layout; this initial install remains data-preservation evidence only.
 Hardware notification receipt and owner acceptance remain separate gates.
+
+### Current signed phone handoff — build 21
+
+Build 0.5.3 (21) was compiled from source `cded57f` and installed in place.
+Deep signature validation passed. The real signed app opened Mugsy settings after
+authentication restoration using the navigation-only development argument.
+iPhone Mirroring visually confirmed the approved artwork, notification preview,
+separate consent and pace controls. The undeployed backend correctly leaves
+Save and consent editing unavailable; no permission or reminder choice changed.
+The app remains open on that screen.
+
+The build-21 pre/post read-only inventory retains all 60 Application Support
+files: 59 byte-identical; the Home workspace differs only in serialization order
+of its unordered completed-ingredient IDs. All seven sessions and all remaining
+JSON values match. No pre-existing preference key was removed. The only changes
+among 58 keys are Mugsy's local state and the ordering of the same 42 saved-cafe
+IDs; all other app-cache values match. No uninstall or test-reset argument ran.
+
+The confirmed Feed overlap is corrected by placing the card inside Journal's
+scrolling content. A focused production-shell Simulator journey passes header
+visibility/actions, card ordering, scrolling and switching back to Feed. Its
+three unaltered captures supplement the six earlier settings-service captures.
+The initial integration assertions were corrected to distinguish screen titles
+from dock labels and static text from interactive header actions. Card
+accessibility now contains its children, retaining the individual action IDs.
+
+This is physical settings/layout evidence, not APNs receipt, pause enforcement
+on a live backend, owner acceptance or TestFlight acceptance. Those release
+gates remain outstanding.

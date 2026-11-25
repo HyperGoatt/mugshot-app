@@ -34,5 +34,26 @@
     "file": "screens/06-mugsy-large-text.png",
     "sha256": "6eb2fcdd8822d61ad59522978dca73bc5ac5238598347e8bc2ac40e4b5944159",
     "test": "MugsyReminderUITests/testLargeTextAndReduceMotionKeepSettingsReachable()"
+  },
+  {
+    "name": "07-feed-header-clear",
+    "file": "screens/07-feed-header-clear.png",
+    "sha256": "d884c6862da7c0aeede3f20cc44c8a2f02b911b8090a83346b5d09196b27d35f",
+    "test": "MugsyReminderUITests/testJournalReminderFlowsWithContentAndLeavesHeadersClear()",
+    "source": "cded57f"
+  },
+  {
+    "name": "08-journal-reminder-inline",
+    "file": "screens/08-journal-reminder-inline.png",
+    "sha256": "75f8cea9f825905811dfa867ba2bf0fb97fcfc29f1f1b4158476b0cf046dcaaa",
+    "test": "MugsyReminderUITests/testJournalReminderFlowsWithContentAndLeavesHeadersClear()",
+    "source": "cded57f"
+  },
+  {
+    "name": "09-journal-reminder-scrolled",
+    "file": "screens/09-journal-reminder-scrolled.png",
+    "sha256": "3a219255ce0f07e2effaec1838af99047e3bdac4796a25564ce425c27d57566b",
+    "test": "MugsyReminderUITests/testJournalReminderFlowsWithContentAndLeavesHeadersClear()",
+    "source": "cded57f"
   }
 ]
