@@ -4,6 +4,18 @@ status: current
 last_verified: 2026-11-24
 ---
 
+## 2026-11-24 — Fresh task sources and marketing repository routing
+
+- Add a startup helper that checks the expected Git source, fetches current
+  main, and allows only a clean fast-forward. Preserve dirty working files,
+  unpublished/divergent history and held feature branches instead of resetting
+  them to satisfy the check.
+- Route website, SEO/GEO, public web routes and product-email tasks to the
+  separate marketing repository. Require the exact refreshed source commit for
+  new feature workspaces and retain the app brand authority.
+- Add disposable Git regression contracts to the fast repository checks. This
+  updates development operations without changing app, site or email behavior.
+
 ## 2026-11-24 — Protected repository workflow and safe cleanup
 
 - Protect `main`, including administrators, with the PR path, required current

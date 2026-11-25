@@ -6,6 +6,26 @@ last_verified: 2026-11-24
 
 # Repository map
 
+## Task sources and fresh baselines
+
+| Work | GitHub source | Primary checkout |
+| --- | --- | --- |
+| Native iOS app, widgets, app backend, shared brand authority | `HyperGoatt/mugshot-app` | This repository's everyday checkout |
+| Marketing website, landing pages, SEO/GEO, public web routes, product-email integration | `HyperGoatt/mugshot-marketing` | Sibling `mugshot-marketing` directory |
+
+Run `python3 scripts/prepare-task.py --repository app` before an independent app
+task, or `--repository both` before website/email work that also consumes the app
+brand kit. The helper discovers the primary app checkout from Git worktree
+metadata, verifies each expected origin, fetches GitHub and fast-forwards clean
+main only. Use its exact printed commit when creating the feature worktree.
+It never rewrites a feature branch or claims that an existing worktree became
+current just because main was refreshed.
+
+Marketing source and its email operating guidance are separate from app source.
+Do not recreate that site inside this repository or use an old app feature branch
+as the website baseline. Explicit continuations of held app work retain their
+recorded dependency instead of being promoted to main by this helper.
+
 ## Brand and character ownership
 
 [Brand authority](brand/README.md) owns reusable identity, imagery, tokens, voice,
