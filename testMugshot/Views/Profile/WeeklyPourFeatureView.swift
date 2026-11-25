@@ -29,7 +29,6 @@ struct WeeklyPourInvitation: View {
             .background(Color.mugshotMint.opacity(0.5), in: RoundedRectangle(cornerRadius: 20))
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Week in review. Your Weekly Pour. Open your latest completed week.")
         .accessibilityIdentifier("weeklyPour.invitation")
     }
