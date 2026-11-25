@@ -23,7 +23,12 @@ protocol OwnerDataExportRemoteTransport: AnyObject {
     func fetchV2Export() async throws -> Data
     func fetchV1Export() async throws -> Data
     func fetchEnforcementExport() async throws -> Data
+    func fetchMugsyExport() async throws -> Data?
     func signedURL(bucket: String, path: String, expiresIn: Int) async throws -> URL
+}
+
+extension OwnerDataExportRemoteTransport {
+    func fetchMugsyExport() async throws -> Data? { nil }
 }
 
 private final class SupabaseOwnerDataExportRemoteTransport: OwnerDataExportRemoteTransport {
@@ -53,6 +58,15 @@ private final class SupabaseOwnerDataExportRemoteTransport: OwnerDataExportRemot
 
     func fetchEnforcementExport() async throws -> Data {
         try await client.rpc("build_owner_enforcement_export_v1").execute().data
+    }
+
+    func fetchMugsyExport() async throws -> Data? {
+        do {
+            return try await client.rpc("get_mugsy_owner_data_v1").execute().data
+        } catch where SupabaseBackendCompatibility.isMissingFunction(error) {
+            // Backends predating this feature contain no Mugsy server records.
+            return nil
+        }
     }
 
     func signedURL(bucket: String, path: String, expiresIn: Int) async throws -> URL {
@@ -220,6 +234,21 @@ final class OwnerDataExportService {
                 completeness = .partial
                 omittedCollections.append("enforcement decisions and appeal statements")
             }
+        }
+
+        do {
+            if let remindersData = try await remote.fetchMugsyExport() {
+                try requireActiveOwner(ownerID)
+                guard let reminders = try JSONSerialization.jsonObject(with: remindersData) as? [String: Any] else {
+                    throw OwnerDataExportError.invalidServerExport
+                }
+                object["mugsy_reminders"] = reminders
+            }
+            try requireActiveOwner(ownerID)
+        } catch {
+            try requireActiveOwner(ownerID)
+            completeness = .partial
+            omittedCollections.append("Mugsy reminder preferences and completion signals could not be read")
         }
 
         let pendingRecords: [PendingVisitSubmissionRecord]

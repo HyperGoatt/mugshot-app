@@ -191,7 +191,7 @@ Deno.serve(async (request) => {
         const receipt = await complete(
           admin,
           delivery,
-          result.outcome,
+          result.outcome === "unknown" ? "terminal" : result.outcome,
           result.errorCode,
           result.retryAfterSeconds,
         );

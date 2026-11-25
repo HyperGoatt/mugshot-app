@@ -3,6 +3,7 @@ import SwiftUI
 
 struct JournalTabView: View {
     @ObservedObject var dataManager: DataManager
+    var reminderCard: MugsyReminderCard? = nil
     let onComposeDraft: (SipDraft) -> Void
     @EnvironmentObject private var authModel: AppAuthModel
     @EnvironmentObject private var tabCoordinator: TabCoordinator
@@ -187,6 +188,12 @@ struct JournalTabView: View {
                     compactProfileRow
                         .padding(.horizontal, 16)
                         .padding(.top, 4)
+
+                    if let reminderCard {
+                        reminderCard.padding(.top, 18)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("mugsy.journal.card")
+                    }
 
                     if phase5Reflections, let ownerID = authModel.authenticatedUser?.id {
                         WeeklyPourInvitation {

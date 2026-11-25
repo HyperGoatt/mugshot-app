@@ -126,7 +126,7 @@ private final class NotificationSettingsStore: ObservableObject {
     }
 }
 
-struct NotificationSettingsView: View {
+struct PeopleNotificationSettingsView: View {
     @StateObject private var store = NotificationSettingsStore()
     @ObservedObject private var deviceCoordinator = NotificationDeviceCoordinator.shared
     @EnvironmentObject private var authModel: AppAuthModel
@@ -144,7 +144,7 @@ struct NotificationSettingsView: View {
                 pushCapabilityContent
             }
 
-            Section("Push preferences") {
+            Section("People") {
                 Toggle("Push notifications", isOn: $store.preferences.pushEnabled)
                 Toggle("Friend posts", isOn: $store.preferences.friendPosts)
                 Toggle("Tags", isOn: $store.preferences.tags)
@@ -153,6 +153,8 @@ struct NotificationSettingsView: View {
                 Toggle("Comments and mentions", isOn: $store.preferences.comments)
                 Toggle("Reactions", isOn: $store.preferences.reactions)
                 Toggle("Friend requests", isOn: $store.preferences.friendRequests)
+                Text("Likes, reactions, and friends’ posts are grouped when the updated reminder service is available. Requests, tags, comments, and invitations remain prompt.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             .disabled(
                 store.isLoading
@@ -178,7 +180,7 @@ struct NotificationSettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Color.creamWhite)
-        .navigationTitle("Notifications")
+        .navigationTitle("People notifications")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

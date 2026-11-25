@@ -812,6 +812,20 @@ private struct PendingVisitPublicationWorker {
         ) == nil else {
             throw AutomaticSipRecoveryError.noProgress
         }
+        let completion = submission
+        await MainActor.run {
+            let history = try? HomeRecipeWorkspaceStore.shared.exportSnapshot(ownerID: completion.userId)
+            let homeAttempt = completion.homeAttemptID.flatMap { memoryID in
+                history?.attempts.first { $0.id == memoryID }
+            }
+            MugsyReminderCoordinator.shared.recordCompletedMemory(
+                accountID: completion.userId,
+                memoryID: completion.homeAttemptID ?? completedID,
+                origin: completion.homeAttemptID == nil ? .canonical : .home,
+                completedAt: homeAttempt?.savedAt ?? completion.remoteFinalizedAt ?? .now,
+                linkedVisitID: completion.homeAttemptID == nil ? nil : completedID
+            )
+        }
         return completedID
     }
 

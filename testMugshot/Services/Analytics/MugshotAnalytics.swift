@@ -83,8 +83,25 @@ enum ActivityNotificationEducationSource: String {
     case notificationSettings = "notification_settings"
     case nearbyReminder = "nearby_reminder"
     case reflectionReminders = "reflection_reminders"
+    case mugsyReminder = "mugsy_reminder"
 
     var requiresRemotePush: Bool { self != .nearbyReminder }
+}
+
+enum MugshotMemoryOrigin: String {
+    case home
+    case canonical
+}
+
+enum MugsyReminderAnalyticsAction: String {
+    case invitationViewed = "mugsy_invitation_viewed"
+    case invitationDismissed = "mugsy_invitation_dismissed"
+    case cardViewed = "mugsy_card_viewed"
+    case cardDismissed = "mugsy_card_dismissed"
+    case routeResolved = "mugsy_route_resolved"
+    case preferencesSaved = "mugsy_preferences_saved"
+    case paused = "mugsy_reminders_paused"
+    case synchronizationFailed = "mugsy_synchronization_failed"
 }
 
 enum ActivityNotificationRegistrationResult: String {
@@ -344,6 +361,7 @@ struct MugshotSipAnalyticsSnapshot: Equatable {
         case .widget: "widget"
         case .appShortcut: "app_shortcut"
         case .camera: "camera"
+        case .engagementNotification: "engagement_notification"
         }
     }
 
@@ -467,6 +485,14 @@ enum MugshotAnalyticsEvent: Equatable {
     )
     case activityOpened(source: ActivityOpenSource)
     case activityRouteResult(ActivityRouteResult, source: ActivityOpenSource)
+    case memoryCompleted(origin: MugshotMemoryOrigin)
+    case mugsyReminder(
+        action: MugsyReminderAnalyticsAction,
+        family: String = "none",
+        outcome: String = "success",
+        pace: String = "standard",
+        templateVersion: Int = 1
+    )
     case peopleHubOpened(source: PeopleDiscoverySource)
     case peopleProfileShareOpened(format: String, source: PeopleDiscoverySource)
     case peopleSearchCompleted(resultCount: Int, outcome: String, durationSeconds: Int)
@@ -504,6 +530,21 @@ enum MugshotAnalyticsEvent: Equatable {
 
     var payload: MugshotAnalyticsPayload {
         switch self {
+        case .memoryCompleted(let origin):
+            return payload("memory_completed", ["origin": .string(origin.rawValue)])
+        case .mugsyReminder(let action, let family, let outcome, let pace, let version):
+            return payload(action.rawValue, [
+                "family": .string(Self.allowlisted(family, allowed: [
+                    "none", "first_memory", "second_memory", "photo_memory", "repeat_memory",
+                    "home_memory", "weekly_pour", "return_memory", "on_this_day", "friend_digest", "nearby"
+                ])),
+                "outcome": .string(Self.allowlisted(outcome, allowed: [
+                    "success", "failed", "unavailable", "accepted", "rejected", "expired",
+                    "malformed", "account_rejected", "dismissed", "pending", "paused"
+                ])),
+                "pace": .string(Self.allowlisted(pace, allowed: ["standard", "light", "off"])),
+                "template_version": .integer(version == 1 ? 1 : 0)
+            ])
         case .homeRecipe(let action, let hasRecipe, let duration):
             return payload(action.rawValue, ["has_recipe": .boolean(hasRecipe),
                 "duration_seconds": .integer(min(86_400, max(0, duration)))])
@@ -1033,6 +1074,7 @@ final class MugshotAnalytics {
     private let metadata: [String: MugshotAnalyticsPropertyValue]
     private(set) var isConfigured = false
     private(set) var isAuthenticated = false
+    private var identifiedUserID: UUID?
 
     init(
         transport: MugshotAnalyticsTransport,
@@ -1096,13 +1138,14 @@ final class MugshotAnalytics {
         suspendedForDeletion = true
         isConfigured = false
         isAuthenticated = false
+        identifiedUserID = nil
         transport.close()
     }
 
-    func capture(_ event: MugshotAnalyticsEvent) {
+    func capture(_ event: MugshotAnalyticsEvent, expectedUserID: UUID? = nil) {
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
-        guard isConfigured else { return }
+        guard isConfigured, expectedUserID == nil || identifiedUserID == expectedUserID else { return }
         let eventPayload = event.payload
         let properties = metadata
             .merging(eventPayload.properties) { _, eventValue in eventValue }
@@ -1122,6 +1165,7 @@ final class MugshotAnalytics {
         defer { lifecycleLock.unlock() }
         guard isConfigured else { return }
         transport.identify(distinctID: userID.uuidString.lowercased())
+        identifiedUserID = userID
         isAuthenticated = true
     }
 
@@ -1131,5 +1175,6 @@ final class MugshotAnalytics {
         guard isConfigured else { return }
         transport.reset()
         isAuthenticated = false
+        identifiedUserID = nil
     }
 }

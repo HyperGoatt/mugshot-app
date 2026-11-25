@@ -1,8 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-29
+last_verified: 2026-11-25
 ---
+
+## Mugsy shared attention amendment — 2026-11-25
+
+The new separately consented Mugsy implementation, coordinated optional budgets,
+completion signals, precise routes, reviewed copy and static-art extension are
+specified in [Mugsy reminders](MUGSY_REMINDERS.md). That record supersedes older
+source descriptions for this candidate and distinguishes deployment/acceptance.
+New sending remains off until its release gates pass. Existing production social
+and reflection schedules remain as inventoried; source presence is not a launch.
+The legacy notify-friends-on-new-visit handler was verified deployed as no-delivery
+HTTP 410 version 22 on November 25, superseding the older retirement-pending note.
 
 Owner follow-up on 2026-09-14 confirmed reminder settings persist after Save.
 The client now exposes Save in the navigation bar and marks unsaved changes;

@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-24
+last_verified: 2026-11-25
 ---
+
+## Mugsy reminders — candidate with launch gates
+
+Mugsy consent, pace/pause controls, native invitations and cards, a versioned copy
+catalog and rich-notification fallback extend the current app. The backend candidate
+coordinates optional reflection, casual friend summaries and nearby reminders
+through one attention policy. Its completion definition includes private Home
+memories and excludes drafts and failed saves. Production deployment, real APNs
+receipt, external pilot acceptance and measured retention remain distinct gates.
+[Implementation and evidence](MUGSY_REMINDERS.md).
 
 ## The Weekly Pour — implemented in source
 

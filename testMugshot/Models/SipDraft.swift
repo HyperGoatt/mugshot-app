@@ -16,6 +16,7 @@ enum SipComposerSource: String, Codable, CaseIterable {
     case widget
     case appShortcut
     case camera
+    case engagementNotification = "engagement_notification"
 }
 
 struct SipComposerLaunchContext: Codable, Equatable {

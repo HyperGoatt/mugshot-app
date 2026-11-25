@@ -1,8 +1,21 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-25
 ---
+
+## Mugsy reminders release gates — 2026-11-25
+
+The Mugsy candidate adds private attention policy, owner-scoped preference and
+completion RPCs, and a secret-authenticated delivery worker. Source and hermetic
+verification do not mean this schema or worker is deployed. Keep delivery controls
+off while validating the pinned migration and deployed worker versions.
+
+Production enablement requires an explicit release record, backup/recovery review,
+source-matched deployment, at least seven days of shadow decisions, owner hardware
+receipt/routing/pause acceptance, and a consenting pilot. Do not accelerate these
+elapsed-time gates using simulated timestamps. No broadcast, email campaign or
+TestFlight upload is part of this candidate. [Runbook](MUGSY_REMINDERS.md).
 
 ## Cafe verification incident handoff — 2026-10-30
 

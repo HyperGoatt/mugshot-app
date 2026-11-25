@@ -1,0 +1,59 @@
+[
+  {
+    "name": "01-mugsy-preferences",
+    "file": "screens/01-mugsy-preferences.png",
+    "sha256": "7ba3ce47027709d717fd859379cf479f84851950ded36aac08ce757ecdfadd67",
+    "test": "MugsyReminderUITests/testConsentPaceSaveAndPauseStayExplicit()"
+  },
+  {
+    "name": "02-mugsy-light-saved",
+    "file": "screens/02-mugsy-light-saved.png",
+    "sha256": "1c7f5d7c189473b164b1761d213e5fe1de98664e7dbe21a6c08232e2dd3cbadd",
+    "test": "MugsyReminderUITests/testConsentPaceSaveAndPauseStayExplicit()"
+  },
+  {
+    "name": "03-mugsy-paused",
+    "file": "screens/03-mugsy-paused.png",
+    "sha256": "e9383e1597968a36ae42ffa2a2a5c5187dc9ccdc651e609133b676b14294b976",
+    "test": "MugsyReminderUITests/testConsentPaceSaveAndPauseStayExplicit()"
+  },
+  {
+    "name": "04-mugsy-unavailable",
+    "file": "screens/04-mugsy-unavailable.png",
+    "sha256": "6591ec7718902e9bd4b5dae40d4fa5ba9dd0e8c23d42e92b046d0040c6dfb37f",
+    "test": "MugsyReminderUITests/testUnavailableBackendHasTruthfulPreviewAndDisabledSave()"
+  },
+  {
+    "name": "05-mugsy-save-retry",
+    "file": "screens/05-mugsy-save-retry.png",
+    "sha256": "0ef234cdb7b9870cffadf6ccfc95e33334c6a06fb4fe2ac948faf61ef9a666db",
+    "test": "MugsyReminderUITests/testFailedSavePreservesChoicesAndOffersRetry()"
+  },
+  {
+    "name": "06-mugsy-large-text",
+    "file": "screens/06-mugsy-large-text.png",
+    "sha256": "6eb2fcdd8822d61ad59522978dca73bc5ac5238598347e8bc2ac40e4b5944159",
+    "test": "MugsyReminderUITests/testLargeTextAndReduceMotionKeepSettingsReachable()"
+  },
+  {
+    "name": "07-feed-header-clear",
+    "file": "screens/07-feed-header-clear.png",
+    "sha256": "d884c6862da7c0aeede3f20cc44c8a2f02b911b8090a83346b5d09196b27d35f",
+    "test": "MugsyReminderUITests/testJournalReminderFlowsWithContentAndLeavesHeadersClear()",
+    "source": "cded57f"
+  },
+  {
+    "name": "08-journal-reminder-inline",
+    "file": "screens/08-journal-reminder-inline.png",
+    "sha256": "75f8cea9f825905811dfa867ba2bf0fb97fcfc29f1f1b4158476b0cf046dcaaa",
+    "test": "MugsyReminderUITests/testJournalReminderFlowsWithContentAndLeavesHeadersClear()",
+    "source": "cded57f"
+  },
+  {
+    "name": "09-journal-reminder-scrolled",
+    "file": "screens/09-journal-reminder-scrolled.png",
+    "sha256": "3a219255ce0f07e2effaec1838af99047e3bdac4796a25564ce425c27d57566b",
+    "test": "MugsyReminderUITests/testJournalReminderFlowsWithContentAndLeavesHeadersClear()",
+    "source": "cded57f"
+  }
+]

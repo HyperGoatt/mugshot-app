@@ -20,9 +20,24 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     private var canWrite = false
     private var remoteConflict: HomeRecipeWorkspace?
     private var syncTaskID: UUID?
+    private let completionRecorder: @MainActor (UUID, UUID, Date) -> Void
+    private let removalRecorder: @MainActor (UUID, UUID) -> Void
 
-    init(root: URL? = nil, transport: (any HomeRecipeWorkspaceTransport)? = nil) {
+    init(
+        root: URL? = nil,
+        transport: (any HomeRecipeWorkspaceTransport)? = nil,
+        completionRecorder: @escaping @MainActor (UUID, UUID, Date) -> Void = { owner, memory, date in
+            MugsyReminderCoordinator.shared.recordCompletedMemory(
+                accountID: owner, memoryID: memory, origin: .home, completedAt: date
+            )
+        },
+        removalRecorder: @escaping @MainActor (UUID, UUID) -> Void = { owner, memory in
+            MugsyReminderCoordinator.shared.recordRemovedMemory(accountID: owner, memoryID: memory)
+        }
+    ) {
         self.transport = transport
+        self.completionRecorder = completionRecorder
+        self.removalRecorder = removalRecorder
         self.root = root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MugshotHomeRecipes", isDirectory: true)
     }
@@ -121,8 +136,13 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
         try change(&next)
         guard next != workspace else { return }
         next.pendingOperationID = UUID()
+        let removedMemories = Set(workspace.attempts.filter { $0.savedAt != nil }.map(\.id))
+            .subtracting(next.attempts.map(\.id))
         try write(next, scope: scope)
         workspace = next
+        if let owner = scope.userID {
+            for memoryID in removedMemories { removalRecorder(owner, memoryID) }
+        }
     }
 
     func saveRecipe(_ draft: HomeRecipeEditorDraft) throws -> UUID {
@@ -170,6 +190,7 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
     }
 
     func saveAttempt(_ attempt: HomeAttemptRecord, updateRecipe: Bool = false) throws {
+        let wasAlreadySaved = workspace.attempts.contains { $0.id == attempt.id && $0.savedAt != nil }
         guard !attempt.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw HomeRecipeWorkspaceError.invalid("Name what you made before saving.")
         }
@@ -236,6 +257,12 @@ final class HomeRecipeWorkspaceStore: ObservableObject {
             "home-preparation-\(scope.storageComponent)-\($0.id)"
         }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+        // Only a successful atomic private save is a completed memory. Retries,
+        // drafts, guest data and later publication must not become new completions.
+        if !wasAlreadySaved, let owner = scope.userID,
+           let savedAt = workspace.attempts.first(where: { $0.id == attempt.id })?.savedAt {
+            completionRecorder(owner, attempt.id, savedAt)
+        }
     }
 
     func saveSession(_ session: HomePreparationSession) throws {

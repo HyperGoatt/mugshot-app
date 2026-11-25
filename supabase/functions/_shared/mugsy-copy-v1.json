@@ -1,0 +1,390 @@
+{
+  "version": 1,
+  "locale": "en",
+  "templates": [
+    {
+      "id": "first_memory_1",
+      "family": "first_memory",
+      "title": "A tiny introduction",
+      "body": "One drink. One little memory. Your journal starts with you.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "no_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "first_memory_2",
+      "family": "first_memory",
+      "title": "Small start, good story",
+      "body": "Had a drink worth remembering? Your first Mugshot can start there.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "no_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "first_memory_3",
+      "family": "first_memory",
+      "title": "Room for your first sip",
+      "body": "A little photo, a little note, a memory to come back to.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "no_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "first_memory_4",
+      "family": "first_memory",
+      "title": "Every journal starts somewhere",
+      "body": "Keep one drink memory when the moment feels right.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "no_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "second_memory_1",
+      "family": "second_memory",
+      "title": "The sequel could be good",
+      "body": "Had a sip worth keeping? There’s room for the next chapter.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "one_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "second_memory_2",
+      "family": "second_memory",
+      "title": "A journal with a little company",
+      "body": "One memory is a lovely start. Keep the next one when it finds you.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "one_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "second_memory_3",
+      "family": "second_memory",
+      "title": "Another little chapter",
+      "body": "Had a drink you’d like to remember? Your journal has room.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "one_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "second_memory_4",
+      "family": "second_memory",
+      "title": "Mugsy left the page open",
+      "body": "The next drink memory can be as simple as a photo and a thought.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "one_memory"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "photo_memory_1",
+      "family": "photo_memory",
+      "title": "Camera ready, Mugsy ready",
+      "body": "A drink worth remembering deserves a little place in your journal.",
+      "pose": "cameraCompanion",
+      "asset": "MugsyPoseCamera",
+      "requires": [
+        "photo_interest"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "photo_memory_2",
+      "family": "photo_memory",
+      "title": "A little frame of reference",
+      "body": "Had a sip worth a photo? Keep the moment in your Mugshots.",
+      "pose": "cameraCompanion",
+      "asset": "MugsyPoseCamera",
+      "requires": [
+        "photo_interest"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "photo_memory_3",
+      "family": "photo_memory",
+      "title": "Good memories can be photogenic",
+      "body": "A photo can be the start of your next drink memory.",
+      "pose": "cameraCompanion",
+      "asset": "MugsyPoseCamera",
+      "requires": [
+        "photo_interest"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "photo_memory_4",
+      "family": "photo_memory",
+      "title": "Picture a little keepsake",
+      "body": "Keep a photo of a drink you’d like to remember, whenever you’re ready.",
+      "pose": "cameraCompanion",
+      "asset": "MugsyPoseCamera",
+      "requires": [
+        "photo_interest"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "repeat_memory_1",
+      "family": "repeat_memory",
+      "title": "The usual has range",
+      "body": "Keep the familiar bits. Remember what made this one different.",
+      "pose": "cozyRitual",
+      "asset": "MugsyPoseCozy",
+      "requires": [
+        "repeat_available"
+      ],
+      "destination": "repeat"
+    },
+    {
+      "id": "repeat_memory_2",
+      "family": "repeat_memory",
+      "title": "Same order, new chapter",
+      "body": "Revisit a familiar drink and keep a fresh memory of this one.",
+      "pose": "cozyRitual",
+      "asset": "MugsyPoseCozy",
+      "requires": [
+        "repeat_available"
+      ],
+      "destination": "repeat"
+    },
+    {
+      "id": "repeat_memory_3",
+      "family": "repeat_memory",
+      "title": "A familiar face in your journal",
+      "body": "Your next memory can start with an order you already know.",
+      "pose": "cozyRitual",
+      "asset": "MugsyPoseCozy",
+      "requires": [
+        "repeat_available"
+      ],
+      "destination": "repeat"
+    },
+    {
+      "id": "repeat_memory_4",
+      "family": "repeat_memory",
+      "title": "Your usual, with a little context",
+      "body": "Had your familiar favorite again? There’s room for a fresh note.",
+      "pose": "cozyRitual",
+      "asset": "MugsyPoseCozy",
+      "requires": [
+        "repeat_available"
+      ],
+      "destination": "repeat"
+    },
+    {
+      "id": "home_memory_1",
+      "family": "home_memory",
+      "title": "Small tweaks, good notes",
+      "body": "Your next little discovery has a place in your Home journal.",
+      "pose": "beanKeeper",
+      "asset": "MugsyPoseBeans",
+      "requires": [
+        "home_interest"
+      ],
+      "destination": "home"
+    },
+    {
+      "id": "home_memory_2",
+      "family": "home_memory",
+      "title": "A note for the next make",
+      "body": "Keep what you learn from a drink you made at home.",
+      "pose": "beanKeeper",
+      "asset": "MugsyPoseBeans",
+      "requires": [
+        "home_interest"
+      ],
+      "destination": "home"
+    },
+    {
+      "id": "home_memory_3",
+      "family": "home_memory",
+      "title": "A little kitchen curiosity",
+      "body": "Had a home make worth remembering? Keep the details for yourself.",
+      "pose": "beanKeeper",
+      "asset": "MugsyPoseBeans",
+      "requires": [
+        "home_interest"
+      ],
+      "destination": "home"
+    },
+    {
+      "id": "home_memory_4",
+      "family": "home_memory",
+      "title": "Mugsy brought the notebook",
+      "body": "A small note from your next home make can be a useful little keepsake.",
+      "pose": "beanKeeper",
+      "asset": "MugsyPoseBeans",
+      "requires": [
+        "home_interest"
+      ],
+      "destination": "home"
+    },
+    {
+      "id": "weekly_pour_1",
+      "family": "weekly_pour",
+      "title": "Your week, freshly brewed",
+      "body": "Mugsy gathered the moments you kept. Your Weekly Pour is ready.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_week"
+      ],
+      "destination": "weekly_pour"
+    },
+    {
+      "id": "weekly_pour_2",
+      "family": "weekly_pour",
+      "title": "A little week in a little story",
+      "body": "The moments you kept have a Weekly Pour to call their own.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_week"
+      ],
+      "destination": "weekly_pour"
+    },
+    {
+      "id": "weekly_pour_3",
+      "family": "weekly_pour",
+      "title": "Your memories have a cover story",
+      "body": "Your Weekly Pour brings this week’s saved moments together.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_week"
+      ],
+      "destination": "weekly_pour"
+    },
+    {
+      "id": "weekly_pour_4",
+      "family": "weekly_pour",
+      "title": "A few moments worth revisiting",
+      "body": "Your Weekly Pour is ready whenever you’d like a look back.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_week"
+      ],
+      "destination": "weekly_pour"
+    },
+    {
+      "id": "return_memory_1",
+      "family": "return_memory",
+      "title": "Mugsy saved you a seat",
+      "body": "Start with one little memory. There’s no catching up to do.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "return_eligible"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "return_memory_2",
+      "family": "return_memory",
+      "title": "Your journal travels at your pace",
+      "body": "Had a sip worth keeping? Pick up with one small memory.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "return_eligible"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "return_memory_3",
+      "family": "return_memory",
+      "title": "A fresh page, whenever you like",
+      "body": "Your next drink memory can be a little moment of its own.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "return_eligible"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "return_memory_4",
+      "family": "return_memory",
+      "title": "A little hello from Mugsy",
+      "body": "There’s room for a new memory whenever one comes your way.",
+      "pose": "welcomeWave",
+      "asset": "MugsyPoseWave",
+      "requires": [
+        "return_eligible"
+      ],
+      "destination": "composer"
+    },
+    {
+      "id": "on_this_day_1",
+      "family": "on_this_day",
+      "title": "A little time travel",
+      "body": "A memory from this day is waiting in your journal.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_anniversary"
+      ],
+      "destination": "memory"
+    },
+    {
+      "id": "on_this_day_2",
+      "family": "on_this_day",
+      "title": "A familiar date, a little memory",
+      "body": "There’s a saved moment from this day to revisit.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_anniversary"
+      ],
+      "destination": "memory"
+    },
+    {
+      "id": "on_this_day_3",
+      "family": "on_this_day",
+      "title": "Your journal kept this one",
+      "body": "A memory from this day has come around again.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_anniversary"
+      ],
+      "destination": "memory"
+    },
+    {
+      "id": "on_this_day_4",
+      "family": "on_this_day",
+      "title": "A small look back",
+      "body": "Mugsy found a memory from this day in your journal.",
+      "pose": "journalKeeper",
+      "asset": "MugsyPoseJournal",
+      "requires": [
+        "eligible_anniversary"
+      ],
+      "destination": "memory"
+    }
+  ]
+}

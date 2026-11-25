@@ -30,6 +30,46 @@ private final class MugshotAnalyticsTransportSpy: MugshotAnalyticsTransport {
 
 @Suite(.serialized)
 struct MugshotAnalyticsTests {
+    @Test func completionTelemetryRejectsPreviousOwnerAcrossIdentityChanges() {
+        let spy = MugshotAnalyticsTransportSpy()
+        let analytics = MugshotAnalytics(transport: spy)
+        analytics.configure(infoDictionary: [
+            "MUGSHOT_POSTHOG_PROJECT_TOKEN": "phc_fixture",
+            "MUGSHOT_POSTHOG_HOST": "https://us.i.posthog.com"
+        ])
+        let first = UUID(), second = UUID()
+        analytics.identify(userID: first)
+        analytics.capture(.memoryCompleted(origin: .home), expectedUserID: first)
+        analytics.identify(userID: second)
+        analytics.capture(.memoryCompleted(origin: .home), expectedUserID: first)
+        #expect(spy.payloads.count == 1)
+        analytics.capture(.memoryCompleted(origin: .canonical), expectedUserID: second)
+        analytics.reset()
+        analytics.capture(.memoryCompleted(origin: .home), expectedUserID: second)
+        #expect(spy.payloads.count == 2)
+        #expect(spy.payloads.allSatisfy { $0.properties["user_id"] == nil })
+    }
+
+    @Test func reminderAnalyticsRejectsUnboundedValuesAndContainsNoIdentityOrContent() {
+        let unsafe = MugshotAnalyticsEvent.mugsyReminder(
+            action: .routeResolved, family: "private cafe name", outcome: "raw server error",
+            pace: "untrusted", templateVersion: 100_000
+        ).payload
+        #expect(unsafe.event == "mugsy_route_resolved")
+        #expect(unsafe.properties == [
+            "family": .string("other"), "outcome": .string("other"),
+            "pace": .string("other"), "template_version": .integer(0)
+        ])
+        let home = MugshotAnalyticsEvent.memoryCompleted(origin: .home).payload
+        #expect(home.event == "memory_completed" && home.properties == ["origin": .string("home")])
+        let valid = MugshotAnalyticsEvent.mugsyReminder(
+            action: .cardViewed, family: "weekly_pour", pace: "light"
+        ).payload
+        #expect(valid.properties["family"] == .string("weekly_pour"))
+        #expect(valid.properties["template_version"] == .integer(1))
+        #expect(ActivityNotificationEducationSource.mugsyReminder.requiresRemotePush)
+    }
+
     @Test func homeRecipeFunnelAcceptsOnlyStructuralValuesAndBoundedDuration() {
         let payload = MugshotAnalyticsEvent.homeRecipe(.logSaved, hasRecipe: true, durationSeconds: 100_000).payload
         #expect(payload.event == "home_log_saved")

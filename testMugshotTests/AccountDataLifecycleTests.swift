@@ -737,6 +737,7 @@ struct AccountDataLifecycleTests {
             image: image(.purple)
         )
         let remote = OwnerExportTransportStub(userID: ownerID)
+        remote.mugsyData = Data("{\"version\":1,\"preferences\":{\"pace\":\"light\"},\"completion_signals\":[]}".utf8)
         remote.v2Data = try JSONSerialization.data(withJSONObject: [
             "schema_version": 2,
             "export_manifest": [
@@ -774,6 +775,7 @@ struct AccountDataLifecycleTests {
         )
 
         #expect(package.completeness == .complete)
+        #expect((object["mugsy_reminders"] as? [String: Any])?["version"] as? Int == 1)
         #expect(package.packagedMediaCount == 1)
         #expect(outbox.first?["localPhotoNames"] == nil)
         #expect(outbox.first?["localPhotoCount"] as? Int == 1)
@@ -1457,6 +1459,8 @@ private final class OwnerExportTransportStub: OwnerDataExportRemoteTransport {
     var v2Error: Error?
     var v1Error: Error?
     var enforcementError: Error?
+    var mugsyData: Data?
+    var mugsyError: Error?
     var signedURLValue: URL?
     var userIDAfterSignedURL: UUID?
     private(set) var signedRequests: [String] = []
@@ -1478,6 +1482,11 @@ private final class OwnerExportTransportStub: OwnerDataExportRemoteTransport {
     func fetchEnforcementExport() async throws -> Data {
         if let enforcementError { throw enforcementError }
         return enforcementData
+    }
+
+    func fetchMugsyExport() async throws -> Data? {
+        if let mugsyError { throw mugsyError }
+        return mugsyData
     }
 
     func signedURL(bucket: String, path: String, expiresIn: Int) async throws -> URL {
