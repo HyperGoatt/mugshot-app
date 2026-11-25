@@ -430,6 +430,11 @@ struct MainTabView: View {
             NearbyCafeReminderCoordinator.shared.activate(accountID: owner)
             await mugsyReminders.activate(accountID: owner)
             await handlePendingMugsyIntent()
+#if DEBUG
+            if owner != nil, ProcessInfo.processInfo.arguments.contains("--debug-open-mugsy-reminders") {
+                showsMugsyPreferences = true
+            }
+#endif
         }
         .task(id: mugsyHeartbeatIdentity) { await runMugsyHeartbeat() }
         .onChange(of: mugsyReminders.pendingIntent?.id) { _, _ in

@@ -47,6 +47,11 @@ or receipt on any device.
 - Backend absence leaves truthful previews/in-app journal use available and
   new push preference saving unavailable. It cannot silently enable sending.
 
+Development builds support `--debug-open-mugsy-reminders` to open the real
+owner settings after authentication restoration. This navigation-only shortcut
+uses the normal service and changes no consent, permission or journal data;
+it does not enable the isolated UI-test fixture or its reset behavior.
+
 ## Attention policy
 
 Mugsy logging, Weekly Pour, On This Day, nearby and grouped casual friend updates

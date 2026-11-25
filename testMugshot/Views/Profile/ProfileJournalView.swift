@@ -191,6 +191,7 @@ struct JournalTabView: View {
 
                     if let reminderCard {
                         reminderCard.padding(.top, 18)
+                            .accessibilityElement(children: .contain)
                             .accessibilityIdentifier("mugsy.journal.card")
                     }
 

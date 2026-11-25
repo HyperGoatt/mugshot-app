@@ -82,7 +82,7 @@ final class MugsyReminderUITests: XCTestCase {
         let feed = app.buttons["mugshot.tab.feed"]
         XCTAssertTrue(feed.waitForExistence(timeout: 15))
         feed.tap()
-        let feedHeader = app.staticTexts["Feed"].firstMatch
+        let feedHeader = app.staticTexts["mugshot.screen.title.feed"]
         XCTAssertTrue(feedHeader.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(feedHeader.frame.height, 0)
         XCTAssertTrue(app.frame.contains(feedHeader.frame), "The Feed title must remain inside the visible screen.")
@@ -92,7 +92,7 @@ final class MugsyReminderUITests: XCTestCase {
         capture(app, "07-feed-header-clear")
 
         app.buttons["mugshot.tab.journal"].tap()
-        let journalHeader = app.staticTexts["Journal"].firstMatch
+        let journalHeader = app.staticTexts["mugshot.screen.title.journal"]
         XCTAssertTrue(journalHeader.waitForExistence(timeout: 5))
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(journalHeader.frame.height, 0)

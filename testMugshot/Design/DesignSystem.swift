@@ -291,6 +291,7 @@ struct MugshotScreenHeader<Trailing: View>: View {
                 Text(title)
                     .mugshotDisplay(size: 30)
                     .foregroundColor(.espressoBrown)
+                    .accessibilityIdentifier("mugshot.screen.title.\(title.lowercased())")
 
                 if let subtitle {
                     Group {
