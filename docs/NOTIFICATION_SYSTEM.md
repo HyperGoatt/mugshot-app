@@ -11,7 +11,8 @@ completion signals, precise routes, reviewed copy and static-art extension are
 specified in [Mugsy reminders](MUGSY_REMINDERS.md). That record supersedes older
 source descriptions for this candidate and distinguishes deployment/acceptance.
 The owner authorized the backend rollout and seven-day shadow period on November
-25. The Mugsy schema is deployed, with staged worker verification recorded in
+25. The Mugsy schema and worker v2 are deployed. SHADOW started at 19:38:23 UTC
+(2:38 PM Eastern), with authenticated zero-send and automatic cron proof in
 [Mugsy reminders](MUGSY_REMINDERS.md#backend-rollout--november-25). New sending
 remains disabled. Existing production social and reflection schedules remain as
 inventoried; schema deployment is not notification receipt or launch acceptance.

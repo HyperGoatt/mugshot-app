@@ -15,7 +15,8 @@ Mugsy is cheeky but kind; the current brand kit and immutable identity apply.
 
 The owner authorized backend deployment and seven days of shadow observation
 on November 25. Production schema `20261125193209_mugsy_attention_policy` is
-installed; it starts OFF. The new worker is staged for shadow verification.
+installed. The worker is deployed and SHADOW began at **2026-11-25 19:38:23 UTC**
+(**2:38 PM Eastern**). New engagement delivery remains disabled.
 Existing production social/reflection delivery remains independent until
 coordinated rollout. Seven real days of shadow observation, hardware acceptance,
 a consenting pilot and an explicit launch decision remain separate gates.
@@ -293,9 +294,46 @@ then reuses the established default/named/legacy key helper. It never returns ke
 values in HTTP diagnostics or logs. The named-key regression was RED first; six
 configuration, three shared-key and seven worker tests pass after the fix.
 
-Shadow start and an authenticated HTTP execution must be verified before the
-seven-day observation clock is reported as running. A successful cron SQL row
-only proves HTTP enqueueing; require the matching worker response as well.
+Worker version 2 is active from source `297d0ac`, with the tested key-resolution
+fix. GET protocol metadata returns HTTP 200; unauthenticated POST returns HTTP
+401. A real authenticated OFF-mode probe returned HTTP 200 with zero claimed,
+provider-accepted, accepted or unknown sends and zero receipt failures.
+
+The operator then selected SHADOW at **2026-11-25 19:38:23.335458 UTC**
+(**November 25, 2:38 PM America/New_York**). The earliest seven-day review is
+**2026-12-02 19:38:23 UTC / December 2, 2:38 PM Eastern**. Time alone does not
+activate a pilot or live mode; both still require an explicit decision and
+remaining acceptance gates. The pilot allowlist is empty.
+
+The authenticated shadow dispatch returned HTTP 200 at 19:38:29 UTC with one
+real opportunity evaluated and zero dispatches. The first opportunity was an
+anniversary suppressed for a known legacy installation. The automatic 19:40 UTC
+five-minute cron run succeeded; its matching HTTP 200 worker response at
+19:40:02 UTC also reports zero sends and zero receipt failures. No live ledger
+charge or processing/accepted/unknown Mugsy opportunity exists. A successful
+cron SQL row alone is not treated as delivery proof.
+
+The owner phone re-registered capability version 1, America/New_York timezone
+and a ready completion baseline, including six minimal private Home signals.
+Its existing Mugsy consent remains OFF; no other account was enrolled.
+
+### Real phone controls
+
+The installed development app remains build 0.5.3 (21); no native app code or
+App Store build was changed by this backend rollout. After the owner made the
+phone available to Mirroring, the real controls displayed an enabled Save action.
+An unchanged save reached revision 1. Light pace saved as revision 2 and survived
+terminating/relaunching the real app; the owner-scoped server record independently
+confirmed Light with consent still OFF. Standard was restored and saved as
+revision 3, with no pause or consent change.
+
+A guarded, explicitly opted-in hardware acceptance journey covers Save, pace,
+pause, resume and restoration without test fixtures or account reset. Its signed
+hardware test bundle compiles. The first runner attempt was blocked before test
+execution by Xcode LocalAuthentication/SFAutoUnlock; it is not a passing test.
+The successful Save/Light phone journey above used the actual Mirroring UI and
+read-only server verification instead. Remaining pause/resume acceptance awaits
+the required unlocked-device state. These checks never enable Mugsy consent.
 
 Never-managed legacy social alerts retain their existing behavior during shadow.
 Their direct-alert receipts are not yet part of shadow collision accounting, so

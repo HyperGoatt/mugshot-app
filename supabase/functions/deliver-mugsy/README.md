@@ -9,7 +9,9 @@ last_verified: 2026-11-25
 Account-level optional attention orchestration. The migration starts in `off`.
 No campaign is enabled by deploying this worker. Operator configuration requires
 seven elapsed shadow days before `pilot` or `live`; pilot requires an allowlist.
-No TestFlight upload or production activation is part of local verification.
+Owner-authorized worker v2 is deployed in SHADOW as of November 25, 19:38:23 UTC.
+The earliest seven-day review is December 2, 19:38:23 UTC; there is no automatic
+promotion to pilot/live. No TestFlight upload is part of this rollout.
 
 The worker reuses the existing activity APNs credentials and its scoped request
 secret. Admin-key resolution prefers the explicit activity-delivery label, then
