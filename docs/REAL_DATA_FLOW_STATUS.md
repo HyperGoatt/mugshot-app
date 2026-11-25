@@ -1,8 +1,24 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-10-30
+last_verified: 2026-11-24
 ---
+
+## The Weekly Pour — 2026-11-24
+
+The client reads `visits` for the explicit owner, `complete` upload state and
+inclusive-start/exclusive-end week, paging until the interval is exhausted.
+The existing authorized hydration and image-access services remain the read
+boundary. It adds saved Home attempts from that owner's durable workspace,
+excluding published/duplicate records and incomplete drafts. It never reads
+private-note rows for this feature.
+
+The story is recomputed deterministically from those records; failures do not
+masquerade as quiet weeks. Request identities and cancellation reject old-week
+responses. Account changes clear presentation, media and pending sharing.
+Export receives a separate dates/counts projection with no personal text/media.
+There are no new remote writes, schema changes or notification side effects.
+[Full contract and evidence](WEEKLY_POUR.md).
 
 ## Cafe verification address repair and diagnostics — 2026-10-30
 

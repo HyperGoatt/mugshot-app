@@ -1,10 +1,19 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-18
+last_verified: 2026-11-24
 ---
 
 # Product roadmap
+
+## The Weekly Pour
+
+The owner-authorized Week in review direction is now implemented as a native
+Journal feature with current Mugsy artwork, data-driven chapters, archive,
+quiet/one-sip states and explicit aggregate-only sharing. Local verification,
+development-device installation, owner acceptance and TestFlight delivery are
+tracked separately in [the feature record](WEEKLY_POUR.md). It adds no push
+schedule or production backend changes.
 
 ## Home Sip V3 implemented; acceptance is the active gate
 

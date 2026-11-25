@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-28
+last_verified: 2026-11-24
 ---
+
+## The Weekly Pour — implemented in source
+
+Journal's Week in review uses the October 31 native design direction and current
+Mugsy artwork. Owner-bound completed weeks, adaptive chapters, quiet/one-sip
+states, recorded highlights/repeats, archive selection and an explicit share
+preview are implemented. Sharing exports dates and aggregate counts only;
+private memories require deliberate inclusion. Monthly/yearly reflections keep
+their current routes. Notification delivery and TestFlight acceptance remain
+separate. [Contracts and verification](WEEKLY_POUR.md).
 
 ## Shared profile compatibility — backend production-configured
 

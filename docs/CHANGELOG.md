@@ -4,6 +4,21 @@ status: current
 last_verified: 2026-11-24
 ---
 
+## 2026-11-24 — The Weekly Pour
+
+- Implement the October 31 Week in review direction as a native Journal story,
+  using the current Mugsy pose catalog, actual remembered sips, adaptive chapters,
+  a reversible saved caption, archive browsing and quiet/one-sip alternatives.
+- Read completed, owner-bound weeks directly with pagination. Include durably
+  saved private Home attempts without double counting published memories; keep
+  stale requests and account changes from exposing another story.
+- Add an explicit aggregate-only share preview. Private memories are excluded
+  by default, inclusion is a deliberate choice, and captions, notes, locations,
+  identity and photos never enter the exported card.
+- Record the [implementation plan, contracts and verification](WEEKLY_POUR.md).
+  No backend deployment, notification send/schedule or TestFlight action is part
+  of this change. Device installation and owner acceptance remain separate.
+
 ## 2026-11-24 — Fresh task sources and marketing repository routing
 
 - Add a startup helper that checks the expected Git source, fetches current

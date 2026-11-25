@@ -71,6 +71,34 @@ final class VisitService {
         )
     }
 
+    /// A complete, owner-bound interval rather than the Journal's recent-sip
+    /// cache. Fail the whole read if a page fails; a partial week is misleading.
+    func fetchWeeklyPour(userID: UUID, window: WeeklyPourWindow) async throws -> [RemoteVisitSummary] {
+        let pageSize = 200
+        var rows: [SupabaseVisitRow] = []
+        var offset = 0
+        while true {
+            try Task.checkCancellation()
+            let page: [SupabaseVisitRow] = try await withCompatibleVisitColumns { columns in
+                try await client.from("visits").select(columns)
+                    .eq("user_id", value: userID.uuidString)
+                    .eq("upload_state", value: VisitUploadState.complete.rawValue)
+                    .gte("created_at", value: window.start.ISO8601Format())
+                    .lt("created_at", value: window.end.ISO8601Format())
+                    .order("created_at", ascending: true)
+                    .order("id", ascending: true)
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+            }
+            rows += page
+            if page.count < pageSize { break }
+            offset += pageSize
+        }
+        try Task.checkCancellation()
+        return try await hydrate(rows: rows, includeAuthors: false,
+                                 currentUserId: userID, includeSocialState: false)
+    }
+
     func fetchOwnerBrewDetails(
         visitIDs: [UUID]? = nil,
         limit: Int = 500
