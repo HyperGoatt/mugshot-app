@@ -196,7 +196,7 @@ remain count-based feedback, not fabricated rate precision.
 | Native UI | Four journeys passed: consent/Light/pause, failure/retry, unavailable service, accessibility XXXL/Reduce Motion. |
 | App build | Generic Debug Simulator compile and signed iPhone 0.5.3 (20), including all three extensions, passed. |
 | Native visual evidence | [Six unaltered captures](design/mugsy-reminders-2026-11-25/index.html), hashes and fictional-service provenance. |
-| Phone | In-place installation, data comparison and launch recorded below when exercised. |
+| Phone | Development app 0.5.3 (20) installed in place and launched successfully; installed build independently re-read. Notification receipt/tap and owner acceptance remain pending. |
 | Production/TestFlight | No new schema deployment, engagement activation, send, archive, upload or testing-group assignment. |
 
 The initial Swift beta compiler assertion in a test macro was corrected by
@@ -211,3 +211,23 @@ rollout still requires source-matched schema/worker release, seven real shadow
 days, hardware notification acceptance, a consenting pilot, and the explicit
 launch decision. The named App Store notification-extension profile is not
 created or verified by development signing.
+
+### Signed phone handoff
+
+Build 0.5.3 (20) was compiled from `f0e48659ceeb9ba5ef3a6c6aa234975305ce0660`
+and installed over the existing `co.mugshot.app.dev` app. Deep signature validation
+passed for the app and all three extensions. `devicectl` independently reports
+installed build 20 and successful launch. No uninstall or account reset occurred.
+
+The read-only pre/post inventory retained all 60 existing Application Support
+files: 59 are byte-identical and the rewritten Home workspace decodes to exactly
+the same JSON value. No legacy preference key was removed. Of 54 legacy keys,
+53 are unchanged; the remaining app-data cache only reordered the same saved-cafe
+IDs and refreshed two derived cafe statistics. New keys belong to Mugsy's minimized
+local scheduling state. Owner backups remain local and excluded from Git.
+
+The app is left open. iPhone Mirroring reported “iPhone in Use”; opening the new
+controls through mirroring requires the owner to physically lock the phone.
+This does not block installation/launch, and it is not a claim of hardware
+notification receipt or owner acceptance. New backend deployment and sending
+remain gated as described above.
