@@ -74,3 +74,17 @@ stories and sharing. Cancelled or superseded loads cannot replace a newer week.
 
 Implementation and verification are in progress. Simulator, physical install,
 owner acceptance and TestFlight acceptance are separate evidence states.
+
+### TDD evidence
+
+- `92afe3f`: intended compile-time RED for the missing weekly domain/store,
+  followed by passing production-domain contracts.
+- `83b6e3b`: runtime RED reproduced cancellation leaving loading active.
+  `ef51ff9` settles only the matching request using `defer`; all 34 focused
+  domain/privacy/lifecycle assertions pass. Instrumented line coverage is
+  94.74% across the production domain/store (171 lines, 9 missed).
+- First Simulator run: six data-source/rendering test methods passed (including
+  six visibility cases), and five of six UI journeys passed. The quiet-week
+  exit returned to Journal, but the invitation's accessibility override hid its
+  intended identifier/label. Native runtime inspection confirmed the working
+  button and the missing semantics; repair and focused rerun are in progress.
