@@ -26,6 +26,18 @@ the verification appropriate to its actual behavior and risk.
 
 ## Repository operations
 
+- Prepare the authoritative source with `python3 scripts/prepare-task.py` before
+  starting independent work. Use `--repository both` for website/email tasks,
+  then create the feature workspace from the exact printed source commit.
+  [Repository routing](REPO_MAP.md#task-sources-and-fresh-baselines) identifies
+  the separate app and marketing sources.
+- The startup helper fetches and fast-forwards only a clean primary main with
+  the expected origin. It refuses unpublished/divergent commits, source changes,
+  and failed fetches. A successful refresh describes the printed primary path;
+  it does not update any existing feature workspace or lift acceptance holds.
+- Fast verification runs disposable Git contracts for stale-main updates,
+  unsaved/unpublished work, branch/origin ownership, fetch failure/retry and
+  path handling. These contracts do not contact a live application backend.
 - Keep the shared everyday checkout on current `main`. Start independent work
   from current `origin/main` in a managed worktree; continue an existing draft
   only from its recorded branch and dependency.

@@ -17,6 +17,9 @@
 
 ## Repository Organization
 
+- Before a new independent task, run `python3 scripts/prepare-task.py --repository app`. It refreshes the primary checkout and prints the verified starting commit. Create the feature worktree from that exact commit; refreshing main does not update an older feature worktree.
+- Website, landing-page, SEO/GEO, public web-route and product-email work belongs to the sibling `mugshot-marketing` repository (`HyperGoatt/mugshot-marketing`). For that work, run `python3 scripts/prepare-task.py --repository both`, then use the printed marketing path and commit. Read its README and affected operating guidance before editing.
+- Startup refuses a wrong origin, dirty primary checkout, unpublished/divergent main, or failed fetch. Resolve the ownership/source issue while preserving the existing work; never reset, stash, or overwrite it merely to make startup pass.
 - Keep the everyday checkout on current `main`; use managed feature worktrees for independent work.
 - Continue a held draft stack only from its recorded branch and dependency. Mechanical mergeability does not remove acceptance holds.
 - Main requires a pull request, passing `Static checks` on an up-to-date base, and resolved review conversations, including for administrators. Never bypass these protections.
