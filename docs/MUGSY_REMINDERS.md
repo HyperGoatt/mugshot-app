@@ -13,12 +13,15 @@ four. The habit loop is a real memory, an easy next memory, a useful Weekly Pour
 and a kind invitation to return. Messages never ask people to consume more.
 Mugsy is cheeky but kind; the current brand kit and immutable identity apply.
 
-This is an implementation candidate. The new production schema, worker and
-notification enrollment are not yet deployed or launched. Existing production
-social/reflection delivery remains independent until coordinated rollout.
-Seven real days of shadow observation, hardware acceptance, a consenting pilot
-and an explicit launch decision are separate gates. Simulated clock tests do
-not satisfy elapsed observation. TestFlight is not authorized by this task.
+The owner authorized backend deployment and seven days of shadow observation
+on November 25. Production schema `20261125193209_mugsy_attention_policy` is
+installed. The worker is deployed and SHADOW began at **2026-11-25 19:38:23 UTC**
+(**2:38 PM Eastern**). New engagement delivery remains disabled.
+Existing production social/reflection delivery remains independent until
+coordinated rollout. Seven real days of shadow observation, hardware acceptance,
+a consenting pilot and an explicit launch decision remain separate gates.
+Simulated clock tests do not satisfy elapsed observation. TestFlight is not
+authorized by this task.
 
 Read-only inventory on November 25 found 185 production migrations (latest
 20261105183000), deliver-activity version 22, deliver-reflections version 9,
@@ -26,7 +29,8 @@ active one-minute Activity and five-minute reflection schedules, and the
 reflection control enabled. The legacy notify-friends-on-new-visit version 22
 is a deployed no-delivery HTTP 410 handler; earlier unretired-endpoint statements
 in the notification history are superseded by this inventory. No Mugsy schema
-was present during that inspection. This inventory does not prove worker health
+was present during that initial inspection; the deployment record below
+supersedes that inventory for Mugsy. This inventory does not prove worker health
 or receipt on any device.
 
 ## Consent and native experience
@@ -205,7 +209,7 @@ remain count-based feedback, not fabricated rate precision.
 | App build | Generic Debug Simulator compile and signed iPhone 0.5.3 (21), including all three extensions, passed. |
 | Native visual evidence | [Nine unaltered captures](design/mugsy-reminders-2026-11-25/index.html), hashes and fictional-service provenance. |
 | Phone | Development app 0.5.3 (21) installed in place and launched; real Mugsy settings visually verified through iPhone Mirroring. Feed overlap corrected. Notification receipt/tap and owner acceptance remain pending. |
-| Production/TestFlight | No new schema deployment, engagement activation, send, archive, upload or testing-group assignment. |
+| Production/TestFlight | Owner-authorized schema deployment is recorded below. New engagement sending remains disabled; no archive, upload or testing-group assignment. |
 
 The initial Swift beta compiler assertion in a test macro was corrected by
 binding optional callbacks before invoking them. The initial large-text test
@@ -246,9 +250,9 @@ Build 0.5.3 (21) was compiled from source `cded57f` and installed in place.
 Deep signature validation passed. The real signed app opened Mugsy settings after
 authentication restoration using the navigation-only development argument.
 iPhone Mirroring visually confirmed the approved artwork, notification preview,
-separate consent and pace controls. The undeployed backend correctly leaves
+separate consent and pace controls. At this initial handoff the undeployed backend correctly left
 Save and consent editing unavailable; no permission or reminder choice changed.
-The app remains open on that screen.
+The app was left open on that screen at the initial handoff.
 
 The build-21 pre/post read-only inventory retains all 60 Application Support
 files: 59 byte-identical; the Home workspace differs only in serialization order
@@ -268,3 +272,70 @@ accessibility now contains its children, retaining the individual action IDs.
 This is physical settings/layout evidence, not APNs receipt, pause enforcement
 on a live backend, owner acceptance or TestFlight acceptance. Those release
 gates remain outstanding.
+
+## Backend rollout — November 25
+
+The production migration was applied atomically in OFF mode. Its tracked version
+was aligned with the platform-assigned history version `20261125193209`; its SQL
+bytes remain identical to the original reviewed migration, SHA-256
+`fbd8056361cd009351589647b71b6e5b75dee560313c92a054b2e39f484f7c95`.
+Both disposable fixtures follow the deployed filename.
+
+Pre/post verification confirmed the original device fields and both social and
+reflection preference inventories unchanged. All eleven new private tables have
+RLS and no direct client policies. Anonymous preference execution and ordinary
+client access to operator configuration are denied. The existing Activity v22
+and Reflection v9 workers retain their RPC signatures and schedules.
+
+The initial worker accepted GET metadata but returned HTTP 503 before request
+authorization because its resolver did not recognize a hosted named server key.
+The corrected resolver preserves the explicit activity-delivery key preference,
+then reuses the established default/named/legacy key helper. It never returns key
+values in HTTP diagnostics or logs. The named-key regression was RED first; six
+configuration, three shared-key and seven worker tests pass after the fix.
+
+Worker version 2 is active from source `297d0ac`, with the tested key-resolution
+fix. GET protocol metadata returns HTTP 200; unauthenticated POST returns HTTP
+401. A real authenticated OFF-mode probe returned HTTP 200 with zero claimed,
+provider-accepted, accepted or unknown sends and zero receipt failures.
+
+The operator then selected SHADOW at **2026-11-25 19:38:23.335458 UTC**
+(**November 25, 2:38 PM America/New_York**). The earliest seven-day review is
+**2026-12-02 19:38:23 UTC / December 2, 2:38 PM Eastern**. Time alone does not
+activate a pilot or live mode; both still require an explicit decision and
+remaining acceptance gates. The pilot allowlist is empty.
+
+The authenticated shadow dispatch returned HTTP 200 at 19:38:29 UTC with one
+real opportunity evaluated and zero dispatches. The first opportunity was an
+anniversary suppressed for a known legacy installation. The automatic 19:40 UTC
+five-minute cron run succeeded; its matching HTTP 200 worker response at
+19:40:02 UTC also reports zero sends and zero receipt failures. No live ledger
+charge or processing/accepted/unknown Mugsy opportunity exists. A successful
+cron SQL row alone is not treated as delivery proof.
+
+The owner phone re-registered capability version 1, America/New_York timezone
+and a ready completion baseline, including six minimal private Home signals.
+Its existing Mugsy consent remains OFF; no other account was enrolled.
+
+### Real phone controls
+
+The installed development app remains build 0.5.3 (21); no native app code or
+App Store build was changed by this backend rollout. After the owner made the
+phone available to Mirroring, the real controls displayed an enabled Save action.
+An unchanged save reached revision 1. Light pace saved as revision 2 and survived
+terminating/relaunching the real app; the owner-scoped server record independently
+confirmed Light with consent still OFF. Standard was restored and saved as
+revision 3, with no pause or consent change.
+
+A guarded, explicitly opted-in hardware acceptance journey covers Save, pace,
+pause, resume and restoration without test fixtures or account reset. Its signed
+hardware test bundle compiles. The first runner attempt was blocked before test
+execution by Xcode LocalAuthentication/SFAutoUnlock; it is not a passing test.
+The successful Save/Light phone journey above used the actual Mirroring UI and
+read-only server verification instead. Remaining pause/resume acceptance awaits
+the required unlocked-device state. These checks never enable Mugsy consent.
+
+Never-managed legacy social alerts retain their existing behavior during shadow.
+Their direct-alert receipts are not yet part of shadow collision accounting, so
+that portion of the seven-day model requires coordinated pilot verification.
+No full-audience cap or APNs display guarantee applies to legacy installations.

@@ -10,8 +10,12 @@ The new separately consented Mugsy implementation, coordinated optional budgets,
 completion signals, precise routes, reviewed copy and static-art extension are
 specified in [Mugsy reminders](MUGSY_REMINDERS.md). That record supersedes older
 source descriptions for this candidate and distinguishes deployment/acceptance.
-New sending remains off until its release gates pass. Existing production social
-and reflection schedules remain as inventoried; source presence is not a launch.
+The owner authorized the backend rollout and seven-day shadow period on November
+25. The Mugsy schema and worker v2 are deployed. SHADOW started at 19:38:23 UTC
+(2:38 PM Eastern), with authenticated zero-send and automatic cron proof in
+[Mugsy reminders](MUGSY_REMINDERS.md#backend-rollout--november-25). New sending
+remains disabled. Existing production social and reflection schedules remain as
+inventoried; schema deployment is not notification receipt or launch acceptance.
 The legacy notify-friends-on-new-visit handler was verified deployed as no-delivery
 HTTP 410 version 22 on November 25, superseding the older retirement-pending note.
 

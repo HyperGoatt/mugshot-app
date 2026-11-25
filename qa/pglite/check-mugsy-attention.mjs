@@ -11,7 +11,7 @@ const value=async(sql,args=[]) => (await db.query(sql,args)).rows[0]?.result
 const rejects=async(fn,code)=>{await assert.rejects(fn,e=>e.code===code);checks++}
 try{
 await createMugsyFixture(db)
-if(!process.argv.includes('--red'))await db.exec(await fs.readFile(new URL('../../supabase/migrations/20261125120000_mugsy_attention_policy.sql',import.meta.url),'utf8'))
+if(!process.argv.includes('--red'))await db.exec(await fs.readFile(new URL('../../supabase/migrations/20261125193209_mugsy_attention_policy.sql',import.meta.url),'utf8'))
 await db.exec(`insert into public.users values('${owner}'),('${other}');insert into public.notification_preferences values('${owner}',true),('${other}',true);
 insert into public.user_devices(id,user_id,device_id,push_token,environment,last_seen_at) values('${device}','${owner}','${device}','aaa','production',now()),('${device2}','${other}','${device2}','bbb','production',now());`)
 await user(owner)
