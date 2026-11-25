@@ -111,6 +111,7 @@ struct WeeklyPourSharePreview: View {
                 activity = nil; dismiss()
             }
         }
+        .preferredColorScheme(.light)
     }
 
     @MainActor private func prepareShare() {

@@ -73,7 +73,7 @@ struct MugshotRootView: View {
         .environmentObject(authModel)
         .modifier(MugshotDebugDynamicTypeModifier())
         .modifier(MugshotDebugReduceMotionModifier())
-        .preferredColorScheme(.light)
+        .preferredColorScheme(preferredRootColorScheme)
         .task {
             guard !MugshotLaunchEnvironment.isUITesting else { return }
             await PerformanceMonitor.measure("Session restore") {
@@ -109,6 +109,14 @@ struct MugshotRootView: View {
         .task(id: authModel.authenticatedUser?.id) {
             await refreshProfileSetupGate()
         }
+    }
+
+    private var preferredRootColorScheme: ColorScheme? {
+#if DEBUG
+        if MugshotLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-weekly-pour") { return nil }
+#endif
+        return .light
     }
 
     private func startAnalyticsAfterRecovery() {

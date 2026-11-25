@@ -164,6 +164,7 @@ struct WeeklyPourArchiveView: View {
             .navigationTitle("Your Weekly Pours").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
         }
+        .preferredColorScheme(.light)
         .onAppear { chosenDate = min(selected.end, latest.end) }
     }
 

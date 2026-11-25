@@ -48,6 +48,7 @@ struct WeeklyPourStoryView: View {
             footer
         }
         .foregroundStyle(ink).background(canvas.ignoresSafeArea())
+        .preferredColorScheme(dark ? .dark : .light)
         .sheet(isPresented: $showsShare) {
             WeeklyPourSharePreview(story: story, canShare: canShare)
         }
