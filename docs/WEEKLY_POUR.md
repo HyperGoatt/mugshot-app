@@ -22,13 +22,14 @@ TestFlight change is required.
 1. Recover the native mockup, inspect current brand/Mugsy authority, and record
    the exact source baseline. Complete.
 2. Test completed-week boundaries, ownership, completed saves, duplicate
-   suppression, deterministic highlights, repeats and privacy-safe sharing.
+   suppression, deterministic highlights, repeats and privacy-safe sharing. Complete.
 3. Implement the Journal invitation, real weekly loading, adaptive native
-   chapters, archive, reversible caption, and explicit share preview.
+   chapters, archive, reversible caption, and explicit share preview. Complete.
 4. Inspect real Simulator screens, large text and Reduce Motion; run focused
-   domain/lifecycle tests, repository checks and a Debug build.
+   domain/lifecycle tests, repository checks and a Debug build. Complete.
 5. Install/launch the existing development app in place on the connected owner
    iPhone when available; report hardware and owner acceptance separately.
+   Build 19 installed; launch is blocked by the locked iPhone.
 6. Review the complete diff, publish a feature PR, pass required checks, merge
    with no unresolved reviews, and synchronize main.
 
@@ -72,8 +73,49 @@ stories and sharing. Cancelled or superseded loads cannot replace a newer week.
 
 ## Verification and delivery
 
-Implementation and verification are in progress. Simulator, physical install,
-owner acceptance and TestFlight acceptance are separate evidence states.
+Implemented and locally verified. The [native screen review](design/weekly-pour-2026-11-24/index.html)
+contains ten unaltered Simulator captures and [capture provenance](design/weekly-pour-2026-11-24/README.md).
+
+| Evidence | Result |
+| --- | --- |
+| Production domain/store contracts | 34 assertions passed; 94.74% line coverage (171 lines) |
+| Native data, visibility, paging, failure and rendered image | Six Simulator test methods passed, including six visibility cases |
+| Full story, caption, archive, sharing, quiet/one-sip/photo-free/unrated, private default, largest text/Reduce Motion | Six Simulator UI journeys passed; zero skips |
+| Final system chrome contrast | Full story/caption/share/archive UI journey passed again; native capture confirms white status text on espresso |
+| System share handoff | Real iOS share sheet opened with Copy and Save Image; no destination selected or message sent |
+| Repository static, documentation, brand, Mugsy | All 10 fast checks passed, including brand/identity authority |
+| Native compilation | Generic Debug Simulator app build and signed Debug iPhone build passed |
+| Physical install | Existing `co.mugshot.app.dev` updated in place to 0.5.3 (19); final source matches `71e5d84` |
+| Local data preservation | Read-only backup retained; all 60 existing Application Support files were byte-identical after the first install |
+| Physical launch/acceptance | Launch denied by iOS because the owner's phone is locked; physical unlock requested. No owner acceptance claimed |
+| Production backend / TestFlight | No deployment, notification, archive, export, upload or group assignment performed |
+
+Simulator reads use a synthetic `.invalid` backend, disabled analytics and local
+fixtures. Network integration tests intercept the real client with URLProtocol.
+The signed device uses the existing local client configuration, with analytics
+disabled for the verification build. No diagnostic SQL or remote mutation is
+part of this verification. Build logs, xcresult bundles, coverage profiles and
+the owner-data backup are local-only under `/tmp` or ignored `.codex` paths.
+
+The complete focused Simulator result is `/tmp/mugshot-weekly-final-tests.xcresult`
+(12 passed, 0 failed, 0 skipped). The final contrast rerun is
+`/tmp/mugshot-weekly-contrast-tests.xcresult` (1 passed). The earlier failed run
+completed its assertions, then stalled collecting Xcode's verbose failure
+diagnostics; the tool process was stopped and the final run disabled that
+diagnostic collection. This tooling interruption is not reported as passing.
+
+Reproduce the pure contracts without an app or backend:
+
+```sh
+xcrun swiftc -parse-as-library testMugshot/Models/WeeklyPourModels.swift \
+  testMugshot/Services/WeeklyPourStore.swift scripts/test-weekly-pour.swift \
+  -o /tmp/mugshot-weekly-contracts
+/tmp/mugshot-weekly-contracts
+```
+
+The Simulator targets are `testMugshotTests/WeeklyPourDataSourceTests` and
+`testMugshotUITests/WeeklyPourUITests` in scheme `MugshotTests`. Use the selected
+supported Xcode and a disposable Simulator. No production credentials are needed.
 
 ### TDD evidence
 
@@ -87,9 +129,10 @@ owner acceptance and TestFlight acceptance are separate evidence states.
   six visibility cases), and five of six UI journeys passed. The quiet-week
   exit returned to Journal, but the invitation's accessibility override hid its
   intended identifier/label. Native runtime inspection confirmed the working
-  button and the missing semantics; repair and focused rerun are in progress.
+  button and the missing semantics. `6318d7d` repairs it, and the focused rerun passes.
 - Final focused rerun after `6318d7d`: all 12 Simulator tests pass (six native
   data-source/rendering methods and six UI journeys), with zero skips. Optical
   review then caught black system status text against the espresso standout
   background; the captured standout is the runtime RED for a scoped color-scheme
-  repair before final delivery.
+  repair. `71e5d84` applies the scoped preference; the full-story journey passes
+  and optical review confirms readable system chrome.

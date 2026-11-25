@@ -1,0 +1,67 @@
+{
+  "source": "production native SwiftUI components with fictional local fixtures; final color-scheme repair",
+  "simulator": "iPhone 17 Pro, iOS 27.0",
+  "verification": "12 focused tests passed; subsequent full-story optical/interaction rerun passed after status contrast repair",
+  "captures": [
+    {
+      "path": "screens/01-cover.png",
+      "sha256": "95d950007c4521fb74c8f83b55ac75efd707f4e0a82dbf175df44819778a369b",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/02-moments.png",
+      "sha256": "62badb7611783ee985bb339d8b63bd920e55390a36294de357b57e333307a630",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/03-standout.png",
+      "sha256": "13673655b3bf185c9a528e83e5379670012ef11fd63ec0d671116e2116a7697d",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/04-caption.png",
+      "sha256": "0540e57fea6f3da725e48ee85568fd1a18f5fa919294b0d6f92eb5aea67acae6",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/05-places.png",
+      "sha256": "69adccc69b0886e3d6066d5b3be141c8e1dca31dbde47bef059c14e32346fb07",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/06-repeat.png",
+      "sha256": "d99ff7f43033e5f3b323c72126eab5fb57f32530e68b11279ed3a83397408913",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/07-keepsake.png",
+      "sha256": "21cfebd12a0ded06aadb80bcc5479df1919a4e84e37d7030a8d307171052d200",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/08-share-default.png",
+      "sha256": "7269aa21bdd0dfdb271d0e17b81165bc4a979213ceeab723116e3e9047f25e39",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/09-share-opt-in.png",
+      "sha256": "bd7b9e269f6178e648a312fe94aacf427736366453683078df2bfecb52469c54",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    },
+    {
+      "path": "screens/10-archive.png",
+      "sha256": "9cfb246e62cf42660ab7b78dbd67aa00d7a7c4bfb9998810a31c82a567b4585d",
+      "test": "WeeklyPourUITests/testCompleteStoryCaptionArchiveAndPrivateSharePreview()",
+      "synthetic": true
+    }
+  ]
+}
