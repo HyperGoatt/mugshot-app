@@ -88,3 +88,8 @@ owner acceptance and TestFlight acceptance are separate evidence states.
   exit returned to Journal, but the invitation's accessibility override hid its
   intended identifier/label. Native runtime inspection confirmed the working
   button and the missing semantics; repair and focused rerun are in progress.
+- Final focused rerun after `6318d7d`: all 12 Simulator tests pass (six native
+  data-source/rendering methods and six UI journeys), with zero skips. Optical
+  review then caught black system status text against the espresso standout
+  background; the captured standout is the runtime RED for a scoped color-scheme
+  repair before final delivery.
