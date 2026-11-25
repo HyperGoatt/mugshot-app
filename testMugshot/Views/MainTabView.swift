@@ -139,23 +139,6 @@ struct MainTabView: View {
                     MugsyReminderContextBar(intent: activeMugsyIntent, onSettings: { showsMugsyPreferences = true },
                         onClose: { self.activeMugsyIntent = nil })
                 }
-                if shouldShowMugsyCard {
-                    MugsyReminderCard(invitation: mugsyReminders.showsInvitation, onOpen: {
-                        if mugsyReminders.showsInvitation {
-                            mugsyReminders.dismissInvitation(); showsMugsyPreferences = true
-                        } else {
-                            mugsyReminders.dismissCard()
-                            Task { await openMugsyComposer(destination: .log) }
-                        }
-                    }, onDismiss: {
-                        if mugsyReminders.showsInvitation { mugsyReminders.dismissInvitation() }
-                        else { mugsyReminders.dismissCard() }
-                    })
-                    .onAppear {
-                        if mugsyReminders.showsInvitation { mugsyReminders.markInvitationViewed() }
-                        else { mugsyReminders.markCardViewed() }
-                    }
-                }
                 if let sessionMessage {
                     SessionUnavailableBanner(message: sessionMessage) {
                         Task { await authModel.restoreSession(dataManager: dataManager) }
@@ -406,11 +389,35 @@ struct MainTabView: View {
     }
 
     private var shouldShowMugsyCard: Bool {
-        (mugsyReminders.showsInvitation || mugsyReminders.showsMemoryCard)
-            && [.feed, .journal].contains(tabCoordinator.selectedTab)
+#if DEBUG
+        if MugshotLaunchEnvironment.isUITesting,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing-mugsy-journal-card") {
+            return tabCoordinator.selectedTab == .journal
+        }
+#endif
+        return (mugsyReminders.showsInvitation || mugsyReminders.showsMemoryCard)
+            && tabCoordinator.selectedTab == .journal
             && authModel.authenticatedUser?.id == mugsyReminders.accountID
             && !showsSignedInOnboarding && productTourStep == nil && !showsGuestIntroduction
             && !showsActivityCenter && !showsMugsyPreferences && activeMugsyIntent == nil
+    }
+
+    private var mugsyJournalCard: MugsyReminderCard? {
+        guard shouldShowMugsyCard else { return nil }
+        return MugsyReminderCard(invitation: mugsyReminders.showsInvitation, onOpen: {
+            if mugsyReminders.showsInvitation {
+                mugsyReminders.dismissInvitation(); showsMugsyPreferences = true
+            } else {
+                mugsyReminders.dismissCard()
+                Task { await openMugsyComposer(destination: .log) }
+            }
+        }, onDismiss: {
+            if mugsyReminders.showsInvitation { mugsyReminders.dismissInvitation() }
+            else { mugsyReminders.dismissCard() }
+        }, onViewed: {
+            if mugsyReminders.showsInvitation { mugsyReminders.markInvitationViewed() }
+            else { mugsyReminders.markCardViewed() }
+        })
     }
 
     private var mugsyLifecycleScene: some View {
@@ -814,7 +821,7 @@ struct MainTabView: View {
                 onAuthenticationRequired: requestAuthentication
             )
         case .journal:
-            JournalTabView(dataManager: dataManager) { draft in
+            JournalTabView(dataManager: dataManager, reminderCard: mugsyJournalCard) { draft in
                 composerDraft = draft
                 composerSessionID = UUID()
                 withAnimation(DesignSystem.Motion.base) {

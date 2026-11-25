@@ -73,6 +73,50 @@ final class MugsyReminderUITests: XCTestCase {
         XCTAssertTrue(pause.isHittable)
     }
 
+    @MainActor func testJournalReminderFlowsWithContentAndLeavesHeadersClear() {
+        // Exercise the production tab shell and Journal, rather than the
+        // isolated preferences preview, so a global overlay regression fails.
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--ui-testing-reset", "--ui-testing-mugsy-journal-card"]
+        app.launch()
+        let feed = app.buttons["mugshot.tab.feed"]
+        XCTAssertTrue(feed.waitForExistence(timeout: 15))
+        feed.tap()
+        let feedHeader = app.staticTexts["Feed"].firstMatch
+        XCTAssertTrue(feedHeader.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(feedHeader.frame.height, 0)
+        XCTAssertTrue(app.frame.contains(feedHeader.frame), "The Feed title must remain inside the visible screen.")
+        XCTAssertTrue(app.buttons["Search feed"].isHittable, "The Feed header’s real action must remain usable.")
+        let card = app.descendants(matching: .any).matching(identifier: "mugsy.journal.card").firstMatch
+        XCTAssertFalse(card.exists, "Journal reminders must never cover the Feed header.")
+        capture(app, "07-feed-header-clear")
+
+        app.buttons["mugshot.tab.journal"].tap()
+        let journalHeader = app.staticTexts["Journal"].firstMatch
+        XCTAssertTrue(journalHeader.waitForExistence(timeout: 5))
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(journalHeader.frame.height, 0)
+        XCTAssertTrue(app.frame.contains(journalHeader.frame), "The real Journal title must remain visible above the reminder.")
+        XCTAssertLessThanOrEqual(journalHeader.frame.maxY, card.frame.minY + 2,
+            "The reminder belongs below the Journal header in normal document flow.")
+        XCTAssertTrue(app.buttons["mugsy.card.open"].isHittable)
+        let originalCardY = card.frame.minY
+        capture(app, "08-journal-reminder-inline")
+
+        let journalScroll = app.scrollViews.firstMatch
+        XCTAssertTrue(journalScroll.exists)
+        journalScroll.swipeUp()
+        XCTAssertTrue(!card.exists || card.frame.minY < originalCardY - 8,
+            "The reminder must scroll with Journal content, rather than stay in a fixed overlay.")
+        capture(app, "09-journal-reminder-scrolled")
+
+        feed.tap()
+        XCTAssertTrue(feedHeader.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.frame.contains(feedHeader.frame))
+        XCTAssertTrue(app.buttons["Search feed"].isHittable)
+        XCTAssertFalse(card.exists, "Switching away from Journal must not leave its reminder over another tab.")
+    }
+
     @MainActor private func launch(state: String = "settings", extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "--ui-testing-mugsy-reminders", "--mugsy-reminders-state=\(state)"] + extra

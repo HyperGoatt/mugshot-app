@@ -43,6 +43,7 @@ or receipt on any device.
   Offline/failed writes show failure or pending state, never false success.
 - In-app invitations and cards use approved Mugsy art and the existing palette.
   Respect dismissal and show at most one reminder card per foreground session.
+  Cards appear inline in Journal and scroll with its content, keeping Feed clear.
 - Backend absence leaves truthful previews/in-app journal use available and
   new push preference saving unavailable. It cannot silently enable sending.
 
@@ -108,6 +109,8 @@ or the originally promised Weekly Pour. Missing content has a useful safe state.
 
 Nearby matching stays on-device. An upgraded client needs a shared attention
 permit before adding a local notification; no location coordinates are sent.
+Cached permit retries recheck the current installation, preference revision,
+pause, master switch and attention policy while retaining their original charge.
 No permit/connectivity means in-app discovery. Unattributed old Nearby opt-in is
 reset on upgrade rather than assigned to another account; users can explicitly
 re-enable it with existing location access. Cancel obsolete local requests
@@ -188,7 +191,7 @@ remain count-based feedback, not fabricated rate precision.
 | Boundary | Evidence |
 | --- | --- |
 | Backend risk checks | 14 passed, zero failed; optional SQL parser skipped. New migration also executes in disposable PostgreSQL. |
-| Policy/privacy SQL | 101 assertions, including account header mismatch, completion deduplication, withdrawal tombstones, shadow/live budgets, cooldowns, grants, and retention cohorts. |
+| Policy/privacy SQL | 115 assertions, including account header mismatch, completion deduplication, withdrawal tombstones, cached Nearby permit revocation, shadow/live budgets, cooldowns, grants, and retention cohorts. |
 | Real concurrency | 17 checks across separate PostgreSQL connections, including simultaneous claims, pause versus final authorization, withdrawal versus stale upsert, preserved charges and account erasure. |
 | APNs/worker | 17 focused Deno checks (new and shared sender), plus cached-only repository worker type checking/tests. |
 | Copy/identity | 76 standalone assertions, four native registry/embedded-resource tests, brand and 18-pose immutable-identity validation. |
@@ -212,7 +215,7 @@ days, hardware notification acceptance, a consenting pilot, and the explicit
 launch decision. The named App Store notification-extension profile is not
 created or verified by development signing.
 
-### Signed phone handoff
+### Initial signed phone handoff — build 20
 
 Build 0.5.3 (20) was compiled from `f0e48659ceeb9ba5ef3a6c6aa234975305ce0660`
 and installed over the existing `co.mugshot.app.dev` app. Deep signature validation
@@ -226,8 +229,8 @@ the same JSON value. No legacy preference key was removed. Of 54 legacy keys,
 IDs and refreshed two derived cafe statistics. New keys belong to Mugsy's minimized
 local scheduling state. Owner backups remain local and excluded from Git.
 
-The app is left open. iPhone Mirroring reported “iPhone in Use”; opening the new
-controls through mirroring requires the owner to physically lock the phone.
-This does not block installation/launch, and it is not a claim of hardware
-notification receipt or owner acceptance. New backend deployment and sending
-remain gated as described above.
+The initial mirroring attempt reported “iPhone in Use.” After the owner locked
+the phone, mirroring connected and revealed a reminder card overlapping the Feed
+header. The subsequent Journal placement correction and verification supersede
+that layout; this initial install remains data-preservation evidence only.
+Hardware notification receipt and owner acceptance remain separate gates.

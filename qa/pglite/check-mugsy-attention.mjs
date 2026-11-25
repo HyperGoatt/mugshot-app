@@ -204,6 +204,51 @@ await db.query("update private.mugsy_preferences set experiment_enrolled_at=now(
 const lateActivation=(await value('select public.mugsy_retention_report_v1(array[$1::uuid]) as result',[owner])).cohorts.find(x=>x.cohort==='new')
 eq(lateActivation.enrolled,1);eq(lateActivation.mature_accounts,0,'new user needs 28 days after actual first completion, not enrollment')
 
+
+// A cached local grant remains idempotent, but it is not permission to bypass a
+// later pause, kill switch, owner/device change or current attention policy.
+await service();await value("select public.configure_mugsy_delivery_v1('pilot',array[$1::uuid]) as result",[owner])
+await db.exec(`delete from private.mugsy_attention_ledger;delete from private.mugsy_direct_receipts;
+update private.mugsy_preferences set paused_until=null,paused_indefinitely=false,pace='standard',window_start_minute=0,window_end_minute=1440 where user_id='${owner}';
+update private.mugsy_attention_state set active_until=null,composing_until=null,automatic_pause_until=null where user_id='${owner}';
+update public.user_devices set mugsy_active_until=null,mugsy_composing_until=null where user_id='${owner}';`)
+const permitDevice=await value('select device_id as result from public.user_devices where id=private.mugsy_primary_device($1)',[owner])
+const permitRequest='70000000-0000-4000-8000-000000000101'
+await user(owner)
+const grant=await value('select public.request_mugsy_nearby_permit_v1($1,$2) as result',[permitDevice,permitRequest])
+eq(grant.allowed,true,'eligible initial Nearby request receives a slot')
+const cached=await value('select public.request_mugsy_nearby_permit_v1($1,$2) as result',[permitDevice,permitRequest])
+eq(cached.allowed,true,'same-device eligible retry excludes its own budget reservation')
+eq(cached.permit_id,grant.permit_id)
+eq(await value('select count(*)::int as result from private.mugsy_attention_ledger where opportunity_id=$1',[grant.permit_id]),1)
+eq((await value('select public.request_mugsy_nearby_permit_v1($1,$2) as result',[device2,permitRequest])).allowed,false,'cached grant cannot replay on another account device')
+const replay=()=>value('select public.request_mugsy_nearby_permit_v1($1,$2) as result',[permitDevice,permitRequest])
+await service();await value("select public.configure_mugsy_delivery_v1('off') as result");await user(owner)
+eq((await replay()).allowed,false,'global shutdown revokes cached grant replay')
+await service();await value("select public.configure_mugsy_delivery_v1('pilot',array[$1::uuid]) as result",[owner]);await user(owner)
+eq((await replay()).allowed,true,'valid retry remains idempotent after operator resumes sending')
+await db.query('update public.notification_preferences set push_enabled=false where user_id=$1',[owner])
+eq((await replay()).allowed,false,'master opt-out revokes cached grant replay')
+await db.query('update public.notification_preferences set push_enabled=true where user_id=$1',[owner])
+await db.exec("update private.mugsy_delivery_control set disabled_kinds=array['nearby']")
+eq((await replay()).allowed,false,'category switch revokes cached grant replay')
+await db.exec("update private.mugsy_delivery_control set disabled_kinds='{}'")
+await db.query("update private.mugsy_preferences set pace='off' where user_id=$1",[owner])
+eq((await replay()).allowed,false,'pace Off revokes cached grant replay')
+await db.query("update private.mugsy_preferences set pace='standard' where user_id=$1",[owner])
+await db.query('update public.user_devices set disabled_at=now() where user_id=$1 and device_id=$2',[owner,permitDevice])
+eq((await replay()).allowed,false,'disabled installation cannot reuse cached grant')
+await db.query('update public.user_devices set disabled_at=null where user_id=$1 and device_id=$2',[owner,permitDevice])
+const currentRevision=await value('select revision as result from private.mugsy_preferences where user_id=$1',[owner])
+await db.query('update private.mugsy_preferences set revision=revision+1 where user_id=$1',[owner])
+eq((await replay()).allowed,false,'changed preference revision invalidates cached grant')
+await db.query('update private.mugsy_preferences set revision=$2 where user_id=$1',[owner,currentRevision])
+const currentPreferences=await value('select public.get_mugsy_preferences_v1() as result')
+await value("select public.set_mugsy_preferences_v1($1,$2,$3,$4,$5,$6,now()+interval '7 days',false,$7,gen_random_uuid()) as result",
+  [currentPreferences.mugsy_enabled,currentPreferences.pace,currentPreferences.preferred_minute,currentPreferences.window_start_minute,currentPreferences.window_end_minute,currentPreferences.timezone_name,currentPreferences.revision])
+eq((await replay()).allowed,false,'an acknowledged pause on another device defeats an in-flight retry')
+eq(await value('select count(*)::int as result from private.mugsy_attention_ledger where opportunity_id=$1',[grant.permit_id]),1,'revocation retains the original conservative charge')
+
 await user('');await rejects(()=>value('select public.get_mugsy_preferences_v1() as result'),'28000')
 console.log(`Mugsy attention contracts: ${checks} checks passed (disposable PostgreSQL; no production access).`)
 }finally{await db.close()}

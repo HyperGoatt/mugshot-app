@@ -225,6 +225,7 @@ struct MugsyReminderCard: View {
     let invitation: Bool
     let onOpen: () -> Void
     let onDismiss: () -> Void
+    var onViewed: () -> Void = {}
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             MugsyCatalogView(pose: invitation ? .welcomeWave : .journalKeeper, rendering: .artwork)
@@ -246,6 +247,7 @@ struct MugsyReminderCard: View {
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Color.mugshotMint.opacity(0.45), in: RoundedRectangle(cornerRadius: 18))
         .padding(.horizontal, 16).padding(.bottom, 8)
+        .onAppear(perform: onViewed)
     }
 }
 

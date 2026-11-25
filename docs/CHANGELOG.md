@@ -15,6 +15,9 @@ last_verified: 2026-11-25
 - Add a default-off/shadow-ready backend, account-level reservations, lifecycle
   eligibility, grouped casual Activity and coordinated nearby permits. Preserve
   direct social alerts and the authoritative unread Activity badge.
+- Keep in-app Mugsy cards inline in Journal so they scroll with memories and
+  preserve Feed headers. Revalidate cached Nearby permits after pauses, opt-outs,
+  operator shutdowns and device changes without duplicating their budget charge.
 - [Contracts, verification, and rollout gates](MUGSY_REMINDERS.md) distinguish source
   implementation from backend deployment, APNs receipt, owner acceptance, and
   TestFlight. No production engagement launch is authorized by this change.

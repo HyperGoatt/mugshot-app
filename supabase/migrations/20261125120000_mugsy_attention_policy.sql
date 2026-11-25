@@ -447,6 +447,7 @@ begin
   select count(*) into recent_count from private.mugsy_attention_ledger l
     join private.mugsy_opportunities o on o.id=l.opportunity_id
     where l.shadow=(c.mode='shadow') and l.user_id=p_user and l.charged_at>p_now-interval '21 days'
+      and l.opportunity_id is distinct from p_existing
       and l.outcome in ('accepted','unknown') and o.opened_at is null
       and l.charged_at>coalesce(s.last_return_at,'-infinity'::timestamptz)
       and l.charged_at>coalesce((select max(completed_at) from private.mugsy_completed_memories(p_user)),'-infinity'::timestamptz);
@@ -679,8 +680,19 @@ declare actor uuid:=private.mugsy_require_actor(); opportunity private.mugsy_opp
   perform 1 from private.mugsy_preferences where user_id=actor for update;
   select * into opportunity from private.mugsy_opportunities where user_id=actor and opportunity_key='nearby:'||p_request_id::text;
   if found then
-    return jsonb_build_object('allowed',opportunity.status='accepted' and opportunity.expires_at>now(),
-      'reason',coalesce(opportunity.reason,'reserved'),'permit_id',opportunity.id,'expires_at',opportunity.expires_at);
+    -- Idempotency preserves the grant identity and original charge, not stale
+    -- authorization. A retry must still belong to this installation and pass
+    -- today's consent, pause, revision, coordination and category controls.
+    select id into device from public.user_devices where user_id=actor
+      and device_id=p_device_id and disabled_at is null
+      and id=private.mugsy_primary_device(actor);
+    if opportunity.status<>'accepted' or opportunity.expires_at<=now() then why:='expired_or_unavailable';
+    elsif device is null or device is distinct from opportunity.device_record_id then why:='device_changed';
+    elsif not private.mugsy_is_coordinated(actor) then why:='coordination_unavailable';
+    elsif opportunity.preference_revision<>(select revision from private.mugsy_preferences where user_id=actor) then why:='preferences_changed';
+    else why:=private.mugsy_suppression_reason(actor,'nearby',now(),opportunity.id); end if;
+    return jsonb_build_object('allowed',why is null,
+      'reason',coalesce(why,'reserved'),'permit_id',opportunity.id,'expires_at',opportunity.expires_at);
   end if;
   select id into device from public.user_devices where user_id=actor and device_id=p_device_id and disabled_at is null and id=private.mugsy_primary_device(actor);
   if device is null or not private.mugsy_is_coordinated(actor) then return jsonb_build_object('allowed',false,'reason','coordination_unavailable'); end if;
