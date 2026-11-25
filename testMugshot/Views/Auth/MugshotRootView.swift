@@ -20,6 +20,9 @@ struct MugshotRootView: View {
         Group {
 #if DEBUG
             if MugshotLaunchEnvironment.isUITesting,
+               ProcessInfo.processInfo.arguments.contains("--ui-testing-mugsy-reminders") {
+                MugsyReminderPreviewHost()
+            } else if MugshotLaunchEnvironment.isUITesting,
                ProcessInfo.processInfo.arguments.contains("--ui-testing-weekly-pour") {
                 WeeklyPourPreviewHost()
             } else if MugshotLaunchEnvironment.shouldShowFirstLaunchOnboardingDesignQA {

@@ -18,6 +18,11 @@ struct MainTabView: View {
     @StateObject private var activityStore = ActivityCenterStore()
     @StateObject private var activityRouter = ActivityDeepLinkRouter.shared
     @StateObject private var reflectionReminderRouter = ReflectionReminderRouter.shared
+    @StateObject private var mugsyReminders = MugsyReminderCoordinator.shared
+    @State private var showsMugsyPreferences = false
+    @State private var activeMugsyIntent: MugsyNotificationIntent?
+    @State private var mugsyWeeklyPresentation: MugsyWeeklyPresentation?
+    @State private var resolvingMugsyIntent = false
     @StateObject private var nearbyReminderRouter = NearbyCafeReminderRouter.shared
     @StateObject private var friendInviteRouter = FriendInviteRouter.shared
     @StateObject private var enforcementStore = EnforcementNoticeStore()
@@ -121,6 +126,36 @@ struct MainTabView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
+                if mugsyReminders.pendingIntent?.accountID == authModel.authenticatedUser?.id,
+                   mugsyReminders.pendingIntent != nil, let message = mugsyReminders.errorMessage {
+                    MugsyReminderRouteStatus(message: message) {
+                        Task {
+                            await mugsyReminders.activate(accountID: authModel.authenticatedUser?.id)
+                            await handlePendingMugsyIntent()
+                        }
+                    }
+                }
+                if let activeMugsyIntent {
+                    MugsyReminderContextBar(intent: activeMugsyIntent, onSettings: { showsMugsyPreferences = true },
+                        onClose: { self.activeMugsyIntent = nil })
+                }
+                if shouldShowMugsyCard {
+                    MugsyReminderCard(invitation: mugsyReminders.showsInvitation, onOpen: {
+                        if mugsyReminders.showsInvitation {
+                            mugsyReminders.dismissInvitation(); showsMugsyPreferences = true
+                        } else {
+                            mugsyReminders.dismissCard()
+                            Task { await openMugsyComposer(destination: .log) }
+                        }
+                    }, onDismiss: {
+                        if mugsyReminders.showsInvitation { mugsyReminders.dismissInvitation() }
+                        else { mugsyReminders.dismissCard() }
+                    })
+                    .onAppear {
+                        if mugsyReminders.showsInvitation { mugsyReminders.markInvitationViewed() }
+                        else { mugsyReminders.markCardViewed() }
+                    }
+                }
                 if let sessionMessage {
                     SessionUnavailableBanner(message: sessionMessage) {
                         Task { await authModel.restoreSession(dataManager: dataManager) }
@@ -370,8 +405,88 @@ struct MainTabView: View {
         }
     }
 
-    private var presentedScene: some View {
+    private var shouldShowMugsyCard: Bool {
+        (mugsyReminders.showsInvitation || mugsyReminders.showsMemoryCard)
+            && [.feed, .journal].contains(tabCoordinator.selectedTab)
+            && authModel.authenticatedUser?.id == mugsyReminders.accountID
+            && !showsSignedInOnboarding && productTourStep == nil && !showsGuestIntroduction
+            && !showsActivityCenter && !showsMugsyPreferences && activeMugsyIntent == nil
+    }
+
+    private var mugsyLifecycleScene: some View {
         lifecycleScene
+        .task(id: authModel.authenticatedUser?.id) {
+#if DEBUG
+            guard !MugshotLaunchEnvironment.isUITesting else { return }
+#endif
+            let owner = authModel.authenticatedUser?.id
+            NearbyCafeReminderCoordinator.shared.activate(accountID: owner)
+            await mugsyReminders.activate(accountID: owner)
+            await handlePendingMugsyIntent()
+        }
+        .task(id: mugsyHeartbeatIdentity) { await runMugsyHeartbeat() }
+        .onChange(of: mugsyReminders.pendingIntent?.id) { _, _ in
+            Task { await handlePendingMugsyIntent() }
+        }
+        .onChange(of: authModel.authenticatedUser?.id) { _, owner in
+            if activeMugsyIntent?.accountID != owner {
+                activeMugsyIntent = nil; mugsyWeeklyPresentation = nil
+            }
+            if selectedReflectionReminderRoute?.accountID != owner { selectedReflectionReminderRoute = nil }
+        }
+        .onChange(of: authModel.status) { _, status in
+            if case .signedOut = status {
+                mugsyReminders.signOut(); activeMugsyIntent = nil; mugsyWeeklyPresentation = nil
+            } else { Task { await handlePendingMugsyIntent() } }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            Task { await mugsyReminders.setActivity(active: phase == .active, composing: tabCoordinator.selectedTab == .add) }
+            if phase == .active { Task { await handlePendingMugsyIntent() } }
+        }
+        .onChange(of: tabCoordinator.selectedTab) { _, tab in
+            Task { await mugsyReminders.setActivity(active: scenePhase == .active, composing: tab == .add) }
+        }
+    }
+
+    private var mugsyHeartbeatIdentity: String {
+        "\(authModel.authenticatedUser?.id.uuidString ?? "guest")|\(scenePhase)|\(tabCoordinator.selectedTab)"
+    }
+
+    private func runMugsyHeartbeat() async {
+#if DEBUG
+        guard !MugshotLaunchEnvironment.isUITesting else { return }
+#endif
+        let owner = authModel.authenticatedUser?.id
+        let active = scenePhase == .active
+        if !active {
+            await mugsyReminders.setActivity(active: false, composing: false)
+            return
+        }
+        while !Task.isCancelled, authModel.authenticatedUser?.id == owner, scenePhase == .active {
+            await mugsyReminders.setActivity(active: true, composing: tabCoordinator.selectedTab == .add)
+            do { try await Task.sleep(for: .seconds(60)) } catch { return }
+        }
+    }
+
+    private var presentedScene: some View {
+        mugsyLifecycleScene
+        .sheet(isPresented: $showsMugsyPreferences) {
+            NavigationStack {
+                MugsyReminderPreferencesView()
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showsMugsyPreferences = false } } }
+            }.environmentObject(authModel)
+        }
+        .sheet(item: $mugsyWeeklyPresentation) { presentation in
+            WeeklyPourFeatureView(ownerID: presentation.ownerID, initialWindow: presentation.window)
+                .safeAreaInset(edge: .top) {
+                    if let activeMugsyIntent {
+                        MugsyReminderContextBar(intent: activeMugsyIntent, onSettings: {
+                            mugsyWeeklyPresentation = nil; showsMugsyPreferences = true
+                        }, onClose: { self.activeMugsyIntent = nil })
+                    }
+                }
+                .environmentObject(authModel)
+        }
         .sheet(item: $authenticationPrompt, onDismiss: handleAuthenticationPromptDismissed) { prompt in
             AuthEntryView(
                 dataManager: dataManager,
@@ -422,6 +537,13 @@ struct MainTabView: View {
                         }
                     }
                 )
+                .safeAreaInset(edge: .top) {
+                    if let activeMugsyIntent, activeMugsyIntent.destination == .activity {
+                        MugsyReminderContextBar(intent: activeMugsyIntent, onSettings: {
+                            showsActivityCenter = false; showsMugsyPreferences = true
+                        }, onClose: { self.activeMugsyIntent = nil })
+                    }
+                }
                 .environmentObject(authModel)
             } else {
                 NavigationStack {
@@ -528,6 +650,13 @@ struct MainTabView: View {
                 dataManager: dataManager,
                 onFinished: { completeReflectionReminderRoute(route) }
             )
+            .safeAreaInset(edge: .top) {
+                if let activeMugsyIntent, activeMugsyIntent.occurrenceID == route.occurrenceID {
+                    MugsyReminderContextBar(intent: activeMugsyIntent, onSettings: {
+                        selectedReflectionReminderRoute = nil; showsMugsyPreferences = true
+                    }, onClose: { self.activeMugsyIntent = nil })
+                }
+            }
             .environmentObject(authModel)
         }
     }
@@ -876,8 +1005,64 @@ struct MainTabView: View {
         }
     }
 
+    private func handlePendingMugsyIntent() async {
+        guard !resolvingMugsyIntent,
+              authModel.status != .checking, authModel.status != .working,
+              let owner = authModel.authenticatedUser?.id,
+              mugsyReminders.pendingIntent?.accountID == owner else { return }
+        resolvingMugsyIntent = true
+        defer { resolvingMugsyIntent = false }
+        guard let intent = await mugsyReminders.authorizePendingIntent() else {
+            if authModel.authenticatedUser?.id == owner, mugsyReminders.pendingIntent == nil {
+                tabCoordinator.selectedTab = .journal
+                systemRouteError = mugsyReminders.errorMessage
+            }
+            return
+        }
+        guard authModel.authenticatedUser?.id == owner else { return }
+        activeMugsyIntent = intent
+        await mugsyReminders.recordNotificationOpened(intent)
+        guard authModel.authenticatedUser?.id == owner else { return }
+        mugsyReminders.clearIntent()
+        MugshotAnalytics.shared.capture(.mugsyReminder(action: .routeResolved))
+        switch intent.destination {
+        case .weekly(let end):
+            tabCoordinator.selectedTab = .journal
+            mugsyWeeklyPresentation = MugsyWeeklyPresentation(ownerID: owner, window: .init(endingAt: end))
+        case .memory(let memory):
+            tabCoordinator.selectedTab = .journal
+            selectedReflectionReminderRoute = PendingReflectionReminderRoute(accountID: owner,
+                occurrenceID: intent.occurrenceID, destination: .memory(memory))
+        case .journal: tabCoordinator.selectedTab = .journal
+        case .activity: showsActivityCenter = true
+        case .log, .home, .repeatSip: await openMugsyComposer(destination: intent.destination)
+        }
+    }
+
+    private func openMugsyComposer(destination: MugsyNotificationIntent.Destination) async {
+        guard let owner = authModel.authenticatedUser?.id else { return }
+        let completion = V3PublishedCompletionStore(expirationInterval: .infinity).load(ownerUserID: owner)
+        if destination != .repeatSip,
+           var draft = SipDraftStore.shared.allDrafts(in: .user(owner))
+            .filter({
+                $0.id != completion?.visitID && !mugsyReminders.isCompletedDraft($0.id, accountID: owner)
+                    && (destination != .home || ($0.context == .home && $0.visibility == .private))
+            })
+            .max(by: { $0.updatedAt < $1.updatedAt }) {
+            draft.launchContext.source = .engagementNotification
+            composerDraft = draft
+            composerSessionID = UUID()
+            tabCoordinator.selectedTab = .add
+            return
+        }
+        let target: SipSystemRoute.Destination = destination == .home ? .homeSip : destination == .repeatSip ? .repeatRecentSip : .cafeSip
+        await openComposer(for: SipSystemRoute(destination: target), source: .engagementNotification)
+    }
+
     private func handlePendingNearbyReminder() {
-        guard let cafeID = nearbyReminderRouter.pendingCafeID,
+        guard nearbyReminderRouter.pendingAccountID == authModel.authenticatedUser?.id,
+              authModel.authenticatedUser?.id != nil,
+              let cafeID = nearbyReminderRouter.pendingCafeID,
               let cafe = dataManager.getCafe(id: cafeID) else { return }
         nearbyReminderCafe = cafe
         nearbyReminderRouter.consume()
@@ -967,7 +1152,7 @@ struct MainTabView: View {
         )
     }
 
-    private func openComposer(for route: SipSystemRoute) async {
+    private func openComposer(for route: SipSystemRoute, source: SipComposerSource = .appShortcut) async {
         let ownerID = activeAccountUserID
         var draft: SipDraft?
         switch route.destination {
@@ -975,7 +1160,7 @@ struct MainTabView: View {
             draft = SipDraft(
                 ownerUserID: ownerID,
                 launchContext: SipComposerLaunchContext(
-                    source: route.destination == .cameraSip ? .camera : .appShortcut,
+                    source: route.destination == .cameraSip ? .camera : source,
                     returnTab: tabCoordinator.selectedTab
                 ),
                 context: .cafe,
@@ -988,7 +1173,7 @@ struct MainTabView: View {
         case .homeSip:
             draft = SipDraft(
                 ownerUserID: ownerID,
-                launchContext: SipComposerLaunchContext(source: .appShortcut, returnTab: tabCoordinator.selectedTab),
+                launchContext: SipComposerLaunchContext(source: source, returnTab: tabCoordinator.selectedTab),
                 context: .home,
                 locationName: JournalEntryContext.home.locationFallback,
                 visibility: .private,
@@ -1005,7 +1190,7 @@ struct MainTabView: View {
                 if let nativeRecipe {
                     draft = SipDraft(
                         ownerUserID: ownerID,
-                        launchContext: SipComposerLaunchContext(source: .appShortcut,
+                        launchContext: SipComposerLaunchContext(source: source,
                             sourceRecipeIdentityID: nativeRecipe.id, returnTab: tabCoordinator.selectedTab),
                         context: .home,
                         locationName: JournalEntryContext.home.locationFallback,
@@ -1042,6 +1227,7 @@ struct MainTabView: View {
             break
         }
 
+        guard source != .engagementNotification || authModel.authenticatedUser?.id == ownerID else { return }
         guard var draft else {
             if systemRouteError == nil {
                 systemRouteError = route.destination == .brewSavedRecipe
@@ -1051,6 +1237,7 @@ struct MainTabView: View {
             systemRouter.consume(route)
             return
         }
+        if source == .engagementNotification { draft.launchContext.source = source }
         draft.refreshRatingCriteria(from: dataManager.appData.ratingTemplate)
         composerDraft = draft
         composerSessionID = UUID()

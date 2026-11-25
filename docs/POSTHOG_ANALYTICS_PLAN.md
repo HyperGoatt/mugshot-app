@@ -1,8 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-09-17
+last_verified: 2026-11-25
 ---
+
+## Mugsy completed-memory retention amendment — 2026-11-25
+
+[Current metric definitions and pre-registered gates](MUGSY_REMINDERS.md#measurement-and-pre-registered-evaluation)
+include private Home saves through memory_completed, with publication deduplicated.
+Publication-only retention is a historical diagnostic, not the complete habit
+metric. Use stable 20% server assignment without enabling paid PostHog experiments.
+New typed Mugsy invitation/card/route/preference/pause/synchronization events have
+allowlisted family, outcome and pace plus bounded template_version; no content,
+account or occurrence identifiers enter event properties. Composer attribution
+adds engagement_notification. Backend acceptance is not display or read receipt.
+
+The earlier approximate 20% master-opt-out review threshold is superseded for
+this rollout by the stricter guardrails in the linked record. No dashboards,
+production tracking configuration or retention lift are claimed by source changes.
 
 # Mugshot PostHog analytics plan
 

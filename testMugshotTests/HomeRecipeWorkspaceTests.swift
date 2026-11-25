@@ -5,6 +5,67 @@ import UIKit
 
 @MainActor
 struct HomeRecipeWorkspaceTests {
+    @Test func reminderWithdrawalRequiresDurableOwnerMemoryRemoval() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeReminderDeletion-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        var withdrawn: [(UUID, UUID)] = []
+        let store = HomeRecipeWorkspaceStore(root: root, completionRecorder: { _, _, _ in },
+            removalRecorder: { owner, memory in withdrawn.append((owner, memory)) })
+        let owner = UUID(), attempt = HomeAttemptRecord(name: "Private memory")
+        store.activate(.user(owner))
+        try store.saveAttempt(attempt)
+        #expect(throws: (any Error).self) {
+            try store.mutate {
+                $0.attempts.removeAll()
+                throw HomeRecipeWorkspaceError.corruptData
+            }
+        }
+        #expect(withdrawn.isEmpty && store.workspace.attempts.count == 1)
+        try store.mutate { $0.attempts.removeAll { $0.id == attempt.id } }
+        #expect(withdrawn.count == 1 && withdrawn.first?.0 == owner && withdrawn.first?.1 == attempt.id)
+        try store.mutate { $0.attempts.removeAll() }
+        #expect(withdrawn.count == 1)
+        store.activate(.guest)
+        try store.saveAttempt(attempt)
+        try store.mutate { $0.attempts.removeAll() }
+        #expect(withdrawn.count == 1)
+    }
+
+    @Test func reminderCompletionFollowsDurableOwnerSaveAndExcludesRetryDraftFailureAndGuest() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("HomeReminderTests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        var completions: [(UUID, UUID, Date)] = []
+        let store = HomeRecipeWorkspaceStore(root: root, completionRecorder: { owner, memory, date in
+            completions.append((owner, memory, date))
+        })
+        let owner = UUID()
+        store.activate(.user(owner))
+        let attempt = HomeAttemptRecord(name: "A private memory")
+        try store.saveAttemptDraft(attempt)
+        #expect(completions.isEmpty)
+        #expect(throws: (any Error).self) { try store.saveAttempt(HomeAttemptRecord(name: "")) }
+        #expect(completions.isEmpty)
+        try store.saveAttempt(attempt)
+        #expect(completions.count == 1)
+        #expect(completions.first?.0 == owner && completions.first?.1 == attempt.id)
+        #expect(completions.first?.2 == store.workspace.attempts.first?.savedAt)
+        try store.saveAttempt(attempt)
+        #expect(completions.count == 1)
+        let reopened = HomeRecipeWorkspaceStore(root: root, completionRecorder: { owner, memory, date in
+            completions.append((owner, memory, date))
+        })
+        reopened.activate(.user(owner))
+        try reopened.saveAttempt(attempt)
+        #expect(completions.count == 1)
+        reopened.activate(.guest)
+        try reopened.saveAttempt(HomeAttemptRecord(name: "Guest memory"))
+        #expect(completions.count == 1)
+        let other = UUID()
+        reopened.activate(.user(other))
+        try reopened.saveAttempt(HomeAttemptRecord(name: "Other account"))
+        #expect(completions.count == 2 && completions.last?.0 == other)
+    }
+
     @Test func productionHomeRecipesDefaultOnAndHonorRollbackOverride() throws {
         let suiteName = "HomeRecipeFeatureFlagTests-\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

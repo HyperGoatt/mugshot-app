@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
+import { mock } from 'node:test'
 import fs from 'node:fs/promises'
 import { PGlite } from '@electric-sql/pglite'
 
+// PGlite's WASM clock follows Date. Freeze it alongside the explicit scheduler
+// instants so claim/expiry assertions remain meaningful after the fixture date.
+mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 8, 14, 14, 5) })
 const db = new PGlite()
 const migration = await fs.readFile(
   new URL('../../supabase/migrations/20260914191634_reflection_reminders_v2.sql', import.meta.url),
@@ -193,13 +197,6 @@ try {
   result = await asService("select public.enqueue_reflection_reminders_v1('2026-03-08T14:00:00Z') value")
   assert.equal(result.rows[0].value, 1, 'DST occurrence did not follow local 10 AM')
 
-  // Claiming uses the database clock. Keep this fixture stable after the
-  // anniversary delivery window on the wall clock has elapsed.
-  await db.exec(`
-    update private.reflection_reminder_occurrences
-    set expires_at = now() + interval '6 hours'
-    where user_id='${ids.owner}' and reminder_kind='on_this_day'
-  `)
   let claim = await asService('select * from public.claim_reflection_reminder_batch_v1(25)')
   assert.equal(claim.rows.length, 1)
   assert.equal(claim.rows[0].title, 'A Mugshot to remember')
@@ -229,6 +226,7 @@ try {
   await asUser(ids.owner, `
     select public.set_reflection_preferences_v2(false,false,false,true,'America/New_York',true,1)
   `)
+  mock.timers.setTime(Date.UTC(2026, 8, 20, 22, 5))
   result = await asService("select public.enqueue_reflection_reminders_v1('2026-09-20T22:05:00Z') value")
   assert.equal(result.rows[0].value, 1)
   const weekly = (await db.query(`
@@ -292,4 +290,5 @@ try {
   process.exitCode = 1
 } finally {
   await db.close()
+  mock.timers.reset()
 }

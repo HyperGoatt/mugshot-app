@@ -1,8 +1,23 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-24
+last_verified: 2026-11-25
 ---
+
+## Mugsy attention and completion signals — 2026-11-25
+
+Durable owner Home saves produce minimal stable completion receipts after the
+atomic workspace write. Canonical publication and protected recovery link their
+stable visit to the same Home memory when applicable. Drafts and failed writes
+produce no completion. The owner-scoped native outbox retains pending signals
+through offline operation and checks account ownership across awaited responses.
+
+The backend candidate records consent, timing, completion metadata, opportunities,
+attention reservations and fenced delivery outcomes. Private captions, photos,
+notes and coordinates do not enter this scheduling path. Capable nearby clients
+must obtain a shared-budget permit; older local schedulers remain an explicit
+migration exception. [Contracts and release state](MUGSY_REMINDERS.md) supersede
+older descriptions of independent optional senders for this candidate.
 
 ## The Weekly Pour — 2026-11-24
 

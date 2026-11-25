@@ -45,9 +45,10 @@ struct WeeklyPourFeatureView: View {
     @State private var retry = 0
     @State private var showsArchive = false
 
-    init(ownerID: UUID) {
+    init(ownerID: UUID, initialWindow: WeeklyPourWindow? = nil) {
         self.ownerID = ownerID
         _store = StateObject(wrappedValue: WeeklyPourStore(ownerID: ownerID))
+        _window = State(initialValue: initialWindow ?? .latestCompleted())
     }
 
     private var ownsPresentation: Bool { authModel.authenticatedUser?.id == ownerID }
@@ -119,6 +120,9 @@ struct WeeklyPourFeatureView: View {
             let service = VisitService(client: try SupabaseClientProvider.shared.client())
             return try await service.fetchWeeklyPour(userID: owner, window: interval)
                 .map(WeeklyPourDataSource.moment)
+        }
+        if ownsPresentation, store.story != nil {
+            await MugsyReminderCoordinator.shared.recordWeekViewed(window.end)
         }
         if !ownsPresentation { store.invalidate() }
     }

@@ -74,9 +74,14 @@ struct NearbyReminderPolicy {
 
 struct NearbyCafeNotificationRoute {
     static let cafeIDKey = "nearby_cafe_id"
+    static let accountIDKey = "nearby_account_id"
+    let cafeID: UUID
+    let accountID: UUID
 
-    static func resolve(userInfo: [AnyHashable: Any]) -> UUID? {
-        (userInfo[cafeIDKey] as? String).flatMap(UUID.init(uuidString:))
+    static func resolve(userInfo: [AnyHashable: Any]) -> Self? {
+        guard let cafe = userInfo[cafeIDKey] as? String, let cafeID = UUID(uuidString: cafe),
+              let owner = userInfo[accountIDKey] as? String, let ownerID = UUID(uuidString: owner) else { return nil }
+        return Self(cafeID: cafeID, accountID: ownerID)
     }
 }
 
@@ -84,11 +89,16 @@ struct NearbyCafeNotificationRoute {
 final class NearbyCafeReminderRouter: ObservableObject {
     static let shared = NearbyCafeReminderRouter()
     @Published private(set) var pendingCafeID: UUID?
+    @Published private(set) var pendingAccountID: UUID?
 
-    func enqueue(cafeID: UUID) { pendingCafeID = cafeID }
-    func consume() { pendingCafeID = nil }
+    func enqueue(cafeID: UUID, accountID: UUID) { pendingCafeID = cafeID; pendingAccountID = accountID }
+    func consume() { pendingCafeID = nil; pendingAccountID = nil }
+    func activate(accountID: UUID?) {
+        if pendingAccountID != accountID { consume() }
+    }
 }
 
+@MainActor
 final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
     static let shared = NearbyCafeReminderCoordinator()
     static let enabledKey = "MugshotNearbyReminders.enabled.v1"
@@ -101,15 +111,18 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
     private let manager = CLLocationManager()
     private let center = UNUserNotificationCenter.current()
     private let defaults = UserDefaults.standard
-    private let lastDailyKey = "MugshotNearbyReminders.lastDaily.v1"
-    private let lastCafeKey = "MugshotNearbyReminders.lastByCafe.v1"
+    private var accountID: UUID?
+    private var lastDailyKey: String { "MugshotNearbyReminders.lastDaily.v2.\(accountID?.uuidString ?? "guest")" }
+    private var lastCafeKey: String { "MugshotNearbyReminders.lastByCafe.v2.\(accountID?.uuidString ?? "guest")" }
+    private var ownerEnabledKey: String { "MugshotNearbyReminders.enabled.v2.\(accountID?.uuidString ?? "guest")" }
+    private var inFlightCafeIDs: Set<UUID> = []
     private var pendingAlwaysRequest = false
     private var latestCafes: [Cafe] = []
     private var isMonitoringSignificantChanges = false
 
     override init() {
         authorizationStatus = manager.authorizationStatus
-        isEnabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
+        isEnabled = false
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
@@ -125,14 +138,69 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
         }
     }
 
+    func activate(accountID owner: UUID?) {
+        guard accountID != owner else { return }
+        stopMonitoring()
+        accountID = owner
+        inFlightCafeIDs.removeAll()
+        isEnabled = owner != nil && defaults.bool(forKey: ownerEnabledKey)
+        NearbyCafeReminderRouter.shared.activate(accountID: owner)
+        // Cancel ownerless requests from the previous scheduler on upgrade and
+        // remove prior-account notifications when identity changes.
+        Task {
+            let pending = await center.pendingNotificationRequests()
+            center.removePendingNotificationRequests(withIdentifiers: pending.filter {
+                $0.identifier.hasPrefix("nearby-cafe-") || $0.identifier.hasPrefix("mugsy-nearby-")
+            }.map(\.identifier))
+            let delivered = await center.deliveredNotifications()
+            center.removeDeliveredNotifications(withIdentifiers: delivered.filter {
+                $0.request.identifier.hasPrefix("nearby-cafe-") || $0.request.identifier.hasPrefix("mugsy-nearby-")
+            }.map { $0.request.identifier })
+        }
+        if isEnabled { configure(cafes: latestCafes) }
+    }
+
+    func removeAll(accountID owner: UUID) {
+        Self.eraseAccountPreferences(accountID: owner, defaults: defaults)
+        if accountID == owner {
+            stopMonitoring()
+            accountID = nil
+            isEnabled = false
+            latestCafes = []
+            inFlightCafeIDs.removeAll()
+            NearbyCafeReminderRouter.shared.activate(accountID: nil)
+        }
+        Task {
+            let pending = await center.pendingNotificationRequests()
+            center.removePendingNotificationRequests(withIdentifiers: pending.filter {
+                ($0.content.userInfo[NearbyCafeNotificationRoute.accountIDKey] as? String)
+                    .flatMap(UUID.init(uuidString:)) == owner
+            }.map(\.identifier))
+            let delivered = await center.deliveredNotifications()
+            center.removeDeliveredNotifications(withIdentifiers: delivered.filter {
+                ($0.request.content.userInfo[NearbyCafeNotificationRoute.accountIDKey] as? String)
+                    .flatMap(UUID.init(uuidString:)) == owner
+            }.map { $0.request.identifier })
+        }
+    }
+
+    /// Kept independent of location services so ownership cleanup can be
+    /// verified without asking for access or touching monitored regions.
+    static func eraseAccountPreferences(accountID owner: UUID, defaults: UserDefaults) {
+        for prefix in ["enabled", "lastDaily", "lastByCafe"] {
+            defaults.removeObject(forKey: "MugshotNearbyReminders.\(prefix).v2.\(owner.uuidString)")
+        }
+    }
+
     func requestEnable(cafes: [Cafe]) async -> Bool {
+        guard let owner = accountID else { return false }
         let allowed = await NotificationDeviceCoordinator.shared.requestAuthorization(
             source: .nearbyReminder
         )
-        guard allowed else { return false }
+        guard allowed, accountID == owner else { return false }
         latestCafes = cafes
         isEnabled = true
-        defaults.set(true, forKey: Self.enabledKey)
+        defaults.set(true, forKey: ownerEnabledKey)
         pendingAlwaysRequest = true
         switch manager.authorizationStatus {
         case .notDetermined:
@@ -146,7 +214,7 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
         case .denied, .restricted:
             pendingAlwaysRequest = false
             isEnabled = false
-            defaults.set(false, forKey: Self.enabledKey)
+            defaults.set(false, forKey: ownerEnabledKey)
             return false
         @unknown default:
             return false
@@ -155,8 +223,9 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
     }
 
     func setEnabled(_ enabled: Bool, cafes: [Cafe]) {
+        guard accountID != nil || !enabled else { return }
         isEnabled = enabled
-        defaults.set(enabled, forKey: Self.enabledKey)
+        defaults.set(enabled, forKey: ownerEnabledKey)
         latestCafes = cafes
         if enabled, manager.authorizationStatus == .authorizedAlways {
             configure(cafes: cafes)
@@ -238,32 +307,36 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
     }
 
     private func deliverIfAllowed(cafeID: UUID) {
+        guard let owner = accountID, isEnabled, !inFlightCafeIDs.contains(cafeID) else { return }
         let now = Date()
-        let lastDaily = defaults.object(forKey: lastDailyKey) as? Date
-        let lastByCafe = storedCafeCooldowns()
-        guard NearbyReminderPolicy.canDeliver(
-            cafeID: cafeID,
-            now: now,
-            lastDailyDelivery: lastDaily,
-            lastDeliveryByCafe: lastByCafe
-        ), let cafe = DataManager.shared.getCafe(id: cafeID) else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "A saved cafe is nearby"
-        content.body = "You saved \(cafe.name)—it’s nearby."
-        content.sound = .default
-        content.userInfo = [NearbyCafeNotificationRoute.cafeIDKey: cafeID.uuidString.lowercased()]
-        center.add(UNNotificationRequest(
-            identifier: "nearby-cafe-\(cafeID.uuidString.lowercased())-\(Int(now.timeIntervalSince1970))",
-            content: content,
-            trigger: nil
-        ))
-        BatteryDiagnostics.nearbyNotificationDelivered()
-
-        defaults.set(now, forKey: lastDailyKey)
-        var updated = lastByCafe
-        updated[cafeID] = now
-        storeCafeCooldowns(updated)
+        guard NearbyReminderPolicy.canDeliver(cafeID: cafeID, now: now,
+            lastDailyDelivery: defaults.object(forKey: lastDailyKey) as? Date,
+            lastDeliveryByCafe: storedCafeCooldowns()),
+            DataManager.shared.getCafe(id: cafeID) != nil else { return }
+        inFlightCafeIDs.insert(cafeID)
+        Task { @MainActor in
+            defer { inFlightCafeIDs.remove(cafeID) }
+            guard let permit = await MugsyReminderCoordinator.shared.requestNearbyPermit(),
+                  let permitID = permit.permitID, accountID == owner, isEnabled,
+                  let expiry = permit.expiresAt, expiry > Date() else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "A saved cafe is nearby"
+            content.body = "A little discovery from your Want to Try list is close by."
+            content.interruptionLevel = .passive
+            content.userInfo = [NearbyCafeNotificationRoute.cafeIDKey: cafeID.uuidString.lowercased(),
+                                NearbyCafeNotificationRoute.accountIDKey: owner.uuidString.lowercased()]
+            do {
+                try await center.add(UNNotificationRequest(identifier: "mugsy-nearby-\(permitID.uuidString.lowercased())",
+                    content: content, trigger: nil))
+                guard accountID == owner else { return }
+                defaults.set(now, forKey: lastDailyKey)
+                var updated = storedCafeCooldowns(); updated[cafeID] = now; storeCafeCooldowns(updated)
+                BatteryDiagnostics.nearbyNotificationDelivered()
+            } catch {
+                // The granted slot stays consumed. An uncertain local enqueue
+                // must never produce a second independent delivery attempt.
+            }
+        }
     }
 
     private func storedCafeCooldowns() -> [UUID: Date] {
@@ -282,7 +355,7 @@ final class NearbyCafeReminderCoordinator: NSObject, ObservableObject {
     }
 }
 
-extension NearbyCafeReminderCoordinator: CLLocationManagerDelegate {
+extension NearbyCafeReminderCoordinator: @preconcurrency CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
         BatteryDiagnostics.locationAuthorizationChanged(manager.authorizationStatus)

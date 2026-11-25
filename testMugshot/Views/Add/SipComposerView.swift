@@ -3923,6 +3923,18 @@ struct LogVisitView: View {
         )
         try V3PublishedCompletionStore.shared.save(completionRecord)
         publishedCompletionRecord = completionRecord
+        if let owner = continuationOwnerUserID {
+            let homeAttempt = completedDraft.launchContext.homeAttemptID.flatMap { id in
+                HomeRecipeWorkspaceStore.shared.workspace.attempts.first { $0.id == id }
+            }
+            MugsyReminderCoordinator.shared.recordCompletedMemory(
+                accountID: owner,
+                memoryID: completedDraft.launchContext.homeAttemptID ?? visitID,
+                origin: completedDraft.launchContext.homeAttemptID == nil ? .canonical : .home,
+                completedAt: homeAttempt?.savedAt ?? .now,
+                linkedVisitID: completedDraft.launchContext.homeAttemptID == nil ? nil : visitID
+            )
+        }
         searchText = ""
         isCafeSearchActive = false
         confirmedTextOnlyEveryone = false

@@ -25,6 +25,7 @@ final class NotificationDeviceCoordinator: ObservableObject {
     private let clientFactory: any ActivityNotificationClientCreating
     private let defaults: UserDefaults
     private let installationID: UUID
+    var currentInstallationID: UUID { installationID }
     private let captureAnalytics: (MugshotAnalyticsEvent) -> Void
 
     private var accountID: UUID?
@@ -171,6 +172,12 @@ final class NotificationDeviceCoordinator: ObservableObject {
             // rollout is staggered. Unsupported installations are excluded by
             // the server immediately before reminder delivery.
         }
+    }
+
+    func refreshMugsyDeliveryCapability() async {
+        guard let accountID else { return }
+        try? await MugsyReminderService(client: try SupabaseClientProvider.shared.client(), accountID: accountID)
+            .capability(deviceID: installationID)
     }
 
     @discardableResult
@@ -334,6 +341,7 @@ final class NotificationDeviceCoordinator: ObservableObject {
                   accountID == activeAccountID else { return }
             setOwnershipUncertain(false)
             registrationState = .registered
+            await refreshMugsyDeliveryCapability()
             captureRegistration(.registered)
         } catch {
             guard activationID == activeActivationID,
@@ -489,13 +497,17 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         guard let userInfo = launchOptions?[.remoteNotification] as? [AnyHashable: Any] else {
             return true
         }
-        if let reflection = ReflectionPushRouteEnvelope.resolve(userInfo: userInfo) {
+        if let intent = MugsyNotificationIntent.resolve(userInfo: userInfo) {
+            Task { @MainActor in MugsyReminderCoordinator.shared.enqueue(intent) }
+        } else if userInfo["mugshot_mugsy"] != nil {
+            return true
+        } else if let reflection = ReflectionPushRouteEnvelope.resolve(userInfo: userInfo) {
             Task { @MainActor in
                 ReflectionReminderRouter.shared.enqueue(reflection)
             }
-        } else if let cafeID = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
+        } else if let nearby = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
             Task { @MainActor in
-                NearbyCafeReminderRouter.shared.enqueue(cafeID: cafeID)
+                NearbyCafeReminderRouter.shared.enqueue(cafeID: nearby.cafeID, accountID: nearby.accountID)
             }
         } else if let route = ActivityPushRouteEnvelope.resolve(userInfo: userInfo) {
             Task { @MainActor in
@@ -543,17 +555,18 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        if notification.request.content.userInfo["mugshot_mugsy"] != nil { return [] }
         if let reflection = ReflectionPushRouteEnvelope.resolve(
             userInfo: notification.request.content.userInfo
         ), await MainActor.run(body: {
             NotificationDeviceCoordinator.shared.acceptsPush(for: reflection.accountID)
         }) {
-            return [.banner, .list, .sound]
+            return []
         }
         if NearbyCafeNotificationRoute.resolve(
             userInfo: notification.request.content.userInfo
         ) != nil {
-            return [.banner, .list, .sound]
+            return []
         }
         guard let route = ActivityPushRouteEnvelope.resolve(
             userInfo: notification.request.content.userInfo
@@ -569,6 +582,11 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
         didReceive response: UNNotificationResponse
     ) async {
         let userInfo = response.notification.request.content.userInfo
+        if let intent = MugsyNotificationIntent.resolve(userInfo: userInfo) {
+            await MainActor.run { MugsyReminderCoordinator.shared.enqueue(intent) }
+            return
+        }
+        if userInfo["mugshot_mugsy"] != nil { return }
         if let reflection = ReflectionPushRouteEnvelope.resolve(userInfo: userInfo) {
             guard await MainActor.run(body: {
                 NotificationDeviceCoordinator.shared.acceptsPush(for: reflection.accountID)
@@ -578,9 +596,9 @@ final class MugshotNotificationAppDelegate: NSObject, UIApplicationDelegate, UNU
             }
             return
         }
-        if let cafeID = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
+        if let nearby = NearbyCafeNotificationRoute.resolve(userInfo: userInfo) {
             await MainActor.run {
-                NearbyCafeReminderRouter.shared.enqueue(cafeID: cafeID)
+                NearbyCafeReminderRouter.shared.enqueue(cafeID: nearby.cafeID, accountID: nearby.accountID)
             }
             return
         }

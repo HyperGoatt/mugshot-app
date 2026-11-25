@@ -2,7 +2,8 @@ export type DeliveryOutcome =
   | "succeeded"
   | "retryable"
   | "terminal"
-  | "unregistered";
+  | "unregistered"
+  | "unknown";
 
 export interface PushDelivery {
   delivery_id: string;
@@ -18,7 +19,11 @@ export interface PushDelivery {
   claim_token: string;
   lease_version: number;
   badge?: number;
-  payload_kind?: "activity" | "reflection";
+  payload_kind?: "activity" | "reflection" | "mugsy";
+  passive?: boolean;
+  asset_id?: string;
+  template_id?: string;
+  route_expires_at?: string;
   reminder_kind?: "on_this_day" | "weekly_reflection";
   collapse_id?: string;
   expires_at?: string;
@@ -224,7 +229,9 @@ export function buildAPNSPayload(
 ): Record<string, unknown> {
   const aps: Record<string, unknown> = {
     alert: { title: delivery.title, body: delivery.body },
-    sound: "default",
+    ...(delivery.passive
+      ? { "interruption-level": "passive" }
+      : { sound: "default" }),
   };
   if (
     typeof delivery.badge === "number" &&
@@ -234,6 +241,21 @@ export function buildAPNSPayload(
     aps.badge = delivery.badge;
   }
 
+  if (delivery.payload_kind === "mugsy") {
+    if (delivery.asset_id) aps["mutable-content"] = 1;
+    return {
+      aps,
+      mugshot_mugsy: {
+        version: 1,
+        recipient_id: delivery.recipient_id,
+        occurrence_id: delivery.activity_event_id,
+        deep_link: delivery.deep_link,
+        expires_at: delivery.route_expires_at,
+        ...(delivery.asset_id ? { asset_id: delivery.asset_id } : {}),
+        template_id: delivery.template_id,
+      },
+    };
+  }
   if (delivery.payload_kind === "reflection") {
     return {
       aps,
@@ -267,7 +289,7 @@ export function buildAPNSRequestHeaders(
     authorization: `bearer ${providerTokenValue}`,
     "apns-topic": target.topic,
     "apns-push-type": "alert",
-    "apns-priority": "10",
+    "apns-priority": delivery.passive ? "5" : "10",
     "apns-id": delivery.delivery_id,
     ...(delivery.collapse_id
       ? { "apns-collapse-id": delivery.collapse_id }
@@ -342,7 +364,7 @@ export async function sendAPNS(
     );
   } catch (error) {
     return {
-      outcome: "retryable",
+      outcome: delivery.payload_kind === "mugsy" ? "unknown" : "retryable",
       errorCode: error instanceof DOMException && error.name === "AbortError"
         ? "apns_timeout"
         : stableErrorCode(error, "apns_transport_failed"),

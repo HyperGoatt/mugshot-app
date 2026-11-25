@@ -36,3 +36,6 @@ verify_jwt = true
 
 [functions.friend-invite]
 verify_jwt = false
+
+[functions.deliver-mugsy]
+verify_jwt = false

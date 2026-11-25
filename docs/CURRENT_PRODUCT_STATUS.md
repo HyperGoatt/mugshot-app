@@ -1,8 +1,18 @@
 ---
 document_type: living
 status: current
-last_verified: 2026-11-24
+last_verified: 2026-11-25
 ---
+
+## Mugsy reminders — 2026-11-25 candidate
+
+The new native controls and shared optional-notification policy are implemented
+as a release candidate. Mugsy uses separate consent, reviewed copy, account-level
+pacing, private Home completion signals and exact reminder destinations. Missing
+backend support keeps delivery unavailable instead of pretending a save succeeded.
+[Current contracts, evidence, and remaining gates](MUGSY_REMINDERS.md).
+Production engagement sending remains gated by shadow observation and explicit
+launch acceptance; source presence does not establish delivery or retention lift.
 
 ## The Weekly Pour — 2026-11-24
 
