@@ -12,7 +12,11 @@ seven elapsed shadow days before `pilot` or `live`; pilot requires an allowlist.
 No TestFlight upload or production activation is part of local verification.
 
 The worker reuses the existing activity APNs credentials and its scoped request
-secret. POST requires `apikey` and `{"action":"deliver_v1","limit":25}`. GET
+secret. Admin-key resolution prefers the explicit activity-delivery label, then
+uses the shared default/named/legacy helper. Include `config.ts` and
+`../_shared/secret-key.ts` in deployment bundles as well as the transport and copy
+registry. The actual production migration is `20261125193209`; current release
+evidence is in [Mugsy reminders](../../../docs/MUGSY_REMINDERS.md). POST requires `apikey` and `{"action":"deliver_v1","limit":25}`. GET
 exposes only protocol metadata. The five-minute scheduler derives the endpoint
 from the existing validated worker URL; `off` returns before reading secrets.
 

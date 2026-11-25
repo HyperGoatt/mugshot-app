@@ -4,6 +4,15 @@ status: current
 last_verified: 2026-11-25
 ---
 
+## 2026-11-25 — Mugsy backend rollout
+
+- Deploy the reviewed Mugsy schema under its actual production migration version,
+  retaining byte-identical SQL and matching both disposable fixtures.
+- Fix hosted named-key resolution before enabling the shadow worker, reusing the
+  existing key helper while preserving the explicit delivery-key preference.
+- Record [deployment checks and observation gates](MUGSY_REMINDERS.md#backend-rollout--november-25).
+  New engagement delivery and TestFlight remain separate explicit gates.
+
 ## 2026-11-25 — Mugsy reminders and shared attention policy
 
 - Add a separately consented Mugsy reminder experience, calm native notification

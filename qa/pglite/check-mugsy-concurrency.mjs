@@ -19,7 +19,7 @@ eq((await q(a,'select current_database() as name'))[0].name,'mugsy_contracts')
 await a.query('drop schema if exists private cascade;drop schema if exists auth cascade;drop schema public cascade;create schema public;')
 const adapter={query:(...args)=>a.query(...args),exec:sql=>a.query(sql.replaceAll(/create role (anon|authenticated|service_role);/g,(_,name)=>`do $$begin if not exists(select 1 from pg_roles where rolname='${name}') then create role ${name};end if;end$$;`))}
 await createMugsyFixture(adapter)
-await a.query(await fs.readFile(new URL('../../supabase/migrations/20261125120000_mugsy_attention_policy.sql',import.meta.url),'utf8'))
+await a.query(await fs.readFile(new URL('../../supabase/migrations/20261125193209_mugsy_attention_policy.sql',import.meta.url),'utf8'))
 for(const client of [a,b])await client.query("select set_config('test.actor','',false),set_config('test.role','service_role',false)")
 await ownerClient.query("select set_config('test.actor',$1,false),set_config('test.role','authenticated',false)",[owner])
 await a.query(`insert into public.users values('${owner}');insert into public.notification_preferences values('${owner}',true);

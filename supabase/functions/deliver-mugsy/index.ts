@@ -5,6 +5,7 @@ import {
   constantTimeEqual,
 } from "../deliver-activity/worker.ts";
 import { runMugsyBatch } from "./worker.ts";
+import { getMugsyAdminKey } from "./config.ts";
 
 const protocol = "mugshot-mugsy-delivery";
 const json = (body: Record<string, unknown>, status = 200) =>
@@ -15,19 +16,6 @@ const json = (body: Record<string, unknown>, status = 200) =>
       "Cache-Control": "no-store",
     },
   });
-function adminKey(): string | null {
-  const modern = Deno.env.get("SUPABASE_SECRET_KEYS");
-  if (modern) {
-    try {
-      const keys = JSON.parse(modern) as Record<string, unknown>;
-      const key = keys["activity-delivery"] ?? keys.default;
-      return typeof key === "string" && key.length > 0 ? key : null;
-    } catch {
-      return null;
-    }
-  }
-  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
-}
 function apnsConfiguration(): APNSConfiguration | null {
   const keyID = Deno.env.get("APNS_KEY_ID"),
     teamID = Deno.env.get("APNS_TEAM_ID"),
@@ -51,7 +39,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") {
     return json({ error: "method_not_allowed" }, 405);
   }
-  const url = Deno.env.get("SUPABASE_URL"), key = adminKey();
+  const url = Deno.env.get("SUPABASE_URL"), key = getMugsyAdminKey();
   const secret = Deno.env.get("ACTIVITY_DELIVERY_WORKER_SECRET") ?? key;
   if (!url || !key || !secret) {
     return json({ error: "service_unavailable" }, 503);
